@@ -1,0 +1,109 @@
+@startuml ClassDiagram
+
+!theme plain
+skinparam classAttributeIconSize 0
+
+class Role {
+    - roleId: Integer
+    - name: String
+}
+
+class User {
+    - userId: Integer
+    - username: String
+    - email: String
+    - passwordHash: String
+}
+
+class Language {
+    - languageId: Integer
+    - code: String
+    - name: String
+}
+
+class HeritageSite {
+    - siteId: Integer
+    - name: String
+    - description: String
+    - address: String
+    - latitude: BigDecimal
+    - longitude: BigDecimal
+}
+
+class Artifact {
+    - artifactId: Integer
+    - name: String
+    - description: String
+}
+
+class Multimedia {
+    - multimediaId: Integer
+    - type: String
+    - title: String
+    - url: String
+}
+
+class ArtifactTranslation {
+    - translationId: Integer
+    - title: String
+    - description: String
+}
+
+class BeaconDeploymentLocation {
+    - locationId: Integer
+    - name: String
+    - description: String
+    - latitude: BigDecimal
+    - longitude: BigDecimal
+}
+
+class iBeacon {
+    - beaconId: Integer
+    - uuid: String
+    - major: Integer
+    - minor: Integer
+    - status: String
+}
+
+class Favorite {
+    - favoriteId: Integer
+    - createdAt: LocalDateTime
+}
+
+class VisitorInteraction {
+    - interactionId: Integer
+    - interactionType: String
+    - interactedAt: LocalDateTime
+}
+
+class Feedback {
+    - feedbackId: Integer
+    - rating: Integer
+    - comment: String
+    - status: String
+    - createdAt: LocalDateTime
+}
+
+Role "1" -- "0..*" User
+User "0..*" -- "0..1" Language
+
+HeritageSite "1" -- "0..*" Artifact
+Artifact "1" -- "0..*" Multimedia
+Artifact "1" -- "0..*" ArtifactTranslation
+Language "1" -- "0..*" ArtifactTranslation
+
+HeritageSite "1" -- "0..*" BeaconDeploymentLocation
+BeaconDeploymentLocation "1" -- "0..*" iBeacon
+Artifact "0..1" -- "0..*" iBeacon
+
+User "1" -- "0..*" Favorite
+Artifact "1" -- "0..*" Favorite
+
+User "1" -- "0..*" VisitorInteraction
+Artifact "1" -- "0..*" VisitorInteraction
+iBeacon "0..1" -- "0..*" VisitorInteraction
+
+User "1" -- "0..*" Feedback
+Artifact "1" -- "0..*" Feedback
+
+@enduml

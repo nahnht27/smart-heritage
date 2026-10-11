@@ -1,0 +1,22 @@
+@startuml Artifact Multimedia SequenceDiagram
+actor Visitor
+participant "Mobile App" as App
+participant "Backend API" as API
+
+database "PostgreSQL" as DB
+
+Visitor -> App: Request artifact multimedia
+
+App -> API: GET /api/artifacts/{artifactId}/multimedia
+
+API -> DB: Retrieve Multimedia resources
+DB --> API: Multimedia data
+
+API --> App: Multimedia response
+
+App --> Visitor: Display multimedia content
+
+@enduml
+
+
+
