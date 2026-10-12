@@ -19,6 +19,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # Node / React Native / React
+# Node/NPM
 node_modules/
 dist/
 build/
@@ -53,6 +54,18 @@ backend/build/
 backend/.gradle/
 backend/bin/
 backend/out/
+
+# Expo / React Native
+.expo/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Java / Spring Boot
+target/
 *.class
 *.jar
 *.war
@@ -64,3 +77,16 @@ backend/logs/
 **/.env
 **/build/
 **/target/
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Env variables
+.env
+.env.local
+.env.*.local

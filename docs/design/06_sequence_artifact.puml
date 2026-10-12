@@ -1,0 +1,25 @@
+@startuml Artifact SequenceDiagram
+actor Visitor
+participant "Mobile App" as App
+participant "Backend API" as API
+participant "iBeacon" as Beacon
+database "PostgreSQL" as DB
+
+Beacon -> App: Emit BLE signal
+App -> API: Send beacon information
+
+API -> DB: Resolve iBeacon and deployment location
+DB --> API: Beacon and location data
+
+API -> DB: Retrieve assigned Artifact
+DB --> API: Artifact data
+
+API --> App: Artifact information
+
+App --> Visitor: Display artifact information
+
+API -> DB: Record VisitorInteraction
+DB --> API: Interaction recorded
+
+@enduml
+

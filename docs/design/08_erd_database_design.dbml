@@ -1,0 +1,121 @@
+Table Role {
+  role_id int [pk, increment]
+  name varchar(50) [not null, unique]
+}
+
+Table Language {
+  language_id int [pk, increment]
+  code varchar(10) [not null, unique]
+  name varchar(100) [not null]
+}
+
+Table User {
+  user_id int [pk, increment]
+  role_id int [not null]
+  preferred_language_id int
+  username varchar(100) [not null, unique]
+  email varchar(255) [not null, unique]
+  password_hash varchar(255) [not null]
+}
+
+Table HeritageSite {
+  site_id int [pk, increment]
+  name varchar(255) [not null]
+  description text
+  address varchar(500)
+  latitude decimal(9,6)
+  longitude decimal(9,6)
+}
+
+Table Artifact {
+  artifact_id int [pk, increment]
+  site_id int [not null]
+  name varchar(255) [not null]
+  description text
+}
+
+Table Multimedia {
+  multimedia_id int [pk, increment]
+  artifact_id int [not null]
+  type varchar(20) [not null]
+  title varchar(255)
+  url text [not null]
+}
+
+Table ArtifactTranslation {
+  translation_id int [pk, increment]
+  artifact_id int [not null]
+  language_id int [not null]
+  title varchar(255) [not null]
+  description text
+
+  indexes {
+    (artifact_id, language_id) [unique]
+  }
+}
+
+Table BeaconDeploymentLocation {
+  location_id int [pk, increment]
+  site_id int [not null]
+  name varchar(255) [not null]
+  description text
+  latitude decimal(9,6)
+  longitude decimal(9,6)
+}
+
+Table iBeacon {
+  beacon_id int [pk, increment]
+  location_id int [not null]
+  artifact_id int
+  uuid varchar(100) [not null]
+  major int [not null]
+  minor int [not null]
+  status varchar(30) [not null]
+}
+
+Table Favorite {
+  favorite_id int [pk, increment]
+  user_id int [not null]
+  artifact_id int [not null]
+  created_at timestamp [not null]
+
+  indexes {
+    (user_id, artifact_id) [unique]
+  }
+}
+
+Table VisitorInteraction {
+  interaction_id int [pk, increment]
+  user_id int [not null]
+  artifact_id int [not null]
+  beacon_id int
+  interaction_type varchar(50) [not null]
+  interacted_at timestamp [not null]
+}
+
+Table Feedback {
+  feedback_id int [pk, increment]
+  user_id int [not null]
+  artifact_id int [not null]
+  rating int [not null]
+  comment text
+  status varchar(30) [not null]
+  created_at timestamp [not null]
+}
+
+Ref: Role.role_id < User.role_id
+Ref: Language.language_id < User.preferred_language_id
+Ref: HeritageSite.site_id < Artifact.site_id
+Ref: Artifact.artifact_id < Multimedia.artifact_id
+Ref: Artifact.artifact_id < ArtifactTranslation.artifact_id
+Ref: Language.language_id < ArtifactTranslation.language_id
+Ref: HeritageSite.site_id < BeaconDeploymentLocation.site_id
+Ref: BeaconDeploymentLocation.location_id < iBeacon.location_id
+Ref: Artifact.artifact_id < iBeacon.artifact_id
+Ref: User.user_id < Favorite.user_id
+Ref: Artifact.artifact_id < Favorite.artifact_id
+Ref: User.user_id < VisitorInteraction.user_id
+Ref: Artifact.artifact_id < VisitorInteraction.artifact_id
+Ref: iBeacon.beacon_id < VisitorInteraction.beacon_id
+Ref: User.user_id < Feedback.user_id
+Ref: Artifact.artifact_id < Feedback.artifact_id

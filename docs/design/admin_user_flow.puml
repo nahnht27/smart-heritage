@@ -1,0 +1,75 @@
+
+@startuml
+title Admin User Flow
+
+start
+
+:Display Login Page;
+:Enter Login Credentials;
+:Submit Login;
+
+while (Login successful?) is (No)
+    :Display Login Error;
+    :Enter Login Credentials;
+    :Submit Login;
+endwhile (Yes)
+
+:Dashboard;
+
+while (Admin is logged in?) is (Yes)
+    :Admin Menu;
+    :Select Admin Function;
+
+    switch (Selected function?)
+
+    case (Dashboard)
+        :View Dashboard;
+
+    case (Heritage Site Management)
+        :View / Search Sites;
+        :Create / Update / Delete Site;
+
+    case (Artifact Management)
+        :View / Search Artifacts;
+        :Create / Update / Delete Artifact;
+
+    case (Multimedia Management)
+        :View Multimedia;
+        :Upload / Update / Delete Multimedia;
+
+    case (Beacon Management)
+        :View / Search Beacons;
+        :Register / Update / Delete Beacon;
+        :Configure Beacon;
+        :Assign Beacon to Site / Artifact;
+
+    case (Beacon Deployment Location Management)
+        :View / Update Deployment Location on Map;
+
+    case (Translation Management)
+        :View Translations;
+        :Create / Update / Delete Translation;
+
+    case (Feedback Management)
+        :View Feedback;
+        :Moderate Feedback;
+
+    case (Analytics Dashboard)
+        :View Analytics Dashboard;
+        :View Visitor / Artifact / Interaction / Language / Engagement / Feedback Statistics;
+
+        case (Report Overview)
+        :View Report Overview;
+        :Select Date Range and Format;
+        :Export Statistical Report;
+
+        case (Logout)
+        :Admin Logout;
+        :Redirect to Login Page;
+        stop
+
+    endswitch
+endwhile (No)
+
+stop
+@enduml

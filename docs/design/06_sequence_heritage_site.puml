@@ -1,0 +1,17 @@
+@startuml Heritage_Site SequenceDiagram
+actor Visitor
+participant "Mobile App" as App
+participant "Backend API" as API
+database "PostgreSQL" as DB
+
+Visitor -> App: Request heritage site information
+
+App -> API: GET /api/heritage-sites/{siteId}
+
+API -> DB: Retrieve HeritageSite by siteId
+DB --> API: HeritageSite data
+
+API --> App: Heritage site response
+
+App --> Visitor: Display heritage site information
+@enduml
