@@ -13,7 +13,7 @@ spring:
   # ===== JPA / Hibernate =====
   jpa:
     hibernate:
-      ddl-auto: update          # dev only — đổi sang 'validate' hoặc dùng Flyway khi production
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -22,3 +22,9 @@ spring:
 
 server:
   port: 8080
+
+# ===== JWT Configuration =====
+app:
+  jwt:
+    secret: ${JWT_SECRET:SmartHeritageDevSecretKeyThatIsAtLeast256BitsLong!2024}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
