@@ -1,6 +1,8 @@
 
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { login } from '../services/authService'
+import { ApiError } from '../services/apiClient'
 import './LoginPage.css'
 
 export default function LoginPage() {
@@ -13,6 +15,7 @@ export default function LoginPage() {
     password?: string
   }>({})
   const [message, setMessage] = useState('')
+  const [isSuccess, setIsSuccess] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -31,18 +34,45 @@ export default function LoginPage() {
 
     setErrors(nextErrors)
     setMessage('')
+    setIsSuccess(false)
 
     if (Object.keys(nextErrors).length > 0) return
 
     setIsSubmitting(true)
 
     try {
-      // Temporary UI demonstration until the shared Auth API is ready.
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      const result = await login({
+        username: username.trim(),
+        password,
+      })
 
-      setMessage(
-        'Login UI is ready, but authentication is not connected yet.',
-      )
+      if (result.user.role?.toUpperCase() !== 'ADMIN') {
+        setMessage(
+          'Access denied. An administrator account is required.',
+        )
+        return
+      }
+
+      // Authentication succeeded. Session storage and navigation
+      // should be handled by the application's auth/routing layer.
+      setIsSuccess(true)
+      setMessage('Login successful.')
+    } catch (error: unknown) {
+      if (error instanceof ApiError) {
+        if (error.status === 0) {
+          setMessage(
+            'Cannot connect to the server. Please try again later.',
+          )
+        } else if (error.status === 401) {
+          setMessage('Invalid username or password.')
+        } else if (error.status === 403) {
+          setMessage('Access denied. You do not have permission to sign in.')
+        } else {
+          setMessage(error.message || 'Login failed. Please try again.')
+        }
+      } else {
+        setMessage('An unexpected error occurred. Please try again.')
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -52,7 +82,9 @@ export default function LoginPage() {
     <main className="login-page">
       <section className="login-card">
         <p className="form-eyebrow">ADMINISTRATION</p>
+
         <h1>Welcome back</h1>
+
         <p className="login-description">
           Sign in to manage heritage sites and cultural artifacts.
         </p>
@@ -60,6 +92,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} noValidate>
           <div className="login-field">
             <label htmlFor="username">Username</label>
+
             <input
               id="username"
               name="username"
@@ -75,14 +108,21 @@ export default function LoginPage() {
                   username: undefined,
                 }))
                 setMessage('')
+                setIsSuccess(false)
               }}
               aria-invalid={Boolean(errors.username)}
               aria-describedby={
                 errors.username ? 'username-error' : undefined
               }
+              required
             />
+
             {errors.username && (
-              <small id="username-error" className="field-error" role="alert">
+              <small
+                id="username-error"
+                className="field-error"
+                role="alert"
+              >
                 {errors.username}
               </small>
             )}
@@ -90,6 +130,7 @@ export default function LoginPage() {
 
           <div className="login-field">
             <label htmlFor="password">Password</label>
+
             <div className="password-input-wrapper">
               <input
                 id="password"
@@ -106,11 +147,13 @@ export default function LoginPage() {
                     password: undefined,
                   }))
                   setMessage('')
+                  setIsSuccess(false)
                 }}
                 aria-invalid={Boolean(errors.password)}
                 aria-describedby={
                   errors.password ? 'password-error' : undefined
                 }
+                required
               />
 
               <button
@@ -122,7 +165,11 @@ export default function LoginPage() {
                 disabled={isSubmitting}
               >
                 {showPassword ? (
-                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
                     <path
                       d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.2A10.8 10.8 0 0112 5c5 0 8.5 4.5 9 7-.2 1.1-1.2 2.7-2.8 4M6.2 6.2C3.8 7.8 2.3 10.4 2 12c.5 2.5 4 7 10 7 1.1 0 2.1-.2 3-.5"
                       stroke="currentColor"
@@ -132,7 +179,11 @@ export default function LoginPage() {
                     />
                   </svg>
                 ) : (
-                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
                     <path
                       d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
                       stroke="currentColor"
@@ -153,14 +204,21 @@ export default function LoginPage() {
             </div>
 
             {errors.password && (
-              <small id="password-error" className="field-error" role="alert">
+              <small
+                id="password-error"
+                className="field-error"
+                role="alert"
+              >
                 {errors.password}
               </small>
             )}
           </div>
 
           {message && (
-            <p className="login-message" role="status">
+            <p
+              className="login-message"
+              role={isSuccess ? 'status' : 'alert'}
+            >
               {message}
             </p>
           )}
@@ -172,7 +230,9 @@ export default function LoginPage() {
             aria-busy={isSubmitting}
           >
             <span>{isSubmitting ? 'Signing in...' : 'Sign In'}</span>
-            <span aria-hidden="true">{isSubmitting ? '…' : '→'}</span>
+            <span aria-hidden="true">
+              {isSubmitting ? '…' : '→'}
+            </span>
           </button>
         </form>
 
@@ -181,7 +241,9 @@ export default function LoginPage() {
           Authorized administrators only
         </p>
 
-        <p className="login-footer">© Smart Heritage Administration</p>
+        <p className="login-footer">
+          © Smart Heritage Administration
+        </p>
       </section>
     </main>
   )
