@@ -6,9 +6,10 @@ WORKDIR /app
 COPY pom.xml .
 RUN mvn dependency:resolve -B
 
-# Copy source and build
+# Copy source and build (run automated tests in the Maven build stage;
+# production runtime stage stays a JRE image without Maven)
 COPY src ./src
-RUN mvn package -DskipTests -B
+RUN mvn package -B
 
 # ---- Stage 2: Run ----
 FROM eclipse-temurin:17-jre
