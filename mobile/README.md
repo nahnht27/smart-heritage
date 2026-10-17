@@ -1,56 +1,107 @@
-# Welcome to your Expo app 👋
+# Smart Heritage — Visitor Mobile App (React Native & Expo)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Ứng dụng di động dành cho khách tham quan (Visitor App) thuộc hệ thống **Smart Heritage**, xây dựng bằng **React Native** kết hợp **Expo Router**.
 
-## Get started
+---
 
-1. Install dependencies
+## 1. Yêu cầu hệ thống
 
-   ```bash
-   npm install
-   ```
+- **Node.js**: phiên bản `>= 18.x`
+- **npm** hoặc **yarn**
+- **Expo Go** (trên điện thoại vật lý) hoặc **Android Studio Emulator** / **iOS Simulator**
 
-2. Start the app
+---
 
-   ```bash
-   npx expo start
-   ```
+## 2. Cài đặt & Cấu hình
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### Bước 1: Cài đặt dependencies
 
 ```bash
-npm run reset-project
+cd mobile
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Bước 2: Cấu hình biến môi trường
 
-### Other setup steps
+Sao chép file `.env.example` thành `.env`:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+cp .env.example .env
+```
 
-## Learn more
+Nội dung `.env` mẫu:
 
-To learn more about developing your project with Expo, look at the following resources:
+```env
+# Backend API Base URL
+# - Trình duyệt Web / iOS Simulator: http://localhost:8080/api/v1
+# - Android Emulator:                http://10.0.2.2:8080/api/v1
+# - Thiết bị thật qua Wi-Fi nội bộ:  http://<IP_MAY_TINH>:8080/api/v1
+EXPO_PUBLIC_API_BASE_URL=http://localhost:8080/api/v1
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+> **Lưu ý**: Các biến bắt đầu bằng `EXPO_PUBLIC_` sẽ tự động được Expo nhúng vào mã nguồn client khi chạy. Không lưu trữ secret/password cá nhân trong file này.
 
-## Join the community
+---
 
-Join our community of developers creating universal apps.
+## 3. Khởi chạy ứng dụng
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Chạy lệnh start để mở Expo CLI:
+
+```bash
+npm start
+```
+
+Tại giao diện terminal của Expo:
+- Nhấn phím `w` để mở giao diện Web trên trình duyệt.
+- Nhấn phím `a` để mở trên Android Emulator (nếu đang chạy).
+- Nhấn phím `i` để mở trên iOS Simulator (trên máy macOS).
+- Hoặc dùng ứng dụng **Expo Go** trên điện thoại để quét mã QR xuất hiện trên màn hình terminal.
+
+---
+
+## 4. Cấu trúc thư mục
+
+```
+mobile/
+├── .env.example              # File cấu hình biến môi trường mẫu
+├── app.json                  # Cấu hình Expo project
+├── package.json              # Danh sách thư viện phụ thuộc
+├── tsconfig.json             # Cấu hình TypeScript
+└── src/
+    ├── app/                  # File-based routing (Expo Router)
+    │   ├── _layout.tsx       # Khung điều hướng chung (Navigation Stack)
+    │   ├── index.tsx         # Màn hình Đăng nhập (Login Screen)
+    │   ├── home.tsx          # Màn hình Trang chủ (Visitor Landing Page)
+    │   ├── artifact_list.tsx # Danh sách hiện vật
+    │   ├── artifact_detail.tsx # Chi tiết hiện vật
+    │   ├── map.tsx           # Bản đồ số khu di sản
+    │   ├── favorite.tsx      # Hiện vật yêu thích & Lịch sử tham quan
+    │   └── feedback.tsx      # Đánh giá & Góp ý
+    ├── services/
+    │   ├── api.ts            # Reusable API Client module (fetch wrapper, timeout, auth)
+    │   └── mockData.ts       # Dữ liệu mẫu (tách biệt rõ ràng với API thật)
+    ├── components/           # Các component UI tái sử dụng
+    └── constants/            # Định nghĩa theme, màu sắc
+```
+
+---
+
+## 5. Luồng điều hướng (Navigation Skeleton)
+
+```
+[Màn hình Đăng nhập (index)]
+          │ (Đăng nhập / Khám phá ngay)
+          ▼
+ [Trang chủ Di sản (home)]
+   ├──> Danh sách hiện vật (artifact_list) ──> Chi tiết hiện vật (artifact_detail)
+   ├──> Bản đồ khu di sản (map)
+   ├──> Yêu thích & Lịch sử (favorite)
+   └──> Đánh giá & Góp ý (feedback)
+```
+
+---
+
+## 6. Ghi chú về Mock Data & API Backend
+
+- Mọi dữ liệu mẫu cho hiện vật, khu di sản đều được tập trung trong file `src/services/mockData.ts`.
+- Khi các API của Backend sẵn sàng, chỉ cần gọi thông qua `apiClient` từ `src/services/api.ts` mà không cần sửa cấu trúc navigation.
