@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';

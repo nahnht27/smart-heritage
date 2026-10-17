@@ -29,6 +29,7 @@ export interface ApiResponse<T> {
   data: T | null;
   error: string | null;
   status: number;
+  ok: boolean;
 }
 
 export interface RequestOptions extends RequestInit {
@@ -82,6 +83,7 @@ export async function apiRequest<T = any>(
         data: null,
         error: (data as any)?.message || `HTTP error ${response.status}`,
         status: response.status,
+        ok: false,
       };
     }
 
@@ -89,6 +91,7 @@ export async function apiRequest<T = any>(
       data,
       error: null,
       status: response.status,
+      ok: true,
     };
   } catch (err: any) {
     clearTimeout(timeoutId);
@@ -97,12 +100,14 @@ export async function apiRequest<T = any>(
         data: null,
         error: 'Request timed out. Please check your network connection.',
         status: 408,
+        ok: false,
       };
     }
     return {
       data: null,
       error: err.message || 'Network error occurred',
       status: 0,
+      ok: false,
     };
   }
 }

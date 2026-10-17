@@ -5,11 +5,12 @@
  * so authenticated requests to protected endpoints (e.g. `GET /api/users/me`)
  * can include the Bearer token.
  *
- * Uses React Native AsyncStorage (built-in, no extra dependency).
+ * Uses @react-native-async-storage/async-storage (Expo SDK 57 / RN 0.86 compatible,
+ * AsyncStorage is no longer exported from 'react-native' core).
  * Token is cleared on logout or explicit sign-out.
  */
 
-import { AsyncStorage } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const TOKEN_KEY = '@smart_heritage:access_token';
 
