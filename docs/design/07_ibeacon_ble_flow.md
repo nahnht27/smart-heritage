@@ -14,8 +14,17 @@ cách phát hiện beacon, ánh xạ beacon → hiện vật, cơ chế trigger 
   - `Minor`: Định danh phòng trưng bày / khu vực cụ thể.
 
 ### Thư viện React Native đề xuất
-- [`react-native-ibeacon`](https://github.com/lg-labs-pentagon/react-native-ibeacon) hoặc **Expo + `expo-location` + `@rnmapbox/maps`** kết hợp với thư viện BLE natively.
-- Khuyến nghị: **`react-native-ble-plx`** (Android + iOS) hoặc **`react-native-beacon-ranger`**.
+
+> ⚠️ **Lưu ý về `react-native-ble-plx`**: README chính thức của thư viện nêu rõ **không hỗ trợ iBeacon như một chức năng chuyên biệt**. Thư viện này chỉ cung cấp raw BLE scanning; để đọc advertisement packet theo định dạng iBeacon (UUID + Major + Minor), cần tự parse manufacturer data ở tầng native — chưa được xác minh trên thiết bị thật. Không nên coi đây là lựa chọn mặc định.
+
+| Thư viện | Platform | Hỗ trợ iBeacon | Ghi chú |
+|---|---|---|---|
+| [`react-native-ibeacon`](https://github.com/lg-labs-pentagon/react-native-ibeacon) | iOS | ✅ Native (CoreLocation) | Chỉ iOS; cần xác minh Android |
+| [`react-native-beacons-manager`](https://github.com/MacKentoch/react-native-beacons-manager) | iOS + Android | ✅ | Hỗ trợ AltBeacon/iBeacon, **cần native build** (không chạy trên Expo Go) |
+| [`react-native-ble-plx`](https://github.com/dotintent/react-native-ble-plx) | iOS + Android | ⚠️ Không trực tiếp | Raw BLE scan; cần tự parse iBeacon advertisement; **chưa xác minh trên thiết bị thật** |
+| Expo `expo-location` | iOS + Android | ❌ | Chỉ GPS/geofence; không scan BLE beacon |
+
+**Khuyến nghị Sprint 2**: Ưu tiên `react-native-beacons-manager` (đã xác nhận hỗ trợ iBeacon trên cả hai platform). Bắt buộc dùng **Expo Development Build** (không dùng Expo Go) vì các thư viện này yêu cầu native module.
 
 ### Luồng phát hiện
 
@@ -141,45 +150,59 @@ stateDiagram-v2
     [*] --> OutOfRange: Khởi động
     OutOfRange --> Entering: RSSI vượt ngưỡng lần đầu
     Entering --> InRange: Ổn định 2 giây liên tiếp
+    Entering --> OutOfRange: Tín hiệu mất ổn định
     InRange --> Notified: Hiển thị thông báo + ghi log
-    Notified --> Cooldown: Bắt đầu cooldown (5 phút)
-    Cooldown --> Notified: Vẫn trong vùng sau cooldown
+    Notified --> OutOfRange: RSSI dưới ngưỡng liên tiếp 3 giây
     InRange --> OutOfRange: RSSI dưới ngưỡng liên tiếp 3 giây
-    Cooldown --> OutOfRange: RSSI dưới ngưỡng
-    OutOfRange --> Entering: RSSI vượt ngưỡng trở lại (reset hoàn toàn)
+    OutOfRange --> Entering: RSSI vượt ngưỡng trở lại → reset hoàn toàn → trigger lại
 ```
+
+> **Quyết định thiết kế**: Trigger lại **chỉ khi người dùng rời vùng rồi đi vào lại** (OutOfRange → Entering → InRange → Notified). **Không** trigger lại dựa trên thời gian cooldown khi vẫn đứng yên trong vùng beacon. Điều này đảm bảo thông báo luôn gắn với hành động di chuyển thực tế của người dùng.
 
 ### Chi tiết cơ chế
 
 | Cơ chế | Mô tả |
 |---|---|
 | **Debounce Entry** | Phải nhận RSSI ≥ ngưỡng liên tiếp trong **2 giây** mới tính là "Vào vùng". Tránh trigger nhầm do tín hiệu dao động. |
-| **Cooldown Timer** | Sau khi đã hiển thị thông báo cho một beacon cụ thể (theo `minor`), đặt cooldown **5 phút**. Trong thời gian này, cùng beacon đó không trigger thêm lần nào nữa. |
-| **Exit Detection** | Phải nhận RSSI < ngưỡng liên tiếp trong **3 giây** mới tính là "Ra khỏi vùng". Khi ra khỏi vùng + cooldown hết = reset hoàn toàn, lần vào vùng tiếp theo sẽ trigger lại bình thường. |
-| **Local State Map** | Dùng một `Map<minor, { state, lastNotifiedAt }>` lưu trong bộ nhớ (React state / Zustand) để theo dõi trạng thái của từng beacon. |
+| **Exit Detection** | Phải nhận RSSI < ngưỡng liên tiếp trong **3 giây** mới tính là "Ra khỏi vùng". Khi ra khỏi vùng, state reset hoàn toàn — lần vào vùng tiếp theo sẽ trigger lại bình thường. |
+| **Trigger chỉ khi vào lại** | Không trigger lại nếu người dùng vẫn đứng yên trong vùng beacon. Phải **rời khỏi vùng rồi vào lại** mới trigger thêm một lần. Loại bỏ cơ chế cooldown timer độc lập. |
+| **Composite State Key** | Dùng `Map<"UUID:major:minor", { state, notifiedAt }>` — khóa là tổ hợp `UUID + major + minor` để tránh xung đột giữa các beacon từ hệ thống khác nhau hoặc cùng minor ở các khu di sản khác nhau. |
 
 ### Ví dụ code logic (pseudo-code)
 
 ```typescript
 const RSSI_THRESHOLD = -75;
-const COOLDOWN_MS = 5 * 60 * 1000; // 5 phút
-const DEBOUNCE_ENTRY_MS = 2000;
-const DEBOUNCE_EXIT_MS = 3000;
+const DEBOUNCE_ENTRY_MS = 2000;  // 2 giây ổn định → vào vùng
+const DEBOUNCE_EXIT_MS = 3000;   // 3 giây dưới ngưỡng → ra khỏi vùng
+
+// Khóa trạng thái: UUID + major + minor (tránh xung đột giữa các beacon)
+type BeaconKey = `${string}:${number}:${number}`;
+
+function makeKey(beacon: Beacon): BeaconKey {
+  return `${beacon.uuid}:${beacon.major}:${beacon.minor}`;
+}
 
 function onBeaconDetected(beacon: Beacon) {
-  const { minor, rssi } = beacon;
-  const state = beaconStateMap.get(minor);
+  const { uuid, major, minor, rssi } = beacon;
+  const key = makeKey(beacon); // "UUID:major:minor"
+  const state = beaconStateMap.get(key);
 
   if (rssi >= RSSI_THRESHOLD) {
     // Người dùng đang đến gần
+    // Chỉ trigger nếu state là FRESH (chưa từng notify hoặc đã reset sau khi exit)
     if (state?.status === 'NOTIFIED') {
-      const elapsed = Date.now() - state.lastNotifiedAt;
-      if (elapsed < COOLDOWN_MS) return; // Còn trong cooldown -> bỏ qua
+      // Vẫn đứng trong vùng sau khi đã notify → bỏ qua, không trigger lại
+      return;
     }
-    debounceEntry(minor, () => triggerNotification(minor));
+    debounceEntry(key, () => triggerNotification(key, { uuid, major, minor }));
   } else {
-    // Người dùng đang đi xa
-    debounceExit(minor, () => resetBeaconState(minor));
+    // Người dùng đang đi xa → reset state để lần vào tiếp theo trigger lại
+    debounceExit(key, () => resetBeaconState(key));
   }
+}
+
+function resetBeaconState(key: BeaconKey) {
+  // Xóa hoàn toàn state → beacon này sẽ trigger lại khi người dùng vào vùng lần tiếp theo
+  beaconStateMap.delete(key);
 }
 ```

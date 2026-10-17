@@ -38,8 +38,11 @@ GET /api/v1/artifacts/by-beacon
 
 | Tham số | Kiểu | Bắt buộc | Mô tả |
 |---|---|---|---|
+| `uuid` | string | ✅ | UUID của beacon (nhận dạng hệ thống) |
 | `major` | int | ✅ | Major ID của beacon (định danh Heritage Site) |
 | `minor` | int | ✅ | Minor ID của beacon (định danh Artifact) |
+
+> **Lý do bổ sung `uuid`**: Khóa tra cứu beacon phải là tổ hợp `UUID + major + minor` — nhất quán với logic duplicate-prevention phía Mobile. Dùng chỉ `major + minor` có thể xảy ra xung đột nếu nhiều hệ thống cùng triển khai beacon có giá trị minor trùng nhau.
 
 **Response `200 OK`:**
 ```json
@@ -124,21 +127,27 @@ DELETE /api/v1/admin/beacons/{beaconId}
 
 Ghi nhận mỗi lần Visitor tương tác với hệ thống (được trigger bởi Beacon hoặc thao tác thủ công).
 
-### 2.1 Ghi nhận tương tác
+### 2.1 Bắt đầu tương tác (BEACON_TRIGGER / MANUAL_VIEW)
 
 ```
 POST /api/v1/visitor-interactions
 ```
+
+**Mô tả**: Gọi khi người dùng bước vào vùng beacon hoặc chủ động mở màn hình hiện vật. Ghi nhận `startedAt` và trả về `interactionId` để dùng khi kết thúc tương tác.
 
 **Request body:**
 ```json
 {
   "artifactId": 101,
   "interactionType": "BEACON_TRIGGER",
+  "beaconUuid": "E2C56DB5-DFFB-48D2-B060-D0F5A71096E0",
+  "beaconMajor": 1,
   "beaconMinor": 101,
-  "durationSeconds": null
+  "startedAt": "2026-10-09T14:30:00Z"
 }
 ```
+
+> **Khi nào gọi**: Ngay khi In-App Banner được hiển thị (BEACON_TRIGGER) hoặc khi người dùng điều hướng đến ArtifactDetail (MANUAL_VIEW).
 
 **`interactionType` enum:**
 
@@ -153,7 +162,36 @@ POST /api/v1/visitor-interactions
 ```json
 {
   "interactionId": 5021,
-  "message": "Interaction recorded"
+  "message": "Interaction started"
+}
+```
+
+---
+
+### 2.2 Ghi nhận thời lượng xem (kết thúc tương tác)
+
+```
+PATCH /api/v1/visitor-interactions/{interactionId}/end
+```
+
+**Mô tả**: Gọi khi người dùng rời khỏi màn hình ArtifactDetail (onUnmount / background) để ghi nhận thời gian thực tế xem nội dung. M5/Analytics dùng `durationSeconds` này tính avg dwell time.
+
+**Request body:**
+```json
+{
+  "endedAt": "2026-10-09T14:32:07Z",
+  "durationSeconds": 127
+}
+```
+
+> **Lưu ý**: `durationSeconds` = `endedAt - startedAt`. Mobile tự tính rồi gửi lên; Backend có thể xác minh lại so với `startedAt` đã lưu. Nếu app bị kill giữa chừng, gọi endpoint này từ `onAppStateChange` (background) với dỏ liệu best-effort.
+
+**Response `200 OK`:**
+```json
+{
+  "interactionId": 5021,
+  "durationSeconds": 127,
+  "message": "Interaction completed"
 }
 ```
 
@@ -304,16 +342,19 @@ DELETE /api/v1/me/favorites/{artifactId}
 
 | Method | Endpoint | Auth | Mô tả |
 |---|---|---|---|
-| `GET` | `/artifacts/by-beacon` | ✅ | Lấy artifact theo beacon signal |
-| `GET` | `/admin/beacons` | Admin | Danh sách beacon |
-| `POST` | `/admin/beacons` | Admin | Tạo beacon mới |
-| `PUT` | `/admin/beacons/{id}` | Admin | Cập nhật beacon |
-| `DELETE` | `/admin/beacons/{id}` | Admin | Xóa beacon |
-| `POST` | `/visitor-interactions` | ✅ | Ghi nhận tương tác |
-| `GET` | `/admin/interactions` | Admin | Thống kê tương tác |
-| `GET` | `/me/history` | ✅ | Lịch sử tham quan |
-| `DELETE` | `/me/history/{id}` | ✅ | Xóa 1 mục lịch sử |
-| `DELETE` | `/me/history` | ✅ | Xóa toàn bộ lịch sử |
-| `GET` | `/me/favorites` | ✅ | Danh sách yêu thích |
-| `POST` | `/me/favorites` | ✅ | Thêm yêu thích |
-| `DELETE` | `/me/favorites/{artifactId}` | ✅ | Xóa yêu thích |
+| `GET` | `/api/v1/artifacts/by-beacon` | ✅ | Lấy artifact theo beacon signal (uuid+major+minor) |
+| `GET` | `/api/v1/admin/beacons` | Admin | Danh sách beacon |
+| `POST` | `/api/v1/admin/beacons` | Admin | Tạo beacon mới |
+| `PUT` | `/api/v1/admin/beacons/{id}` | Admin | Cập nhật beacon |
+| `DELETE` | `/api/v1/admin/beacons/{id}` | Admin | Xóa beacon |
+| `POST` | `/api/v1/visitor-interactions` | ✅ | Bắt đầu tương tác, lấy `interactionId` |
+| `PATCH` | `/api/v1/visitor-interactions/{id}/end` | ✅ | Kết thúc tương tác, ghi `durationSeconds` |
+| `GET` | `/api/v1/admin/interactions` | Admin | Thống kê tương tác (Analytics) |
+| `GET` | `/api/v1/me/history` | ✅ | Lịch sử tham quan |
+| `DELETE` | `/api/v1/me/history/{id}` | ✅ | Xóa 1 mục lịch sử |
+| `DELETE` | `/api/v1/me/history` | ✅ | Xóa toàn bộ lịch sử |
+| `GET` | `/api/v1/me/favorites` | ✅ | Danh sách yêu thích |
+| `POST` | `/api/v1/me/favorites` | ✅ | Thêm yêu thích |
+| `DELETE` | `/api/v1/me/favorites/{artifactId}` | ✅ | Xóa yêu thích |
+
+> **Quy ước URL**: Tất cả endpoint tuân theo prefix `/api/v1/` thống nhất với M2/M4/M5. Admin-only endpoint đặt dưới `/api/v1/admin/`. Endpoint của Visitor đặt dưới `/api/v1/me/` (cá nhân hóa) hoặc `/api/v1/` (tài nguyên chung).
