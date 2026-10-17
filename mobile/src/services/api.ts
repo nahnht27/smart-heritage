@@ -2,9 +2,10 @@
  * Smart Heritage - Reusable API Client Service
  *
  * Configured according to Sprint 2 requirements:
- * - Reads base URL from EXPO_PUBLIC_API_BASE_URL (defaults to localhost:8080/api/v1).
+ * - Reads base URL from EXPO_PUBLIC_API_BASE_URL (defaults to localhost:8080/api).
+ * - Backend M1 prefix is `/api` (NOT `/api/v1`).
  * - No hardcoded secrets, tokens, or developer-specific IP addresses.
- * - Supports token authorization headers for future JWT authentication.
+ * - Supports token authorization headers for JWT authentication.
  * - Handles request timeouts and error normalization.
  */
 
@@ -13,11 +14,12 @@ import { Platform } from 'react-native';
 // Resolve default host based on platform for convenient local development:
 // - Android Emulator uses 10.0.2.2 to access host machine
 // - Web / iOS Simulator uses localhost
+// - Physical device needs LAN IP of the machine running backend via EXPO_PUBLIC_API_BASE_URL
 const getDefaultBaseUrl = (): string => {
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:8080/api/v1';
+    return 'http://10.0.2.2:8080/api';
   }
-  return 'http://localhost:8080/api/v1';
+  return 'http://localhost:8080/api';
 };
 
 export const API_BASE_URL =

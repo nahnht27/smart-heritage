@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,14 +6,80 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MOCK_HERITAGE_SITE, MOCK_ARTIFACTS } from '../services/mockData';
+import { apiClient } from '../services/api';
+import { authStorage } from '../services/authStorage';
 
 export default function HomeScreen() {
   const router = useRouter();
   const site = MOCK_HERITAGE_SITE;
   const featuredArtifacts = MOCK_ARTIFACTS.filter((art) => art.isFeatured);
+
+  // Auth state (populated from backend M1: GET /api/users/me)
+  const [user, setUser] = useState<{
+    userId: number;
+    username: string;
+    email: string;
+    role: string;
+    preferredLanguageId: number | null;
+  } | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadProfile = async () => {
+      const token = await authStorage.getToken();
+      if (!token) {
+        setUser(null);
+        return;
+      }
+
+      setIsLoadingProfile(true);
+      try {
+        const result = await apiClient.get<{
+          userId: number;
+          username: string;
+          email: string;
+          role: string;
+          preferredLanguageId: number | null;
+        }>('/api/users/me', {
+          token,
+        });
+
+        if (mounted && result.ok && result.data) {
+          setUser(result.data);
+        } else if (mounted) {
+          // Token invalid/expired — clear it
+          await authStorage.clearToken();
+          setUser(null);
+        }
+      } catch {
+        if (mounted) {
+          await authStorage.clearToken();
+          setUser(null);
+        }
+      } finally {
+        if (mounted) {
+          setIsLoadingProfile(false);
+        }
+      }
+    };
+
+    loadProfile();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    await authStorage.clearToken();
+    setUser(null);
+    router.replace('/');
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
@@ -30,7 +96,7 @@ export default function HomeScreen() {
           </View>
           <Text style={styles.siteName}>{site.name}</Text>
           <Text style={styles.siteTagline}>{site.tagline}</Text>
-          
+
           <View style={styles.siteInfoRow}>
             <Text style={styles.siteInfoItem}>📍 {site.location}</Text>
             <Text style={styles.siteInfoItem}>🕒 {site.openHours}</Text>
@@ -38,15 +104,15 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* 2. iBeacon BLE Status Indicator (Simulation for Sprint 2) */}
+      {/* 2. iBeacon BLE Status Indicator — Not integrated in Sprint 2 */}
       <View style={styles.beaconBanner}>
         <View style={styles.beaconPulseDot}>
           <Text style={styles.beaconIcon}>📡</Text>
         </View>
         <View style={styles.beaconTextContainer}>
-          <Text style={styles.beaconTitle}>iBeacon Radar: Đang hoạt động</Text>
+          <Text style={styles.beaconTitle}>iBeacon / BLE: Chưa tích hợp</Text>
           <Text style={styles.beaconSubtitle}>
-            Đang quét tín hiệu BLE xung quanh để nhận diện hiện vật tự động.
+            Tính năng quét beacon thực tế chưa có sẵn trong bản Sprint 2.
           </Text>
         </View>
       </View>
@@ -149,13 +215,30 @@ export default function HomeScreen() {
 
       {/* 5. User Account / Logout Action */}
       <View style={styles.accountSection}>
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={() => router.replace('/')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.logoutButtonText}>← Đăng xuất / Đổi tài khoản</Text>
-        </TouchableOpacity>
+        {isLoadingProfile ? (
+          <ActivityIndicator style={styles.loadingIndicator} />
+        ) : user ? (
+          <View style={styles.authAccountRow}>
+            <Text style={styles.accountGreeting}>
+              Xin chào, {user.username}
+            </Text>
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.logoutButtonText}>Đăng xuất</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={() => router.replace('/')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.logoutButtonText}>← Đăng nhập / Đổi tài khoản</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </ScrollView>
   );
@@ -223,9 +306,9 @@ const styles = StyleSheet.create({
   beaconBanner: {
     margin: 16,
     marginBottom: 8,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#FEF3C7',
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: '#FCD34D',
     borderRadius: 12,
     padding: 12,
     flexDirection: 'row',
@@ -236,7 +319,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#FDE68A',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -249,11 +332,11 @@ const styles = StyleSheet.create({
   beaconTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#15803D',
+    color: '#92400E',
   },
   beaconSubtitle: {
     fontSize: 11,
-    color: '#166534',
+    color: '#78350F',
     marginTop: 2,
     lineHeight: 15,
   },
@@ -397,6 +480,19 @@ const styles = StyleSheet.create({
     marginTop: 28,
     paddingHorizontal: 16,
     alignItems: 'center',
+  },
+  authAccountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  accountGreeting: {
+    fontSize: 13,
+    color: '#1E293B',
+    fontWeight: '600',
+  },
+  loadingIndicator: {
+    marginTop: 8,
   },
   logoutButton: {
     paddingVertical: 10,

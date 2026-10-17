@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,34 +9,66 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { apiClient } from '../services/api';
+import { authStorage } from '../services/authStorage';
 
 export default function LoginScreen() {
   const router = useRouter();
 
   // Form states
   const [identifier, setIdentifier] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   // Status & Validation states
-  const [errors, setErrors] = useState<{ identifier?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{
+    identifier?: string;
+    email?: string;
+    password?: string;
+  }>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Field validation logic per Sprint 2 requirements
-  const validateForm = (): boolean => {
+  const validateLogin = (): boolean => {
     const newErrors: { identifier?: string; password?: string } = {};
 
     const trimmedId = identifier.trim();
     if (!trimmedId) {
       newErrors.identifier = 'Vui lòng nhập Email hoặc Tên đăng nhập';
-    } else if (trimmedId.includes('@')) {
-      // Basic email format check if user appears to enter an email
+    }
+
+    if (!password) {
+      newErrors.password = 'Vui lòng nhập mật khẩu';
+    } else if (password.length < 6) {
+      newErrors.password = 'Mật khẩu phải chứa ít nhất 6 ký tự';
+    }
+
+    setErrors((prev) => ({ ...prev, identifier: newErrors.identifier, password: newErrors.password }));
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validateRegister = (): boolean => {
+    const newErrors: { identifier?: string; email?: string; password?: string } = {};
+
+    const trimmedId = identifier.trim();
+    if (!trimmedId) {
+      newErrors.identifier = 'Vui lòng nhập Tên đăng nhập';
+    } else if (trimmedId.length < 3) {
+      newErrors.identifier = 'Tên đăng nhập phải có ít nhất 3 ký tự';
+    }
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      newErrors.email = 'Vui lòng nhập Email';
+    } else {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(trimmedId)) {
-        newErrors.identifier = 'Định dạng email chưa hợp lệ';
+      if (!emailRegex.test(trimmedEmail)) {
+        newErrors.email = 'Định dạng email chưa hợp lệ';
       }
     }
 
@@ -46,37 +78,109 @@ export default function LoginScreen() {
       newErrors.password = 'Mật khẩu phải chứa ít nhất 6 ký tự';
     }
 
-    setErrors(newErrors);
+    setErrors((prev) => ({
+      ...prev,
+      identifier: newErrors.identifier,
+      email: newErrors.email,
+      password: newErrors.password,
+    }));
     return Object.keys(newErrors).length === 0;
   };
 
   const handleLogin = async () => {
     setGeneralError(null);
 
-    if (!validateForm()) {
+    if (!validateLogin()) {
       return;
     }
 
-    // UI-only authentication simulation per Sprint 2 scope:
-    // "The screen may be UI-only until M1's authentication API contract is ready. Do not invent a separate authentication mechanism."
     setIsLoading(true);
 
     try {
-      // Simulate network response latency
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      // Login via backend M1: POST /api/auth/login
+      const result = await apiClient.post<{
+        accessToken: string;
+        tokenType: string;
+        expiresIn: number;
+        user: { userId: number; username: string; email: string; role: string };
+      }>('/api/auth/login', {
+        username: identifier.trim(),
+        password,
+      });
 
-      // Successful simulated login
+      if (!result.ok || !result.data?.accessToken) {
+        setGeneralError(result.error || 'Đăng nhập không thành công. Vui lòng thử lại.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Persist JWT access token for protected endpoints
+      await authStorage.setToken(result.data.accessToken);
+
       setIsLoading(false);
       router.replace('/home');
-    } catch (err) {
+    } catch (err: any) {
       setIsLoading(false);
-      setGeneralError('Đăng nhập không thành công. Vui lòng thử lại sau.');
+      setGeneralError(err.message || 'Đăng nhập không thành công. Vui lòng thử lại sau.');
+    }
+  };
+
+  const handleRegister = async () => {
+    setGeneralError(null);
+
+    if (!validateRegister()) {
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Register via backend M1: POST /api/auth/register
+      const result = await apiClient.post<{
+        userId: number;
+        username: string;
+        email: string;
+        role: string;
+        preferredLanguageId: number | null;
+      }>('/api/auth/register', {
+        username: identifier.trim(),
+        email: email.trim(),
+        password,
+      });
+
+      if (!result.ok) {
+        setGeneralError(result.error || 'Đăng ký không thành công. Vui lòng thử lại.');
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(false);
+      Alert.alert(
+        'Đăng ký thành công',
+        `Tài khoản ${result.data?.username || identifier.trim()} đã được tạo. Vui lòng đăng nhập.`,
+        [{ text: 'OK', style: 'cancel' }]
+      );
+    } catch (err: any) {
+      setIsLoading(false);
+      setGeneralError(err.message || 'Đăng ký không thành công. Vui lòng thử lại sau.');
     }
   };
 
   const handleGuestEntry = () => {
-    // Visitor bypass login option
+    // Visitor bypass login option — guest is NOT authenticated
     router.replace('/home');
+  };
+
+  const handleForgotPassword = () => {
+    Alert.alert(
+      'Chưa hỗ trợ',
+      'Chức năng quên mật khẩu chưa có API backend trong Sprint 2. Vui lòng liên hệ quản trị viên.'
+    );
+  };
+
+  const clearErrors = () => {
+    setErrors({});
+    setGeneralError(null);
   };
 
   return (
@@ -135,6 +239,30 @@ export default function LoginScreen() {
             )}
           </View>
 
+          {/* Email Input (required for registration) */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email (bắt buộc khi đăng ký)</Text>
+            <TextInput
+              style={[styles.input, errors.email ? styles.inputError : null]}
+              placeholder="ví dụ: visitor@example.com"
+              placeholderTextColor="#94A3B8"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (errors.email) {
+                  setErrors((prev) => ({ ...prev, email: undefined }));
+                }
+              }}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              editable={!isLoading}
+            />
+            {errors.email && (
+              <Text style={styles.fieldErrorText}>{errors.email}</Text>
+            )}
+          </View>
+
           {/* Password Input */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Mật khẩu</Text>
@@ -171,7 +299,7 @@ export default function LoginScreen() {
             )}
           </View>
 
-          {/* Submit Button */}
+          {/* Submit Button: Login */}
           <TouchableOpacity
             style={[styles.loginButton, isLoading ? styles.buttonDisabled : null]}
             onPress={handleLogin}
@@ -186,6 +314,26 @@ export default function LoginScreen() {
             ) : (
               <Text style={styles.loginButtonText}>Đăng nhập</Text>
             )}
+          </TouchableOpacity>
+
+          {/* Register Button */}
+          <TouchableOpacity
+            style={[styles.registerButton, isLoading ? styles.buttonDisabled : null]}
+            onPress={handleRegister}
+            disabled={isLoading}
+            activeOpacity={0.8}
+          >
+            {isLoading ? null : <Text style={styles.loginButtonText}>Đăng ký tài khoản mới</Text>}
+          </TouchableOpacity>
+
+          {/* Forgot Password */}
+          <TouchableOpacity
+            style={styles.forgotButton}
+            onPress={handleForgotPassword}
+            disabled={isLoading}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.forgotButtonText}>Quên mật khẩu?</Text>
           </TouchableOpacity>
 
           {/* Guest / Direct Entry Option */}
@@ -210,7 +358,7 @@ export default function LoginScreen() {
         {/* Footer info note */}
         <View style={styles.footerNote}>
           <Text style={styles.footerText}>
-            Sprint 2: Giao diện giả lập đăng nhập UI-only. API Auth chính thức sẽ đồng bộ cùng M1/Backend.
+            Kết nối API Auth thực tế với Backend M1 (POST /api/auth/login, POST /api/auth/register).
           </Text>
         </View>
       </ScrollView>
@@ -355,6 +503,16 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
+  registerButton: {
+    height: 50,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#D97706',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+  },
   buttonDisabled: {
     opacity: 0.65,
   },
@@ -367,6 +525,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  forgotButton: {
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  forgotButtonText: {
+    fontSize: 12,
+    color: '#D97706',
+    fontWeight: '600',
   },
   dividerRow: {
     flexDirection: 'row',
