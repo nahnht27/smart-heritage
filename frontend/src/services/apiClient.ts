@@ -1,5 +1,6 @@
 import { env } from '../config/env'
 import type { ApiResponse } from '../types/api'
+import { authStorage } from './authStorage'
 
 export class ApiError extends Error {
   status: number
@@ -21,6 +22,8 @@ export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<ApiResponse<T>> {
+  const token = authStorage.getToken()
+
   let response: Response
 
   try {
@@ -28,6 +31,7 @@ export async function apiRequest<T>(
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
     })

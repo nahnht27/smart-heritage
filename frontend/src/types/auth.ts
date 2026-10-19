@@ -17,3 +17,16 @@ export interface LoginResponse {
   expiresIn: number
   user: AuthUser
 }
+
+export interface UserResponse {
+  userId: number
+  username: string
+  email: string
+  role: string
+  preferredLanguageId: number | null
+}
+
+export interface UpdateProfileRequest {
+  username?: string
+  preferredLanguageId?: number
+}

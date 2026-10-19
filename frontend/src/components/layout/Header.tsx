@@ -1,4 +1,7 @@
 
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../context/useAuth'
+
 interface HeaderProps {
   title: string
   description: string
@@ -10,6 +13,14 @@ function Header({
   description,
   onToggleSidebar,
 }: HeaderProps) {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
     <header className="admin-header">
       <button
@@ -36,6 +47,22 @@ function Header({
       <div className="admin-header__text">
         <h1>{title}</h1>
         <p>{description}</p>
+      </div>
+
+      <div className="admin-header__user">
+        {user ? (
+          <>
+            <span className="admin-header__user-name">{user.username}</span>
+            <button
+              type="button"
+              className="admin-header__logout"
+              onClick={handleLogout}
+              aria-label="Đăng xuất"
+            >
+              Đăng xuất
+            </button>
+          </>
+        ) : null}
       </div>
     </header>
   )

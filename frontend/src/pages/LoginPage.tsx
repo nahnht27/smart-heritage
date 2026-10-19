@@ -1,11 +1,16 @@
 
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { login } from '../services/authService'
 import { ApiError } from '../services/apiClient'
+import { useAuth } from '../context/useAuth'
+import type { AuthUser } from '../types/auth'
 import './LoginPage.css'
 
 export default function LoginPage() {
+  const navigate = useNavigate()
+  const { login: setAuth } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -46,17 +51,30 @@ export default function LoginPage() {
         password,
       })
 
-      if (result.user.role?.toUpperCase() !== 'ADMIN') {
+      const accessToken = result.accessToken
+      const user: AuthUser = {
+        userId: result.user.userId,
+        username: result.user.username,
+        email: result.user.email,
+        role: result.user.role,
+        preferredLanguageId: result.user.preferredLanguageId,
+      }
+
+      if (user.role?.toUpperCase() !== 'ADMIN') {
         setMessage(
           'Access denied. An administrator account is required.',
         )
         return
       }
 
-      // Authentication succeeded. Session storage and navigation
-      // should be handled by the application's auth/routing layer.
+      setAuth(accessToken, user)
       setIsSuccess(true)
       setMessage('Login successful.')
+
+      // Small delay so the user can see the success message before navigating.
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true })
+      }, 800)
     } catch (error: unknown) {
       if (error instanceof ApiError) {
         if (error.status === 0) {
