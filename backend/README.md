@@ -148,12 +148,41 @@ spring:
     password: postgres
 ```
 
+### Biến môi trường
+
+| Biến | Giá trị mặc định | Mô tả |
+|------|------------------|-------|
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/smart_heritage` | URL kết nối PostgreSQL |
+| `SPRING_DATASOURCE_USERNAME` | `postgres` | Username database |
+| `SPRING_DATASOURCE_PASSWORD` | `postgres` | Password database |
+| `JWT_SECRET` | `SmartHeritageDevSecretKeyThatIsAtLeast256BitsLong!2024` | Khóa ký JWT (phải >= 256 bits) |
+| `JWT_EXPIRATION_MS` | `86400000` | Thời gian hết hạn JWT (ms, mặc định 24 giờ) |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:8081` | Danh sách origin được phép gọi API (phân cách bằng dấu phẩy) |
+
+Xem file `backend/.env.example` để có mẫu đầy đủ.
+
 Hoặc chạy toàn bộ stack bằng Docker Compose từ thư mục gốc dự án:
 
 ```bash
 docker-compose up --build -d
 ```
 
-## Lưu ý CORS
+## Cấu hình CORS
 
-Backend hiện chưa cấu hình `CorsConfigurationSource` trong `SecurityConfig`. Nếu gọi API từ trình duyệt (ví dụ Vite dev server trên origin khác), có thể bị chặn CORS. Cần nhóm backend thêm cấu hình CORS hoặc nhóm frontend thiết lập proxy trong `vite.config.ts`.
+Backend đã cấu hình `CorsConfigurationSource` trong `SecurityConfig`, áp dụng cho pattern `/api/**`.
+
+- CORS được xử lý **trước** bước xác thực JWT. Preflight `OPTIONS` không yêu cầu token.
+- Methods cho phép: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`.
+- Headers cho phép: `Authorization`, `Content-Type`, `Accept`.
+- `allowCredentials = false` (không dùng cookie/session credential).
+- Không dùng wildcard origin `*`.
+- Danh sách origin được phép đọc từ biến `CORS_ALLOWED_ORIGINS` (property `app.cors.allowed-origins`), mặc định là `http://localhost:5173` (Admin Web Vite) và `http://localhost:8081` (Expo Web).
+
+### CORS Troubleshooting
+
+| Triệu chứng | Nguyên nhân có thể | Cách khắc phục |
+|-------------|-------------------|-----------------|
+| Trình duyệt báo "Blocked by CORS policy" | Origin chưa được cấu hình | Thêm origin vào `CORS_ALLOWED_ORIGINS` |
+| `Authorization` header bị loại bỏ | Header chưa được liệt kê | Header `Authorization` đã được cấu hình trong `allowedHeaders` |
+| Cookie không được gửi | `allowCredentials = false` | Nếu cần cookie, bật `allowCredentials = true` và chỉ định origin cụ thể |
+
