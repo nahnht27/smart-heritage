@@ -23,6 +23,7 @@ export async function apiRequest<T>(
   options: RequestInit = {},
 ): Promise<ApiResponse<T>> {
   const token = authStorage.getToken()
+  const isFormData = options.body instanceof FormData
 
   let response: Response
 
@@ -30,7 +31,11 @@ export async function apiRequest<T>(
     response = await fetch(`${env.API_BASE_URL}${path}`, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        // FormData: let the browser set the multipart Content-Type.
+        // JSON: send application/json.
+        ...(!isFormData
+          ? { 'Content-Type': 'application/json' }
+          : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
