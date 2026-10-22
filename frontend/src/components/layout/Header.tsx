@@ -1,4 +1,3 @@
-
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/useAuth'
 
@@ -50,9 +49,21 @@ function Header({
       </div>
 
       <div className="admin-header__user">
-        {user ? (
-          <>
-            <span className="admin-header__user-name">{user.username}</span>
+        {user && (
+          <div className="admin-header__user-profile">
+            <div className="admin-header__avatar">
+              {user.username.charAt(0).toUpperCase()}
+            </div>
+
+            <div className="admin-header__user-info">
+              <span className="admin-header__user-label">
+                Signed in as
+              </span>
+              <span className="admin-header__user-name">
+                {user.username}
+              </span>
+            </div>
+
             <button
               type="button"
               className="admin-header__logout"
@@ -61,8 +72,8 @@ function Header({
             >
               Đăng xuất
             </button>
-          </>
-        ) : null}
+          </div>
+        )}
       </div>
     </header>
   )
