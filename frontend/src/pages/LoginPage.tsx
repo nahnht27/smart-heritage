@@ -1,7 +1,6 @@
-
 import { useState } from 'react'
-import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { FormEvent } from 'react'
 import { login } from '../services/authService'
 import { ApiError } from '../services/apiClient'
 import { useAuth } from '../context/useAuth'
@@ -11,6 +10,7 @@ import './LoginPage.css'
 export default function LoginPage() {
   const navigate = useNavigate()
   const { login: setAuth } = useAuth()
+
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -71,7 +71,6 @@ export default function LoginPage() {
       setIsSuccess(true)
       setMessage('Login successful.')
 
-      // Small delay so the user can see the success message before navigating.
       setTimeout(() => {
         navigate('/dashboard', { replace: true })
       }, 800)
