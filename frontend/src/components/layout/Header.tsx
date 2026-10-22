@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/useAuth'
 
 interface HeaderProps {
@@ -11,7 +12,13 @@ function Header({
   description,
   onToggleSidebar,
 }: HeaderProps) {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <header className="admin-header">
@@ -42,23 +49,32 @@ function Header({
       </div>
 
       <div className="admin-header__user">
-  {user && (
-    <div className="admin-header__user-profile">
-      <div className="admin-header__avatar">
-        {user.username.charAt(0).toUpperCase()}
-      </div>
+        {user && (
+          <div className="admin-header__user-profile">
+            <div className="admin-header__avatar">
+              {user.username.charAt(0).toUpperCase()}
+            </div>
 
-      <div className="admin-header__user-info">
-        <span className="admin-header__user-label">
-          Signed in as
-        </span>
-        <span className="admin-header__user-name">
-          {user.username}
-        </span>
+            <div className="admin-header__user-info">
+              <span className="admin-header__user-label">
+                Signed in as
+              </span>
+              <span className="admin-header__user-name">
+                {user.username}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              className="admin-header__logout"
+              onClick={handleLogout}
+              aria-label="Đăng xuất"
+            >
+              Đăng xuất
+            </button>
+          </div>
+        )}
       </div>
-    </div>
-  )}
-</div>
     </header>
   )
 }
