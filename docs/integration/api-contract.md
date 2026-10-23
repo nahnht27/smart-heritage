@@ -224,6 +224,8 @@ Request: `POST /api/interactions`, header `Authorization: Bearer <accessToken>`.
 
 **Quy tắc idempotency:** Gửi cùng `eventId` nhiều lần chỉ tạo **một** bản ghi trong database. Lần đầu trả về `201 Created`, lần sau trả về `200 OK` với thông báo `"Interaction event was already recorded"`. Nếu `eventId` đã được dùng bởi user khác, trả về `409 Conflict`.
 
+**Giới hạn race condition:** Nếu hai request cùng `eventId` đến gần cùng một lúc, cả hai có thể thấy `eventId` chưa tồn tại và cùng cố insert. Một trong hai sẽ vi phạm unique constraint `event_id` và nhận `409 Conflict` với thông báo `"The submitted eventId has already been recorded."`. Do đó, trong trường hợp race condition, client có thể nhận `201 Created` (lần đầu) hoặc `409 Conflict` (lần bị chặn bởi unique constraint). Client nên xem cả hai mã trạng thái là thành công (sự kiện đã được ghi).
+
 **Ví dụ request:**
 
 ```json

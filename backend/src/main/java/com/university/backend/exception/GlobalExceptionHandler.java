@@ -69,9 +69,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(
             DataIntegrityViolationException ex,
             HttpServletRequest request) {
+        String message = ex.getMessage() == null ? "" : ex.getMessage();
+        boolean isDuplicateEvent = message.toLowerCase().contains(
+                "uk_visitor_interaction_event_id");
+        String userMessage = isDuplicateEvent
+                ? "The submitted eventId has already been recorded."
+                : "Lỗi toàn vẹn dữ liệu. Vui lòng kiểm tra lại dữ liệu gửi lên.";
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(
-                "The submitted eventId has already been recorded.",
-                request.getRequestURI()));
+                userMessage, request.getRequestURI()));
     }
 
     @ExceptionHandler(BadCredentialsException.class)
