@@ -5,7 +5,7 @@
  * ApiResponse<T>), không phải shape giao diện mobile.
  */
 import { apiClient } from '../api';
-import { heritageApi, type HeritageSite, type Artifact, type Multimedia } from '../heritageApi';
+import { heritageApi } from '../heritageApi';
 
 jest.mock('../api', () => ({
   apiClient: {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -176,11 +176,6 @@ export default function LoginScreen() {
       'Chưa hỗ trợ',
       'Chức năng quên mật khẩu chưa có API backend trong Sprint 2. Vui lòng liên hệ quản trị viên.'
     );
-  };
-
-  const clearErrors = () => {
-    setErrors({});
-    setGeneralError(null);
   };
 
   return (
