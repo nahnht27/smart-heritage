@@ -1,29 +1,110 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { MOCK_ARTIFACTS } from '../services/mockData';
+import { heritageApi, type Artifact, type Multimedia } from '../services/heritageApi';
 
 export default function ArtifactDetailScreen() {
-  const { id, name } = useLocalSearchParams();
+  const { id } = useLocalSearchParams();
   const [isFavorite, setIsFavorite] = useState(false);
 
-  // Look up artifact in mock data by id, or fallback
-  const artifact =
-    MOCK_ARTIFACTS.find((a) => a.id === id) || {
-      id: id || '101',
-      name: name || 'Trống Đồng Đông Sơn',
-      era: 'Thời kỳ Đông Sơn',
-      category: 'Bảo vật Quốc gia',
-      description:
-        'Hiện vật tiêu biểu của nền văn hóa Đông Sơn, biểu tượng cho quyền lực và đời sống tâm linh, văn hóa đúc đồng đỉnh cao của người Việt cổ.',
-      locationInMuseum: 'Phòng trưng bày Kim loại & Thời kỳ Hùng Vương - Tủ số 1',
-      imageUrl:
-        'https://images.unsplash.com/photo-1544967082-d9d25d867d66?auto=format&fit=crop&w=600&q=80',
+  const [artifact, setArtifact] = useState<Artifact | null>(null);
+  const [multimedia, setMultimedia] = useState<Multimedia[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const artifactId = Array.isArray(id) ? id[0] : id;
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadArtifact = async () => {
+      if (!artifactId) {
+        setError('Không có mã hiện vật');
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+      try {
+        const artifactResult = await heritageApi.getArtifactById(artifactId);
+        if (!mounted) return;
+        if (!artifactResult.ok || !artifactResult.data) {
+          setError(artifactResult.error || 'Không tải được thông tin hiện vật');
+          setIsLoading(false);
+          return;
+        }
+        setArtifact(artifactResult.data);
+
+        const multimediaResult = await heritageApi.getArtifactMultimedia(artifactId);
+        if (!mounted) return;
+        if (multimediaResult.ok && multimediaResult.data) {
+          setMultimedia(multimediaResult.data);
+        }
+      } catch {
+        if (mounted) {
+          setError('Lỗi kết nối mạng. Vui lòng thử lại.');
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
     };
+
+    loadArtifact();
+    return () => {
+      mounted = false;
+    };
+  }, [artifactId, refreshKey]);
+
+  const handleRetry = () => {
+    setError(null);
+    setIsLoading(true);
+    setRefreshKey((prev) => prev + 1);
+  };
+
+  if (isLoading) {
+    return (
+      <View testID="loading-container" style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#D97706" />
+      </View>
+    );
+  }
+
+  if (error || !artifact) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error || 'Không tìm thấy hiện vật'}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={handleRetry} activeOpacity={0.8}>
+          <Text style={styles.retryButtonText}>Thử lại</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const mainImageUrl = artifact.imageUrl;
+  const multimediaImages = multimedia.filter((m) => m.type === 'image');
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <Image source={{ uri: artifact.imageUrl }} style={styles.heroImage} />
+      <Image source={{ uri: mainImageUrl ?? undefined }} style={styles.heroImage} />
+
+      {multimediaImages.length > 0 && (
+        <View style={styles.multimediaSection}>
+          <Text style={styles.multimediaTitle}>Hình ảnh liên quan</Text>
+          <View style={styles.multimediaList}>
+            {multimediaImages.map((m) => (
+              <TouchableOpacity
+                key={m.id}
+                style={styles.multimediaItem}
+                onPress={() => {}}
+              >
+                <Image source={{ uri: m.url }} style={styles.multimediaImage} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
 
       <View style={styles.content}>
         <View style={styles.badgeRow}>
@@ -56,12 +137,6 @@ export default function ArtifactDetailScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-
-        <View style={styles.sprintNote}>
-          <Text style={styles.sprintNoteText}>
-            Sprint 2: Màn hình hiển thị dữ liệu mẫu (Mock data). Tích hợp trigger tự động qua iBeacon/BLE sẽ triển khai ở Sprint 3.
-          </Text>
-        </View>
       </View>
     </ScrollView>
   );
@@ -74,6 +149,33 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 260,
     backgroundColor: '#0F172A',
+  },
+  multimediaSection: {
+    paddingHorizontal: 16,
+    marginVertical: 12,
+  },
+  multimediaTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  multimediaList: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  multimediaItem: {
+    width: 110,
+    height: 110,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  multimediaImage: {
+    width: '100%',
+    height: '100%',
   },
   content: {
     padding: 20,
@@ -173,16 +275,35 @@ const styles = StyleSheet.create({
   favTextActive: {
     color: '#B91C1C',
   },
-  sprintNote: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 8,
-    padding: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: '#3B82F6',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
   },
-  sprintNoteText: {
-    fontSize: 12,
-    color: '#1E40AF',
-    lineHeight: 16,
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#B91C1C',
+    textAlign: 'center',
+    marginBottom: 12,
+    fontWeight: '600',
+  },
+  retryButton: {
+    backgroundColor: '#D97706',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
