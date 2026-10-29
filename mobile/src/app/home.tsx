@@ -7,17 +7,14 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MOCK_HERITAGE_SITE, MOCK_ARTIFACTS } from '../services/mockData';
+import { heritageApi, type HeritageSite, type Artifact } from '../services/heritageApi';
 import { apiClient } from '../services/api';
 import { authStorage } from '../services/authStorage';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const site = MOCK_HERITAGE_SITE;
-  const featuredArtifacts = MOCK_ARTIFACTS.filter((art) => art.isFeatured);
 
   // Auth state (populated from backend M1: GET /api/users/me)
   const [user, setUser] = useState<{
@@ -28,6 +25,56 @@ export default function HomeScreen() {
     preferredLanguageId: number | null;
   } | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+
+  // Content data states (real API)
+  const [sites, setSites] = useState<HeritageSite[]>([]);
+  const [featuredArtifacts, setFeaturedArtifacts] = useState<Artifact[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const site = sites[0] ?? null;
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadContent = async () => {
+      setIsLoadingData(true);
+      setDataError(null);
+      try {
+        const sitesResult = await heritageApi.getHeritageSites();
+        if (!mounted) return;
+        if (!sitesResult.ok || !sitesResult.data) {
+          setDataError(sitesResult.error || 'Không tải được danh sách di sản');
+          setIsLoadingData(false);
+          return;
+        }
+        setSites(sitesResult.data);
+
+        const firstSite = sitesResult.data[0];
+        if (firstSite) {
+          const artifactsResult = await heritageApi.getArtifactsBySite(firstSite.id);
+          if (!mounted) return;
+          if (artifactsResult.ok && artifactsResult.data) {
+            // Backend không cung cấp trường isFeatured, nên hiển thị một tập con xác định
+            // từ dữ liệu thật thay vì giả dough dữ liệu.
+            setFeaturedArtifacts(artifactsResult.data.slice(0, 3));
+          }
+        }
+      } catch {
+        if (mounted) {
+          setDataError('Lỗi kết nối mạng. Vui lòng thử lại.');
+        }
+      } finally {
+        if (mounted) setIsLoadingData(false);
+      }
+    };
+
+    loadContent();
+    return () => {
+      mounted = false;
+    };
+  }, [refreshKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -86,23 +133,30 @@ export default function HomeScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       {/* 1. Heritage Site Landing Banner */}
       <View style={styles.heroCard}>
-        <Image
-          source={{ uri: site.heroImageUrl }}
-          style={styles.heroImage}
-          resizeMode="cover"
-        />
-        <View style={styles.heroOverlay}>
-          <View style={styles.siteBadge}>
-            <Text style={styles.siteBadgeText}>Khu Di tích Lịch sử</Text>
+        {!site ? (
+          <View style={styles.emptyBanner}>
+            <Text style={styles.emptyText}>Chưa có dữ liệu di sản</Text>
           </View>
-          <Text style={styles.siteName}>{site.name}</Text>
-          <Text style={styles.siteTagline}>{site.tagline}</Text>
+        ) : (
+          <>
+            <Image
+              source={{ uri: site.address ? `https://maps.googleapis.com/maps/api/staticmap?center=${site.address}&zoom=15&size=400x200&key=demo` : undefined }}
+              style={styles.heroImage}
+              resizeMode="cover"
+            />
+            <View style={styles.heroOverlay}>
+              <View style={styles.siteBadge}>
+                <Text style={styles.siteBadgeText}>Khu Di tích Lịch sử</Text>
+              </View>
+              <Text style={styles.siteName}>{site.name}</Text>
+              <Text style={styles.siteTagline}>{site.description || ''}</Text>
 
-          <View style={styles.siteInfoRow}>
-            <Text style={styles.siteInfoItem}>📍 {site.location}</Text>
-            <Text style={styles.siteInfoItem}>🕒 {site.openHours}</Text>
-          </View>
-        </View>
+              <View style={styles.siteInfoRow}>
+                <Text style={styles.siteInfoItem}>📍 {site.address}</Text>
+              </View>
+            </View>
+          </>
+        )}
       </View>
 
       {/* 2. iBeacon BLE Status Indicator — Not integrated in Sprint 2 */}
@@ -174,14 +228,11 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* 4. Featured Artifacts Section (Mock Data clearly labeled) */}
+      {/* 4. Featured Artifacts Section */}
       <View style={styles.sectionHeaderWithBadge}>
         <View>
           <Text style={styles.sectionTitle}>Bảo vật Tiêu biểu</Text>
           <Text style={styles.sectionSubtitle}>Hiện vật nổi bật không nên bỏ lỡ</Text>
-        </View>
-        <View style={styles.mockBadge}>
-          <Text style={styles.mockBadgeText}>Mock Data</Text>
         </View>
       </View>
 
@@ -193,16 +244,15 @@ export default function HomeScreen() {
             onPress={() =>
               router.push({
                 pathname: '/artifact_detail',
-                params: { id: art.id, name: art.name },
+                params: { id: String(art.id), name: art.name },
               })
             }
             activeOpacity={0.8}
           >
-            <Image source={{ uri: art.imageUrl }} style={styles.artifactImage} />
+            <Image source={{ uri: undefined }} style={styles.artifactImage} />
             <View style={styles.artifactContent}>
               <View style={styles.artifactTagRow}>
-                <Text style={styles.artifactCategoryBadge}>{art.category}</Text>
-                <Text style={styles.artifactEra}>{art.era}</Text>
+                <Text style={styles.artifactCategoryBadge}>{art.siteName || 'Di sản'}</Text>
               </View>
               <Text style={styles.artifactName}>{art.name}</Text>
               <Text style={styles.artifactDescription} numberOfLines={2}>
@@ -258,6 +308,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
     position: 'relative',
     overflow: 'hidden',
+  },
+  emptyBanner: {
+    height: 220,
+    backgroundColor: '#0F172A',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#CBD5E1',
+    fontSize: 16,
+    fontWeight: '600',
   },
   heroImage: {
     width: '100%',
