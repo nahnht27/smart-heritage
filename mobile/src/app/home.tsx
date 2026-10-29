@@ -7,17 +7,14 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MOCK_HERITAGE_SITE, MOCK_ARTIFACTS } from '../services/mockData';
+import { heritageApi, type HeritageSite, type Artifact } from '../services/heritageApi';
 import { apiClient } from '../services/api';
 import { authStorage } from '../services/authStorage';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const site = MOCK_HERITAGE_SITE;
-  const featuredArtifacts = MOCK_ARTIFACTS.filter((art) => art.isFeatured);
 
   // Auth state (populated from backend M1: GET /api/users/me)
   const [user, setUser] = useState<{
@@ -28,6 +25,56 @@ export default function HomeScreen() {
     preferredLanguageId: number | null;
   } | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+
+  // Content data states (real API)
+  const [sites, setSites] = useState<HeritageSite[]>([]);
+  const [featuredArtifacts, setFeaturedArtifacts] = useState<Artifact[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const site = sites[0] ?? null;
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadContent = async () => {
+      setIsLoadingData(true);
+      setDataError(null);
+      try {
+        const sitesResult = await heritageApi.getHeritageSites();
+        if (!mounted) return;
+        if (!sitesResult.ok || !sitesResult.data) {
+          setDataError(sitesResult.error || 'Không tải được danh sách di sản');
+          setIsLoadingData(false);
+          return;
+        }
+        setSites(sitesResult.data);
+
+        const firstSite = sitesResult.data[0];
+        if (firstSite) {
+          const artifactsResult = await heritageApi.getArtifactsBySite(firstSite.id);
+          if (!mounted) return;
+          if (artifactsResult.ok && artifactsResult.data) {
+            // Backend không cung cấp trường isFeatured, nên hiển thị một tập con xác định
+            // từ dữ liệu thật thay vì giả dough dữ liệu featured.
+            setFeaturedArtifacts(artifactsResult.data.slice(0, 3));
+          }
+        }
+      } catch {
+        if (mounted) {
+          setDataError('Lỗi kết nối mạng. Vui lòng thử lại.');
+        }
+      } finally {
+        if (mounted) setIsLoadingData(false);
+      }
+    };
+
+    loadContent();
+    return () => {
+      mounted = false;
+    };
+  }, [refreshKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -84,26 +131,55 @@ export default function HomeScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      {/* 1. Heritage Site Landing Banner */}
-      <View style={styles.heroCard}>
-        <Image
-          source={{ uri: site.heroImageUrl }}
-          style={styles.heroImage}
-          resizeMode="cover"
-        />
-        <View style={styles.heroOverlay}>
-          <View style={styles.siteBadge}>
-            <Text style={styles.siteBadgeText}>Khu Di tích Lịch sử</Text>
-          </View>
-          <Text style={styles.siteName}>{site.name}</Text>
-          <Text style={styles.siteTagline}>{site.tagline}</Text>
-
-          <View style={styles.siteInfoRow}>
-            <Text style={styles.siteInfoItem}>📍 {site.location}</Text>
-            <Text style={styles.siteInfoItem}>🕒 {site.openHours}</Text>
-          </View>
+      {isLoadingData ? (
+        <View testID="loading-container" style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#D97706" />
         </View>
-      </View>
+      ) : dataError ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{dataError}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              setDataError(null);
+              setIsLoadingData(true);
+              setRefreshKey((prev) => prev + 1);
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.retryButtonText}>Thử lại</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          {/* 1. Heritage Site Landing Banner */}
+          <View style={styles.heroCard}>
+            {!site ? (
+              <View style={styles.emptyBanner}>
+                <Text style={styles.emptyText}>Chưa có dữ liệu di sản</Text>
+              </View>
+            ) : (
+              <>
+                <Image
+                  source={{ uri: site.heroImageUrl ?? undefined }}
+                  style={styles.heroImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.heroOverlay}>
+                  <View style={styles.siteBadge}>
+                    <Text style={styles.siteBadgeText}>Khu Di tích Lịch sử</Text>
+                  </View>
+                  <Text style={styles.siteName}>{site.name}</Text>
+                  <Text style={styles.siteTagline}>{site.tagline}</Text>
+
+                  <View style={styles.siteInfoRow}>
+                    <Text style={styles.siteInfoItem}>📍 {site.location}</Text>
+                    <Text style={styles.siteInfoItem}>🕒 {site.openHours}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
 
       {/* 2. iBeacon BLE Status Indicator — Not integrated in Sprint 2 */}
       <View style={styles.beaconBanner}>
@@ -174,14 +250,11 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* 4. Featured Artifacts Section (Mock Data clearly labeled) */}
-      <View style={styles.sectionHeaderWithBadge}>
+      {/* 4. Featured Artifacts Section */}
+      <View style={styles.sectionHeader}>
         <View>
           <Text style={styles.sectionTitle}>Bảo vật Tiêu biểu</Text>
           <Text style={styles.sectionSubtitle}>Hiện vật nổi bật không nên bỏ lỡ</Text>
-        </View>
-        <View style={styles.mockBadge}>
-          <Text style={styles.mockBadgeText}>Mock Data</Text>
         </View>
       </View>
 
@@ -198,7 +271,7 @@ export default function HomeScreen() {
             }
             activeOpacity={0.8}
           >
-            <Image source={{ uri: art.imageUrl }} style={styles.artifactImage} />
+            <Image source={{ uri: art.imageUrl ?? undefined }} style={styles.artifactImage} />
             <View style={styles.artifactContent}>
               <View style={styles.artifactTagRow}>
                 <Text style={styles.artifactCategoryBadge}>{art.category}</Text>
@@ -241,6 +314,8 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
       </View>
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -504,6 +579,50 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     fontSize: 13,
     color: '#475569',
+    fontWeight: '600',
+  },
+
+  // Data loading / error / empty states
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#B91C1C',
+    textAlign: 'center',
+    marginBottom: 12,
+    fontWeight: '600',
+  },
+  retryButton: {
+    backgroundColor: '#D97706',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  emptyBanner: {
+    height: 220,
+    backgroundColor: '#0F172A',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#CBD5E1',
+    fontSize: 16,
     fontWeight: '600',
   },
 });

@@ -50,8 +50,9 @@ export async function apiRequest<T = any>(
     ? endpoint
     : `${API_BASE_URL.replace(/\/$/, '')}/${endpoint.replace(/^\//, '')}`;
 
+  const isFormData = options.body instanceof FormData;
   const requestHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
     Accept: 'application/json',
     ...(headers as Record<string, string>),
   };
@@ -87,8 +88,15 @@ export async function apiRequest<T = any>(
       };
     }
 
+    // Backend trả về envelope ApiResponse<T> = {success, message, data, timestamp, path, errors}.
+    // Unwrap lấy trường data thực tế để client dùng trực tiếp.
+    let payload: T | null = data;
+    if (payload && typeof payload === 'object' && 'success' in payload && 'data' in payload) {
+      payload = (payload as any).data;
+    }
+
     return {
-      data,
+      data: payload,
       error: null,
       status: response.status,
       ok: true,
