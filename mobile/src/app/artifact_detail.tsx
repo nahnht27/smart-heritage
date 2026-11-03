@@ -1,13 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { heritageApi, type Artifact, type Multimedia } from '../services/heritageApi';
 
@@ -89,12 +81,11 @@ export default function ArtifactDetailScreen() {
     );
   }
 
-  const mainImageUrl = artifact.imageUrl;
   const multimediaImages = multimedia.filter((m) => m.type === 'image');
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <Image source={{ uri: mainImageUrl ?? undefined }} style={styles.heroImage} />
+      <Image source={{ uri: artifact.imageUrl ?? undefined }} style={styles.heroImage} />
 
       {multimediaImages.length > 0 && (
         <View style={styles.multimediaSection}>
@@ -124,7 +115,7 @@ export default function ArtifactDetailScreen() {
           <Text style={styles.locationIcon}>📍</Text>
           <View style={styles.locationTextContainer}>
             <Text style={styles.locationLabel}>Vị trí trưng bày:</Text>
-            <Text style={styles.locationValue}>{artifact.address || '—'}</Text>
+            <Text style={styles.locationValue}>{artifact.address}</Text>
           </View>
         </View>
 

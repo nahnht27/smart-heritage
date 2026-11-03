@@ -138,28 +138,28 @@ export default function HomeScreen() {
             <Text style={styles.emptyText}>Chưa có dữ liệu di sản</Text>
           </View>
         ) : (
-          <>
-            <Image
-              source={{ uri: site.address ? `https://maps.googleapis.com/maps/api/staticmap?center=${site.address}&zoom=15&size=400x200&key=demo` : undefined }}
-              style={styles.heroImage}
-              resizeMode="cover"
-            />
-            <View style={styles.heroOverlay}>
-              <View style={styles.siteBadge}>
-                <Text style={styles.siteBadgeText}>Khu Di tích Lịch sử</Text>
-              </View>
-              <Text style={styles.siteName}>{site.name}</Text>
-              <Text style={styles.siteTagline}>{site.description || ''}</Text>
+              <>
+                <Image
+                  source={{ uri: undefined }}
+                  style={styles.heroImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.heroOverlay}>
+                  <View style={styles.siteBadge}>
+                    <Text style={styles.siteBadgeText}>Khu Di tích Lịch sử</Text>
+                  </View>
+                  <Text style={styles.siteName}>{site.name}</Text>
+                  <Text style={styles.siteTagline}>{site.description || ''}</Text>
 
-              <View style={styles.siteInfoRow}>
-                <Text style={styles.siteInfoItem}>📍 {site.address}</Text>
-              </View>
-            </View>
-          </>
-        )}
-      </View>
+                  <View style={styles.siteInfoRow}>
+                    <Text style={styles.siteInfoItem}>📍 {site.address}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
 
-      {/* 2. iBeacon BLE Status Indicator — Not integrated in Sprint 2 */}
+          {/* 2. iBeacon BLE Status Indicator — Not integrated in Sprint 2 */}
       <View style={styles.beaconBanner}>
         <View style={styles.beaconPulseDot}>
           <Text style={styles.beaconIcon}>📡</Text>
