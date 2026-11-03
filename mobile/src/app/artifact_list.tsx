@@ -1,45 +1,121 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
-import { useRouter } from 'expo-router';
-import { MOCK_ARTIFACTS } from '../services/mockData';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { heritageApi, type Artifact, type HeritageSite } from '../services/heritageApi';
 
 export default function ArtifactListScreen() {
   const router = useRouter();
+  const { siteId } = useLocalSearchParams();
+
+  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadArtifacts = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        // Nếu có siteId từ navigation, dùng nó; nếu không, lấy danh sách heritage sites và chọn site đầu tiên
+        let siteIdNum: number | undefined;
+        if (siteId) {
+          siteIdNum = Number(siteId);
+        } else {
+          const sitesResult = await heritageApi.getHeritageSites();
+          if (!mounted) return;
+          if (sitesResult.ok && sitesResult.data && sitesResult.data.length > 0) {
+            siteIdNum = sitesResult.data[0].id;
+          } else {
+            setError(sitesResult.error || 'Không tải được danh sách di sản');
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        const result = await heritageApi.getArtifactsBySite(siteIdNum);
+        if (!mounted) return;
+        if (!result.ok || !result.data) {
+          setError(result.error || 'Không tải được danh sách hiện vật');
+          setIsLoading(false);
+          return;
+        }
+        setArtifacts(result.data);
+      } catch {
+        if (mounted) {
+          setError('Lỗi kết nối mạng. Vui lòng thử lại.');
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    loadArtifacts();
+    return () => {
+      mounted = false;
+    };
+  }, [refreshKey, siteId]);
+
+  const handleRetry = () => {
+    setError(null);
+    setIsLoading(true);
+    setRefreshKey((prev) => prev + 1);
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       <View style={styles.header}>
         <Text style={styles.title}>Danh mục Hiện vật</Text>
         <Text style={styles.subtitle}>
-          Tổng hợp {MOCK_ARTIFACTS.length} hiện vật quý giá tại khu di sản
+          {artifacts.length} hiện vật tại khu di sản
         </Text>
       </View>
 
-      <View style={styles.list}>
-        {MOCK_ARTIFACTS.map((art) => (
-          <TouchableOpacity
-            key={art.id}
-            style={styles.item}
-            onPress={() =>
-              router.push({
-                pathname: '/artifact_detail',
-                params: { id: art.id, name: art.name },
-              })
-            }
-            activeOpacity={0.75}
-          >
-            <Image source={{ uri: art.imageUrl }} style={styles.itemImage} />
-            <View style={styles.itemInfo}>
-              <View style={styles.tagRow}>
-                <Text style={styles.categoryBadge}>{art.category}</Text>
-              </View>
-              <Text style={styles.itemName}>{art.name}</Text>
-              <Text style={styles.itemEra}>Niên đại: {art.era}</Text>
-              <Text style={styles.itemLocation}>📍 {art.locationInMuseum}</Text>
-            </View>
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#D97706" />
+        </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRetry} activeOpacity={0.8}>
+            <Text style={styles.retryButtonText}>Thử lại</Text>
           </TouchableOpacity>
-        ))}
-      </View>
+        </View>
+      ) : artifacts.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Chưa có hiện vật nào được hiển thị</Text>
+        </View>
+      ) : (
+        <View style={styles.list}>
+          {artifacts.map((art) => (
+            <TouchableOpacity
+              key={art.id}
+              style={styles.item}
+              onPress={() =>
+                router.push({
+                  pathname: '/artifact_detail',
+                  params: { id: String(art.id), name: art.name },
+                })
+              }
+              activeOpacity={0.75}
+            >
+              <Image source={{ uri: art.imageUrl ?? undefined }} style={styles.itemImage} />
+              <View style={styles.itemInfo}>
+                <View style={styles.tagRow}>
+                  <Text style={styles.categoryBadge}>{art.siteName || 'Di sản'}</Text>
+                </View>
+                <Text style={styles.itemName}>{art.name}</Text>
+                <Text style={styles.itemDescription} numberOfLines={2}>
+                  {art.description}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -87,6 +163,48 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   itemName: { fontSize: 15, fontWeight: '700', color: '#0F172A', marginBottom: 3 },
-  itemEra: { fontSize: 12, color: '#64748B', marginBottom: 2 },
+  itemDescription: { fontSize: 12, color: '#64748B', marginBottom: 2 },
   itemLocation: { fontSize: 11, color: '#94A3B8' },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#B91C1C',
+    textAlign: 'center',
+    marginBottom: 12,
+    fontWeight: '600',
+  },
+  retryButton: {
+    backgroundColor: '#D97706',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    color: '#64748B',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
