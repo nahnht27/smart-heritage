@@ -31,7 +31,6 @@ export default function HomeScreen() {
   const [featuredArtifacts, setFeaturedArtifacts] = useState<Artifact[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const site = sites[0] ?? null;
 
@@ -57,7 +56,7 @@ export default function HomeScreen() {
           if (!mounted) return;
           if (artifactsResult.ok && artifactsResult.data) {
             // Backend không cung cấp trường isFeatured, nên hiển thị một tập con xác định
-            // từ dữ liệu thật thay vì giả dough dữ liệu.
+            // từ dữ liệu thật thay vì giả dough dữ liệu featured.
             setFeaturedArtifacts(artifactsResult.data.slice(0, 3));
           }
         }
@@ -74,7 +73,7 @@ export default function HomeScreen() {
     return () => {
       mounted = false;
     };
-  }, [refreshKey]);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -94,7 +93,7 @@ export default function HomeScreen() {
           email: string;
           role: string;
           preferredLanguageId: number | null;
-        }>('/api/users/me', {
+        }>('/users/me', {
           token,
         });
 

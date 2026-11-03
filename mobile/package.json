@@ -36,7 +36,7 @@
     "@types/jest": "^30.0.0",
     "@types/react": "~19.2.2",
     "babel-jest": "^30.5.2",
-    "babel-preset-expo": "^58.0.23",
+    "babel-preset-expo": "~57.0.0",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
     "jest": "^30.5.2",

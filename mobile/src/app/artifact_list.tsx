@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
-import { heritageApi, type Artifact } from '../services/heritageApi';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { heritageApi, type Artifact, type HeritageSite } from '../services/heritageApi';
 
 export default function ArtifactListScreen() {
   const router = useRouter();
+  const { siteId } = useLocalSearchParams();
 
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -18,7 +19,23 @@ export default function ArtifactListScreen() {
       setIsLoading(true);
       setError(null);
       try {
-        const result = await heritageApi.getArtifactsBySite('1');
+        // Nếu có siteId từ navigation, dùng nó; nếu không, lấy danh sách heritage sites và chọn site đầu tiên
+        let siteIdNum: number | undefined;
+        if (siteId) {
+          siteIdNum = Number(siteId);
+        } else {
+          const sitesResult = await heritageApi.getHeritageSites();
+          if (!mounted) return;
+          if (sitesResult.ok && sitesResult.data && sitesResult.data.length > 0) {
+            siteIdNum = sitesResult.data[0].id;
+          } else {
+            setError(sitesResult.error || 'Không tải được danh sách di sản');
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        const result = await heritageApi.getArtifactsBySite(siteIdNum);
         if (!mounted) return;
         if (!result.ok || !result.data) {
           setError(result.error || 'Không tải được danh sách hiện vật');
@@ -39,7 +56,7 @@ export default function ArtifactListScreen() {
     return () => {
       mounted = false;
     };
-  }, [refreshKey]);
+  }, [refreshKey, siteId]);
 
   const handleRetry = () => {
     setError(null);

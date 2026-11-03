@@ -82,10 +82,15 @@ export default function ArtifactDetailScreen() {
   }
 
   const multimediaImages = multimedia.filter((m) => m.type === 'image');
+  const heroImageUrl = multimediaImages.length > 0 ? multimediaImages[0].url : undefined;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <Image source={{ uri: artifact.imageUrl ?? undefined }} style={styles.heroImage} />
+      {heroImageUrl ? (
+        <Image source={{ uri: heroImageUrl }} style={styles.heroImage} />
+      ) : (
+        <View style={styles.heroImage} />
+      )}
 
       {multimediaImages.length > 0 && (
         <View style={styles.multimediaSection}>
