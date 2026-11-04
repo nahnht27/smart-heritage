@@ -142,6 +142,28 @@ Backend phải đang chạy tại `http://localhost:8080` (hoặc URL bạn cấ
 - Không dùng `localhost` trên thiết bị thật — nó trỏ về chính điện thoại.
 - Native app không bị CORS; chỉ **Expo Web**/Admin Web (browser) phụ thuộc CORS.
 
+## Testing & Integration
+
+```bash
+# Backend tests (JUnit, dùng H2 — không cần PostgreSQL)
+cd backend && ./mvnw test
+
+# Admin Web
+cd frontend && npm run lint && npm run build
+
+# Mobile
+cd mobile && npm test && npx tsc --noEmit && npm run lint
+
+# API smoke tests (cần backend + PostgreSQL đang chạy)
+python3 scripts/integration/smoke-test.py
+```
+
+Xem [`scripts/integration/README.md`](scripts/integration/README.md) để biết biến
+môi trường cho các scenario cần đăng nhập và ghi interaction.
+
+- Báo cáo tích hợp Sprint 4: [`docs/testing/sprint-4-integration-test-report.md`](docs/testing/sprint-4-integration-test-report.md)
+- Checklist E2E thủ công: [`docs/testing/sprint-4-e2e-checklist.md`](docs/testing/sprint-4-e2e-checklist.md)
+
 ## Database
 
 - **DB name**: `smart_heritage`

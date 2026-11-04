@@ -21,16 +21,16 @@ public interface VisitorInteractionRepository
     @Query("""
             select count(i)
             from VisitorInteraction i
-            where (:from is null or i.interactedAt >= :from)
-                and (:to is null or i.interactedAt < :to)
+            where i.interactedAt >= :from
+                and i.interactedAt < :to
             """)
     long countInPeriod(@Param("from") Instant from, @Param("to") Instant to);
 
     @Query("""
             select count(distinct i.user.userId)
             from VisitorInteraction i
-            where (:from is null or i.interactedAt >= :from)
-                and (:to is null or i.interactedAt < :to)
+            where i.interactedAt >= :from
+                and i.interactedAt < :to
             """)
     long countUniqueVisitorsInPeriod(
             @Param("from") Instant from,
@@ -40,8 +40,8 @@ public interface VisitorInteractionRepository
             select new com.university.backend.dto.InteractionTypeCountResponse(
                 i.interactionType, count(i))
             from VisitorInteraction i
-            where (:from is null or i.interactedAt >= :from)
-                and (:to is null or i.interactedAt < :to)
+            where i.interactedAt >= :from
+                and i.interactedAt < :to
             group by i.interactionType
             order by count(i) desc, i.interactionType asc
             """)
@@ -53,8 +53,8 @@ public interface VisitorInteractionRepository
             select new com.university.backend.dto.PopularArtifactResponse(
                 i.artifact.artifactId, i.artifact.name, count(i))
             from VisitorInteraction i
-            where (:from is null or i.interactedAt >= :from)
-                and (:to is null or i.interactedAt < :to)
+            where i.interactedAt >= :from
+                and i.interactedAt < :to
             group by i.artifact.artifactId, i.artifact.name
             order by count(i) desc, i.artifact.artifactId asc
             """)
