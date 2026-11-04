@@ -112,8 +112,9 @@ Cấu hình (cần quyền admin repository):
 4. Thêm các check ở trên (GitHub chỉ gợi ý check đã từng chạy ít nhất một lần).
 5. Không thêm `mobile-static-analysis (advisory)`.
 
-Pipeline không tự bật branch protection. Nếu tài khoản hiện tại không có quyền
-admin, nhờ maintainer cấu hình theo các bước trên.
+Pipeline không tự bật branch protection. Tại thời điểm Task 3, `main` chưa có
+branch protection (GitHub API trả 404) và tài khoản dùng để push không có quyền
+admin repository. Nhờ maintainer cấu hình theo các bước trên.
 
 ## 4. Xem và xử lý kết quả
 
@@ -193,3 +194,17 @@ cho tới khi config được đưa vào Git một cách chủ động.
 - Smoke CI chỉ public-only; full write smoke cần fixture an toàn và chạy thủ công.
 - Mobile static analysis chưa phải quality gate.
 - Branch protection phải cấu hình thủ công bởi maintainer.
+
+## 8. Kết quả xác minh
+
+Đã chạy thực tế trên PR #18 với commit `02fc105`:
+
+- Run: https://github.com/nahnht27/smart-heritage/actions/runs/41825807317
+- `backend-test`: PASS (81 test).
+- `frontend-checks`: PASS.
+- `mobile-tests`: PASS (18 test, có coverage artifact).
+- `docker-build`: PASS (`docker compose config` + `docker compose build`).
+- `integration-smoke`: PASS (public-only; authenticated/write scenarios SKIP).
+- `mobile-static-analysis (advisory)`: FAIL như dự kiến — 2 lỗi TypeScript và
+  1 lỗi ESLint có sẵn; không chặn PR.
+- Kết luận workflow: **success** (advisory job được phép fail).
