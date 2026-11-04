@@ -91,3 +91,10 @@ backend/logs/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.production.*
+!.env.production.example
+
+# Database backups (never commit dumps)
+backups/
+scripts/deployment/backups/

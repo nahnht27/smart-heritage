@@ -177,6 +177,27 @@ Required checks dự kiến: `backend-test`, `frontend-checks`, `mobile-tests`,
 Chi tiết kiến trúc, cách xem log và cấu hình branch protection:
 [`docs/development/ci-cd.md`](docs/development/ci-cd.md).
 
+## Production deployment
+
+Bộ cấu hình deployment portable (chưa deploy lên server thật; TLS/domain là
+PENDING):
+
+```bash
+cp .env.production.example .env.production   # điền secret thật, không commit
+docker compose -f docker-compose.production.yml --env-file .env.production config
+docker compose -f docker-compose.production.yml --env-file .env.production up -d --build
+```
+
+Production stack gồm PostgreSQL (internal, persistent volume), backend
+(non-root, không publish port), frontend Nginx (static SPA + reverse proxy
+`/api`), chỉ frontend bind `127.0.0.1` để đặt reverse proxy TLS phía trước.
+
+- Hướng dẫn đầy đủ: [`docs/deployment/production-deployment.md`](docs/deployment/production-deployment.md)
+- Backup/restore: [`docs/deployment/backup-restore.md`](docs/deployment/backup-restore.md)
+- Release/rollback: [`docs/deployment/release-management.md`](docs/deployment/release-management.md)
+
+Compose development ở trên vẫn giữ nguyên cho local.
+
 ## Database
 
 - **DB name**: `smart_heritage`
