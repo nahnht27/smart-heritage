@@ -1,7 +1,18 @@
-target/
+target
+build
+out
+bin
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+*.class
+
+# IDE / OS noise
 .idea/
 *.iml
 .vscode/
 .DS_Store
 Thumbs.db
-*.log

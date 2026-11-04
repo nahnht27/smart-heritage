@@ -193,6 +193,19 @@ docker compose ps          # xem trạng thái healthy
 curl http://localhost:8080/api/health
 ```
 
+### Production image
+
+`backend/Dockerfile` build multi-stage và chạy bằng user không đặc quyền
+(`app`, UID 10001), có `HEALTHCHECK` gọi `/api/health`. Image không chứa Maven,
+source hay `.env`. Build với version label:
+
+```bash
+docker build --build-arg APP_VERSION=1.0.0 -t smart-heritage-backend:1.0.0 ./backend
+```
+
+Production stack dùng `docker-compose.production.yml`; xem
+[`docs/deployment/production-deployment.md`](../docs/deployment/production-deployment.md).
+
 ## Cấu hình CORS
 
 Backend đã cấu hình `CorsConfigurationSource` trong `SecurityConfig`, áp dụng cho pattern `/api/**`.
