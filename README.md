@@ -165,6 +165,18 @@ môi trường cho các scenario cần đăng nhập và ghi interaction.
 - Báo cáo tích hợp Sprint 4: [`docs/testing/sprint-4-integration-test-report.md`](docs/testing/sprint-4-integration-test-report.md)
 - Checklist E2E thủ công: [`docs/testing/sprint-4-e2e-checklist.md`](docs/testing/sprint-4-e2e-checklist.md)
 
+## CI/CD
+
+GitHub Actions chạy tự động cho PR vào `main`, push vào `main`/`LTJ-*` và chạy
+thủ công từ tab Actions. Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+Required checks dự kiến: `backend-test`, `frontend-checks`, `mobile-tests`,
+`docker-build`; `integration-smoke` (public-only) sau khi ổn định.
+`mobile-static-analysis` là **advisory** do technical debt TypeScript/ESLint có sẵn.
+
+Chi tiết kiến trúc, cách xem log và cấu hình branch protection:
+[`docs/development/ci-cd.md`](docs/development/ci-cd.md).
+
 ## Database
 
 - **DB name**: `smart_heritage`
