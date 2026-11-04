@@ -16,6 +16,9 @@ Configuration (environment variables, never hardcode credentials):
     TEST_ADMIN_PASSWORD
     TEST_ARTIFACT_ID         Existing artifact id for the interaction write
     ENABLE_INTERACTION_WRITE Default: false. Must be true to write an event.
+    ENABLE_CONCURRENT_DUPLICATE
+                             Default: false. Opt-in for the concurrent duplicate
+                             scenario (writes one extra event when enabled).
 
 Without credentials, authenticated scenarios are reported as SKIPPED.
 Credentials that are provided but fail to authenticate are reported as FAIL.
@@ -31,6 +34,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -247,6 +251,31 @@ def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _summary_total(
+    client: HttpClient,
+    admin_token: str,
+    range_from: str,
+    range_to: str,
+) -> int | None:
+    status, payload, _ = client.request(
+        "GET",
+        f"analytics/interactions/summary?from={range_from}&to={range_to}",
+        token=admin_token,
+    )
+    if status == 200 and is_envelope(payload):
+        total = (payload.get("data") or {}).get("totalInteractions")
+        return total if isinstance(total, int) else None
+    return None
+
+
+def _interaction_write_enabled() -> bool:
+    return os.environ.get("ENABLE_INTERACTION_WRITE", "false").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
 def scenario_interaction(
     reporter: Reporter,
     client: HttpClient,
@@ -261,11 +290,7 @@ def scenario_interaction(
     if not artifact_id:
         reporter.skip("POST /interactions", "TEST_ARTIFACT_ID not provided")
         return False, None
-    if os.environ.get("ENABLE_INTERACTION_WRITE", "false").lower() not in (
-        "1",
-        "true",
-        "yes",
-    ):
+    if not _interaction_write_enabled():
         reporter.skip(
             "POST /interactions",
             "write disabled (set ENABLE_INTERACTION_WRITE=true to opt in)",
@@ -310,58 +335,151 @@ def scenario_interaction(
         f"data={first_data}",
     )
 
-    # Measure analytics total before the duplicate (only when admin is available).
+    # Sequential duplicate (same eventId, sent after the first request has
+    # completed): contract requires 200 OK with the existing record, NOT 409.
     range_from = _iso(now - timedelta(hours=1))
     range_to = _iso(now + timedelta(hours=1))
-    total_before = None
-    if admin_token:
-        before_status, before_payload, _ = client.request(
-            "GET",
-            f"analytics/interactions/summary?from={range_from}&to={range_to}",
-            token=admin_token,
-        )
-        if before_status == 200 and is_envelope(before_payload):
-            total_before = (before_payload.get("data") or {}).get("totalInteractions")
+    total_before = (
+        _summary_total(client, admin_token, range_from, range_to)
+        if admin_token
+        else None
+    )
 
     status, payload, raw = client.request(
         "POST", "interactions", token=visitor_token, body=body
     )
-    duplicate_safe = status in (200, 409)
     reporter.check(
-        "POST /interactions duplicate: HTTP 200 or 409",
-        duplicate_safe,
-        f"got HTTP {status}: {raw[:200]}",
+        "POST /interactions sequential duplicate: HTTP 200",
+        status == 200,
+        f"got HTTP {status}: {raw[:200]} (409 is only valid for concurrent races)",
     )
-    if status == 200 and is_envelope(payload):
-        reporter.check(
-            "POST /interactions duplicate: same interactionId",
-            (payload.get("data") or {}).get("interactionId") == first_id,
-            "duplicate response did not reference the existing record",
-        )
-        reporter.check(
-            "POST /interactions duplicate: idempotent message",
-            "already" in str(payload.get("message", "")).lower(),
-            f"message={payload.get('message')!r}",
-        )
+    if status == 200:
+        if assert_envelope(reporter, "POST /interactions sequential duplicate", status, payload, raw):
+            reporter.check(
+                "POST /interactions sequential duplicate: same interactionId",
+                (payload.get("data") or {}).get("interactionId") == first_id,
+                "duplicate response did not reference the existing record",
+            )
+            reporter.check(
+                "POST /interactions sequential duplicate: idempotent message",
+                "already" in str(payload.get("message", "")).lower(),
+                f"message={payload.get('message')!r}",
+            )
 
     if admin_token and total_before is not None:
-        after_status, after_payload, _ = client.request(
-            "GET",
-            f"analytics/interactions/summary?from={range_from}&to={range_to}",
-            token=admin_token,
-        )
-        total_after = None
-        if after_status == 200 and is_envelope(after_payload):
-            total_after = (after_payload.get("data") or {}).get("totalInteractions")
+        total_after = _summary_total(client, admin_token, range_from, range_to)
         reporter.check(
-            "POST /interactions duplicate: only one record stored",
-            total_before is not None
-            and total_after is not None
-            and total_after == total_before,
+            "POST /interactions sequential duplicate: totalInteractions unchanged",
+            total_after is not None and total_after == total_before,
             f"totalInteractions before={total_before} after={total_after}",
+        )
+    else:
+        reporter.skip(
+            "POST /interactions sequential duplicate: totalInteractions unchanged",
+            "admin token unavailable",
         )
 
     return True, interaction_type
+
+
+def scenario_concurrent_duplicate(
+    reporter: Reporter,
+    client: HttpClient,
+    visitor_token: str | None,
+    admin_token: str | None,
+    artifact_id: str | None,
+) -> None:
+    """Fire simultaneous requests with one eventId and verify only one row wins.
+
+    Concurrency (not sequential) may legitimately return 409 for the requests
+    blocked by the unique event_id constraint. Exactly one request must create
+    the record (201) and the analytics total must grow by exactly one.
+    """
+    if not visitor_token:
+        reporter.skip("POST /interactions concurrent duplicate", "visitor token unavailable")
+        return
+    if not artifact_id:
+        reporter.skip("POST /interactions concurrent duplicate", "TEST_ARTIFACT_ID not provided")
+        return
+    if not _interaction_write_enabled():
+        reporter.skip(
+            "POST /interactions concurrent duplicate",
+            "write disabled (set ENABLE_INTERACTION_WRITE=true to opt in)",
+        )
+        return
+    if os.environ.get("ENABLE_CONCURRENT_DUPLICATE", "false").lower() not in (
+        "1",
+        "true",
+        "yes",
+    ):
+        reporter.skip(
+            "POST /interactions concurrent duplicate",
+            "concurrent check disabled (set ENABLE_CONCURRENT_DUPLICATE=true to opt in)",
+        )
+        return
+
+    now = datetime.now(timezone.utc)
+    body = {
+        "eventId": str(uuid.uuid4()),
+        "artifactId": int(artifact_id),
+        "interactionType": "VIEW",
+        "languageCode": "vi",
+        "startedAt": _iso(now),
+        "endedAt": _iso(now + timedelta(seconds=30)),
+        "interactedAt": _iso(now),
+    }
+    range_from = _iso(now - timedelta(hours=1))
+    range_to = _iso(now + timedelta(hours=1))
+    total_before = (
+        _summary_total(client, admin_token, range_from, range_to)
+        if admin_token
+        else None
+    )
+
+    def send(_: int) -> tuple[int, Any, str]:
+        return client.request(
+            "POST", "interactions", token=visitor_token, body=body
+        )
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        results = list(pool.map(send, range(3)))
+
+    statuses = [status for status, _, _ in results]
+    reporter.check(
+        "POST /interactions concurrent duplicate: statuses in {200,201,409}",
+        all(status in (200, 201, 409) for status in statuses),
+        f"statuses={statuses}",
+    )
+    reporter.check(
+        "POST /interactions concurrent duplicate: exactly one 201",
+        statuses.count(201) == 1,
+        f"statuses={statuses} (more than one 201 means duplicate rows)",
+    )
+
+    interaction_ids = set()
+    for status, payload, _ in results:
+        if status in (200, 201) and is_envelope(payload):
+            interaction_id = (payload.get("data") or {}).get("interactionId")
+            if interaction_id is not None:
+                interaction_ids.add(interaction_id)
+    reporter.check(
+        "POST /interactions concurrent duplicate: one interactionId",
+        len(interaction_ids) == 1,
+        f"interactionIds={interaction_ids}",
+    )
+
+    if admin_token and total_before is not None:
+        total_after = _summary_total(client, admin_token, range_from, range_to)
+        reporter.check(
+            "POST /interactions concurrent duplicate: exactly one record stored",
+            total_after is not None and total_after == total_before + 1,
+            f"totalInteractions before={total_before} after={total_after}",
+        )
+    else:
+        reporter.skip(
+            "POST /interactions concurrent duplicate: exactly one record stored",
+            "admin token unavailable",
+        )
 
 
 def scenario_analytics_auth(
@@ -516,6 +634,13 @@ def main() -> int:
 
     scenario_profile(reporter, client, visitor_token)
     created, interaction_type = scenario_interaction(
+        reporter,
+        client,
+        visitor_token,
+        admin_token,
+        os.environ.get("TEST_ARTIFACT_ID"),
+    )
+    scenario_concurrent_duplicate(
         reporter,
         client,
         visitor_token,

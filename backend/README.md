@@ -180,8 +180,8 @@ Xem file `backend/.env.example` để có mẫu đầy đủ.
 Hoặc chạy toàn bộ stack bằng Docker Compose từ thư mục gốc dự án:
 
 ```bash
-docker-compose up --build -d
-# hoặc: docker compose up --build -d
+docker compose up --build -d
+# máy chỉ có bản legacy: docker-compose up --build -d
 ```
 
 Docker Compose có health check cho cả PostgreSQL (`pg_isready`) và backend
@@ -189,7 +189,7 @@ Docker Compose có health check cho cả PostgreSQL (`pg_isready`) và backend
 container backend được đánh dấu `healthy` khi health endpoint trả 200.
 
 ```bash
-docker-compose ps          # xem trạng thái healthy
+docker compose ps          # xem trạng thái healthy
 curl http://localhost:8080/api/health
 ```
 

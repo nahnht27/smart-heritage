@@ -24,13 +24,14 @@
 | Database | PostgreSQL 16 (container `postgres:16-alpine`) |
 | Backend | Spring Boot 3.2.5, Java 17 (container) |
 
-Vì máy không có Java/Maven và không có Compose V2, các lệnh tương đương đã dùng:
+Tài liệu dùng chuẩn **Compose V2** (`docker compose`). Máy kiểm thử không có
+plugin V2 nên lần chạy thực tế dùng lệnh legacy `docker-compose` tương đương;
+trên máy có V2 chỉ cần thay `docker-compose` → `docker compose`.
 
 ```bash
-# thay cho: docker compose config
-docker-compose config
+docker compose config
 
-# thay cho: mvn test (chạy trong Docker)
+# mvn test (chạy trong Docker vì host không có Java/Maven)
 docker run --rm -v "$PWD/backend":/app -v maven_repo:/root/.m2 \
   -w /app maven:3.9.6-eclipse-temurin-17 mvn -B test
 ```
@@ -74,7 +75,7 @@ docker run --rm -v "$PWD/backend":/app -v maven_repo:/root/.m2 \
 | `GlobalExceptionHandlerTest` | 2 |
 | `BackendApplicationTests` | 1 |
 
-Ngoài ra `docker-compose build backend` chạy `mvn package` (gồm test) và
+Ngoài ra `docker compose build backend` chạy `mvn package` (gồm test) và
 **BUILD SUCCESS**.
 
 ---
@@ -108,12 +109,12 @@ Backend + PostgreSQL chạy bằng Docker Compose; base URL `http://localhost:80
 
 ### Lần chạy public (không credentials)
 
-**17 passed, 0 failed, 7 skipped** (exit 0). Các mục authenticated được SKIP đúng
+**17 passed, 0 failed, 8 skipped** (exit 0). Các mục authenticated được SKIP đúng
 theo thiết kế.
 
-### Lần chạy đầy đủ (VISITOR + ADMIN + artifact test + interaction write)
+### Lần chạy đầy đủ (VISITOR + ADMIN + artifact test + interaction write + concurrent duplicate)
 
-**44 passed, 0 failed, 0 skipped** (exit 0).
+**50 passed, 0 failed, 0 skipped** (exit 0).
 
 | Scenario | Kết quả |
 |----------|---------|
@@ -121,14 +122,16 @@ theo thiết kế.
 | B — Public content (sites/artifacts/multimedia) | PASS — 200, envelope, `data` là list |
 | C — Auth invalid + valid | PASS — 401 với sai credentials; JWT nhận được (không in token) |
 | D — `GET /api/users/me` | PASS — 200 với visitor; 401 không token |
-| E — `POST /api/interactions` | PASS — 201 lần đầu; duplicate 200 cùng `interactionId`; chỉ 1 record |
+| E1 — Sequential duplicate | PASS — lần đầu 201; gửi lại cùng `eventId` sau khi request đầu hoàn tất → **bắt buộc 200**, cùng `interactionId`, `totalInteractions` không đổi |
+| E2 — Concurrent duplicate (opt-in) | PASS — 3 request đồng thời: đúng một 201, các request còn lại 200/409; tất cả response thành công cùng `interactionId`; tổng tăng đúng 1 |
 | F — Analytics authorization | PASS — anonymous 401, VISITOR 403, ADMIN 200 |
 | G — Analytics data + filter | PASS — số liệu phản ánh event vừa ghi; `from` thiếu `to` → 400 |
 
 Ghi chú dữ liệu test: script dùng tài khoản test `smoke_visitor` /
 `smoke_admin` và một site/artifact test trên **volume Docker local dùng riêng cho
 kiểm thử**. Script không tạo user; chỉ ghi interaction khi
-`ENABLE_INTERACTION_WRITE=true`.
+`ENABLE_INTERACTION_WRITE=true`. Scenario E2 (concurrent) chỉ chạy khi bật thêm
+`ENABLE_CONCURRENT_DUPLICATE=true` và ghi thêm đúng một record.
 
 ---
 
@@ -141,13 +144,16 @@ docker exec smart-heritage-db psql -U postgres -d smart_heritage \
   -c "SELECT COUNT(*) FROM visitor_interaction;"
 ```
 
-Kết quả sau các lần smoke: `heritage_site=1`, `artifact=1`,
-`visitor_interaction=3` (tất cả `VIEW`, từ các lần chạy test). Điều này xác nhận:
+Kết quả sau các lần smoke (tính đến lượt QA cuối): `heritage_site=1`,
+`artifact=1`, `visitor_interaction=5` (tất cả `VIEW`, từ các lần chạy test).
+Điều này xác nhận:
 
 - Backend kết nối đúng PostgreSQL qua hostname `postgres` trong Compose network.
 - Interaction được persist thật xuống PostgreSQL.
-- Duplicate `eventId` không tạo thêm record (số liệu analytics không đổi sau
-  request duplicate).
+- Sequential duplicate `eventId` **không** tạo thêm record (tổng analytics không
+  đổi sau request thứ hai).
+- Concurrent duplicate chỉ tạo **một** record dù nhiều request đồng thời (tổng
+  tăng đúng 1).
 
 ---
 
@@ -204,6 +210,7 @@ Checklist thủ công: `docs/testing/sprint-4-e2e-checklist.md` (đánh dấu PE
 | Admin Web UI E2E | NOT EXECUTED | Không có browser tương tác |
 | Authenticated smoke (public-only run) | SKIPPED | Không truyền credentials — đúng thiết kế |
 | Interaction write (mặc định) | SKIPPED | Cần opt-in `ENABLE_INTERACTION_WRITE=true` |
+| Concurrent duplicate (mặc định) | SKIPPED | Cần opt-in `ENABLE_CONCURRENT_DUPLICATE=true` |
 
 ---
 
@@ -301,9 +308,9 @@ E2E thủ công trên máy có emulator/browser.
 ## 15. Cách tái chạy
 
 ```bash
-# 1. Stack
-docker-compose up -d --build
-docker-compose ps
+# 1. Stack (Compose V2; dùng `docker-compose` nếu máy chỉ có bản legacy)
+docker compose up -d --build
+docker compose ps
 curl http://localhost:8080/api/health
 
 # 2. Backend tests
@@ -323,5 +330,6 @@ python3 scripts/integration/smoke-test.py
 TEST_VISITOR_USERNAME=... TEST_VISITOR_PASSWORD=... \
 TEST_ADMIN_USERNAME=... TEST_ADMIN_PASSWORD=... \
 TEST_ARTIFACT_ID=... ENABLE_INTERACTION_WRITE=true \
+ENABLE_CONCURRENT_DUPLICATE=true \
 python3 scripts/integration/smoke-test.py
 ```

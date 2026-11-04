@@ -33,8 +33,9 @@ University project — Smart Heritage platform.
 - Không cần cài Java/Maven hay PostgreSQL trên máy nếu chạy bằng Docker.
 - Điện thoại/emulator cho Mobile (Expo Go hoặc development build).
 
-> Compose V2 plugin dùng `docker compose`; một số máy cũ dùng `docker-compose`
-> (có dấu `-`). Hai lệnh tương đương trong tài liệu này.
+> Tài liệu dùng **Compose V2** (`docker compose`). Một số máy cũ chỉ có bản
+> legacy `docker-compose` (có dấu `-`) — thay lệnh tương ứng. Không dùng
+> `docker-compose` 1.29.2 trên Docker 29 vì có lỗi recreate container.
 
 ## Environment Variables
 
@@ -64,13 +65,13 @@ Chỉ cần Docker đang chạy, rồi:
 
 ```bash
 # Build & chạy cả PostgreSQL + Backend
-docker-compose up --build
+docker compose up --build
 
 # Chạy nền (detached)
-docker-compose up --build -d
-
-# Hoặc với Compose V2
 docker compose up --build -d
+
+# Máy chỉ có bản legacy:
+# docker-compose up --build -d
 ```
 
 Sau khi chạy xong:
@@ -85,7 +86,7 @@ Compose có health check: PostgreSQL phải `healthy` trước khi backend khở
 backend được đánh dấu `healthy` khi `/api/health` trả 200.
 
 ```bash
-docker-compose ps
+docker compose ps
 curl http://localhost:8080/api/health
 # → {"status":"UP","timestamp":"..."}
 
@@ -99,10 +100,10 @@ curl http://localhost:8080/api/multimedia
 
 ```bash
 # Dừng containers (giữ nguyên database volume)
-docker-compose down
+docker compose down
 
 # CHỈ khi muốn xóa toàn bộ dữ liệu PostgreSQL:
-# docker-compose down -v
+# docker compose down -v
 ```
 
 ## Docker Services
@@ -172,14 +173,14 @@ môi trường cho các scenario cần đăng nhập và ghi interaction.
 - **Port**: `5432`
 
 Docker tự tạo database khi chạy lần đầu. Data được lưu trong Docker volume
-`postgres_data`. Không dùng `docker-compose down -v` nếu muốn giữ dữ liệu.
+`postgres_data`. Không dùng `docker compose down -v` nếu muốn giữ dữ liệu.
 
 ## Troubleshooting
 
 | Triệu chứng | Nguyên nhân / Cách khắc phục |
 |-------------|------------------------------|
-| Backend container restart liên tục | Xem `docker-compose logs backend`; thường do PostgreSQL chưa sẵn sàng hoặc sai `SPRING_DATASOURCE_URL`. Trong Compose phải dùng host `postgres`, không phải `localhost`. |
-| `curl :8080/api/health` connection refused | Kiểm tra `docker-compose ps`; chờ backend `healthy` (health check có `start_period`). |
+| Backend container restart liên tục | Xem `docker compose logs backend`; thường do PostgreSQL chưa sẵn sàng hoặc sai `SPRING_DATASOURCE_URL`. Trong Compose phải dùng host `postgres`, không phải `localhost`. |
+| `curl :8080/api/health` connection refused | Kiểm tra `docker compose ps`; chờ backend `healthy` (health check có `start_period`). |
 | Browser báo "Blocked by CORS policy" | Thêm origin của web vào `CORS_ALLOWED_ORIGINS` rồi restart backend. Mặc định chỉ cho `localhost:5173` và `localhost:8081`. |
 | Admin Web gọi `/api/api/...` | `VITE_API_BASE_URL` phải là origin (`http://localhost:8080`), không kèm `/api`. Code tự bỏ `/api` cuối, nhưng nên cấu hình đúng. |
 | Mobile Android không kết nối được | Dùng `10.0.2.2`, không dùng `localhost`. Với máy thật, dùng IP LAN và đảm bảo firewall cho phép cổng 8080. |

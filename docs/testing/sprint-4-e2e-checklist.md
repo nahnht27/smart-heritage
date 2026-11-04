@@ -10,7 +10,8 @@ Trạng thái: `[ ]` chưa chạy · `[x]` pass · `[!]` fail · `[~]` blocked/p
 
 ## 0. Chuẩn bị
 
-- [ ] `docker-compose up -d --build`; `docker-compose ps` thấy backend + postgres `healthy`.
+- [ ] `docker compose up -d --build`; `docker compose ps` thấy backend + postgres `healthy`.
+      (Máy chỉ có bản legacy thì dùng `docker-compose`.)
 - [ ] `curl http://localhost:8080/api/health` → `{"status":"UP",...}`.
 - [ ] Có ít nhất 1 heritage site, 1 artifact, 1 multimedia (tạo bằng Admin Web hoặc SQL seed).
 - [ ] Có tài khoản VISITOR và ADMIN.
