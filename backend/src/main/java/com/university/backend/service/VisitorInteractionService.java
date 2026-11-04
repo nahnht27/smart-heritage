@@ -23,6 +23,14 @@ import java.util.Locale;
 public class VisitorInteractionService {
     private static final int POPULAR_ARTIFACTS_LIMIT = 10;
 
+    // PostgreSQL cannot infer the type of a NULL JDBC parameter used in
+    // `(:param is null or ...)`. Use concrete, wide bounds for the "no filter"
+    // case instead of binding null; the response still reports the caller's
+    // original (possibly null) from/to values.
+    private static final Instant UNBOUNDED_FROM = Instant.EPOCH;
+    private static final Instant UNBOUNDED_TO =
+            Instant.parse("9999-12-31T23:59:59.999Z");
+
     private final VisitorInteractionRepository interactionRepository;
     private final ArtifactRepository artifactRepository;
     private final UserRepository userRepository;
@@ -55,15 +63,18 @@ public class VisitorInteractionService {
 
     @Transactional(readOnly = true)
     public InteractionSummaryResponse getSummary(Instant from, Instant to) {
+        Instant queryFrom = from != null ? from : UNBOUNDED_FROM;
+        Instant queryTo = to != null ? to : UNBOUNDED_TO;
+
         return new InteractionSummaryResponse(
                 from,
                 to,
-                interactionRepository.countInPeriod(from, to),
-                interactionRepository.countUniqueVisitorsInPeriod(from, to),
-                interactionRepository.countByTypeInPeriod(from, to),
+                interactionRepository.countInPeriod(queryFrom, queryTo),
+                interactionRepository.countUniqueVisitorsInPeriod(queryFrom, queryTo),
+                interactionRepository.countByTypeInPeriod(queryFrom, queryTo),
                 interactionRepository.findPopularArtifactsInPeriod(
-                        from,
-                        to,
+                        queryFrom,
+                        queryTo,
                         PageRequest.of(0, POPULAR_ARTIFACTS_LIMIT)));
     }
 

@@ -15,6 +15,7 @@ import com.university.backend.repository.VisitorInteractionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -143,5 +144,30 @@ class VisitorInteractionServiceTest {
         assertEquals(4L, result.uniqueVisitors());
         assertEquals(1, result.interactionTypes().size());
         assertEquals("VIEW", result.interactionTypes().get(0).interactionType());
+    }
+
+    @Test
+    void getSummary_withoutRange_shouldQueryWithNonNullBounds() {
+        when(interactionRepository.countInPeriod(any(), any())).thenReturn(0L);
+        when(interactionRepository.countUniqueVisitorsInPeriod(any(), any())).thenReturn(0L);
+        when(interactionRepository.countByTypeInPeriod(any(), any())).thenReturn(List.of());
+        when(interactionRepository.findPopularArtifactsInPeriod(any(), any(), any()))
+                .thenReturn(List.of());
+
+        InteractionSummaryResponse result = interactionService.getSummary(null, null);
+
+        ArgumentCaptor<Instant> fromCaptor = ArgumentCaptor.forClass(Instant.class);
+        ArgumentCaptor<Instant> toCaptor = ArgumentCaptor.forClass(Instant.class);
+        verify(interactionRepository)
+                .countInPeriod(fromCaptor.capture(), toCaptor.capture());
+
+        // PostgreSQL cannot type a null query parameter; bounds must be concrete.
+        assertNotNull(fromCaptor.getValue());
+        assertNotNull(toCaptor.getValue());
+        assertTrue(fromCaptor.getValue().isBefore(toCaptor.getValue()));
+
+        // The response still reports the unfiltered (null) range.
+        assertNull(result.from());
+        assertNull(result.to());
     }
 }
