@@ -152,12 +152,28 @@ spring:
 
 | Biến | Giá trị mặc định | Mô tả |
 |------|------------------|-------|
-| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/smart_heritage` | URL kết nối PostgreSQL |
+| `SERVER_PORT` | `8080` | Cổng HTTP của backend |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/smart_heritage` | URL kết nối PostgreSQL (Docker Compose dùng host `postgres`) |
 | `SPRING_DATASOURCE_USERNAME` | `postgres` | Username database |
 | `SPRING_DATASOURCE_PASSWORD` | `postgres` | Password database |
-| `JWT_SECRET` | `SmartHeritageDevSecretKeyThatIsAtLeast256BitsLong!2024` | Khóa ký JWT (phải >= 256 bits) |
+| `JWT_SECRET` | Development fallback (xem `application.yml`) | Khóa ký JWT (phải >= 256 bits). **Bắt buộc override ngoài local dev** |
 | `JWT_EXPIRATION_MS` | `86400000` | Thời gian hết hạn JWT (ms, mặc định 24 giờ) |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:8081` | Danh sách origin được phép gọi API (phân cách bằng dấu phẩy) |
+
+> Giá trị `JWT_SECRET` mặc định trong `application.yml` chỉ dành cho local
+> development. Không commit secret thật; luôn truyền `JWT_SECRET` qua môi
+> trường khi chạy Docker/CI/production.
+
+### Kết nối PostgreSQL: local vs Docker Compose
+
+| Cách chạy backend | `SPRING_DATASOURCE_URL` |
+|-------------------|--------------------------|
+| Chạy trực tiếp trên máy host | `jdbc:postgresql://localhost:5432/smart_heritage` |
+| Chạy trong Docker Compose | `jdbc:postgresql://postgres:5432/smart_heritage` |
+
+Trong Docker network, `postgres` là tên service và cũng là hostname phân giải
+nội bộ. Không dùng `localhost` cho backend container vì `localhost` trỏ vào
+chính container backend.
 
 Xem file `backend/.env.example` để có mẫu đầy đủ.
 
@@ -165,6 +181,16 @@ Hoặc chạy toàn bộ stack bằng Docker Compose từ thư mục gốc dự 
 
 ```bash
 docker-compose up --build -d
+# hoặc: docker compose up --build -d
+```
+
+Docker Compose có health check cho cả PostgreSQL (`pg_isready`) và backend
+(`GET /api/health`). Backend chỉ khởi động sau khi PostgreSQL healthy, và
+container backend được đánh dấu `healthy` khi health endpoint trả 200.
+
+```bash
+docker-compose ps          # xem trạng thái healthy
+curl http://localhost:8080/api/health
 ```
 
 ## Cấu hình CORS

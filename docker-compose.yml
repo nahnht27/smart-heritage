@@ -4,16 +4,17 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: smart-heritage-db
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: smart_heritage
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-smart_heritage}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d smart_heritage"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-smart_heritage}"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -21,15 +22,30 @@ services:
   backend:
     build: ./backend
     container_name: smart-heritage-backend
+    restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "${BACKEND_PORT:-8080}:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smart_heritage
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
+      # Inside the Compose network the database host is the service name "postgres",
+      # not localhost. Use localhost only when running the backend on the host.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-smart_heritage}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Local-development fallback only. Override JWT_SECRET outside local dev.
+      JWT_SECRET: ${JWT_SECRET:-SmartHeritageDevSecretKeyThatIsAtLeast256BitsLong!2024}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      # Browser origins allowed by CORS (Admin Web + Expo Web). Native mobile does
+      # not depend on CORS, but Expo Web runs in the browser.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8081}
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
 
 volumes:
   postgres_data:

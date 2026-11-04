@@ -72,23 +72,49 @@ export async function apiRequest<T = any>(
 
     clearTimeout(timeoutId);
 
-    let data: T | null = null;
+    let payload: any = null;
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
-      data = (await response.json()) as T;
+      payload = await response.json();
     }
 
+    // Backend contract: success responses are wrapped in ApiResponse<T>
+    // `{ success, message, data, timestamp, path, errors }`. Unwrap `data`
+    // so service helpers receive the resource payload, not the envelope.
+    const isEnvelope =
+      payload !== null &&
+      typeof payload === 'object' &&
+      typeof payload.success === 'boolean';
+
+    if (isEnvelope) {
+      if (!response.ok || payload.success === false) {
+        return {
+          data: null,
+          error: payload.message || `HTTP error ${response.status}`,
+          status: response.status,
+          ok: false,
+        };
+      }
+      return {
+        data: ('data' in payload ? payload.data : null) as T | null,
+        error: null,
+        status: response.status,
+        ok: true,
+      };
+    }
+
+    // Non-enveloped endpoint (e.g. the plain health map).
     if (!response.ok) {
       return {
         data: null,
-        error: (data as any)?.message || `HTTP error ${response.status}`,
+        error: payload?.message || `HTTP error ${response.status}`,
         status: response.status,
         ok: false,
       };
     }
 
     return {
-      data,
+      data: payload as T | null,
       error: null,
       status: response.status,
       ok: true,

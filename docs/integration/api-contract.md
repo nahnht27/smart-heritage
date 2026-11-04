@@ -321,12 +321,21 @@ Backend đã có implementation đầy đủ cho hai endpoint trên. Mobile ch�
 
 Backend chạy tại cổng `8080`. Tất cả endpoint có prefix `/api`.
 
-| Môi trường | Base URL |
-|------------|----------|
-| Admin Web (Vite dev) | `http://localhost:8080/api` |
-| Expo Web | `http://localhost:8080/api` |
-| Android Emulator | `http://10.0.2.2:8080/api` |
-| Thiết bị thật (LAN) | `http://<IP_MAY_CHUYEN_BE>:8080/api` |
+> **Quan trọng:** hai client dùng quy ước biến môi trường khác nhau:
+> - **Admin Web** (`VITE_API_BASE_URL`) là **origin**, KHÔNG gồm `/api`
+>   (code tự thêm `/api` vào path).
+> - **Mobile** (`EXPO_PUBLIC_API_BASE_URL`) là **API base URL đầy đủ**, CÓ `/api`
+>   (service tự nối endpoint tương đối).
+>
+> Không đặt `http://localhost:8080/api` vào `VITE_API_BASE_URL` để tránh `/api/api`.
+
+| Môi trường | Biến | Giá trị |
+|------------|------|---------|
+| Admin Web (Vite dev) | `VITE_API_BASE_URL` | `http://localhost:8080` |
+| Expo Web | `EXPO_PUBLIC_API_BASE_URL` | `http://localhost:8080/api` |
+| Android Emulator | `EXPO_PUBLIC_API_BASE_URL` | `http://10.0.2.2:8080/api` |
+| iOS Simulator | `EXPO_PUBLIC_API_BASE_URL` | `http://localhost:8080/api` |
+| Thiết bị thật (LAN) | `EXPO_PUBLIC_API_BASE_URL` | `http://<IP_MAY_CHUYEN_BE>:8080/api` |
 
 ### 4.2 Giải thích `localhost` vs `10.0.2.2`
 
