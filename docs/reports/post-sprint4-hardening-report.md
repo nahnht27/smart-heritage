@@ -176,3 +176,177 @@
   2. `fix(mobile): normalize multimedia types and thumbnails`
 - Không merge; PR tạo sau khi push (nếu remote cho phép).
 - Không stage `mobile/eslint.config.js`, `scripts/integration/__pycache__/`, hay audit report cũ.
+
+---
+
+# Wave 2 — Admin Authentication & Session Hardening
+
+**Ngày:** 2026-11-05
+
+**Branch:** `fix/admin-auth-session` (tạo từ `origin/main` @ `dd7c939`, merge PR #20)
+
+**Phạm vi:** AUDIT-002, AUDIT-012, AUDIT-013 (Admin Web only)
+
+## 8. Trạng thái Findings
+
+| Finding | Trạng thái | Ghi chú |
+|---|---|---|
+| AUDIT-002 — JWT decode sai claim / mất phiên khi refresh | **FIXED** | Bỏ decode JWT làm identity; bootstrap bằng `GET /api/users/me`; Header chịu được username thiếu |
+| AUDIT-012 — Logout không xóa token; token cũ khi login bị từ chối | **FIXED** | Sidebar/Header dùng AuthContext logout; login chỉ persist token sau khi xác minh ADMIN; mọi login attempt xóa session cũ trước đó |
+| AUDIT-013 — Không xử lý 401/token hết hạn toàn cục | **FIXED (client-side)** | 401 authenticated request → clear token + reset session; 403/network không logout; không thêm refresh/revoke vì backend không có endpoint |
+| AUDIT-013 (refresh/revoke token) | **DEFERRED** | Backend hiện chỉ có login/register; không tự tạo frontend refresh flow theo đúng scope |
+| AUDIT-019 — Admin Web không có test | **FIXED (auth scope)** | Thêm Vitest + RTL; 33 regression tests cho auth lifecycle |
+
+## 9. Root Cause và Implementation
+
+### 9.1 AUDIT-002 — Session bootstrap từ profile thật
+
+**Root cause**
+- Backend JWT chỉ phát `sub` (username) và `role` (`JwtTokenProvider.generateToken`).
+- Frontend cũ giải mã JWT và đọc `userId`, `username`, `email`, `preferredLanguageId` — các claim không tồn tại.
+- Khi `role` đọc được nhưng `username` undefined, `Header` gọi `username.charAt(0)` ⇒ crash. Khi base64url không decode được bằng `atob`, user thành `null` ⇒ mất phiên sau refresh.
+
+**Implementation**
+- Xóa hoàn toàn `getCurrentUser()`/JWT payload decode khỏi `authService.ts`.
+- Thêm `mapUserResponse()` và `isAdminRole()`; profile được lấy từ endpoint authenticated `GET /api/users/me`.
+- `AuthProvider` bootstrap:
+  1. Đọc token từ `sessionStorage`.
+  2. Không có token → `unauthenticated`.
+  3. Có token → `GET /api/users/me` (Authorization do `apiClient` tự gắn).
+  4. Profile ADMIN → `authenticated`; profile VISITOR/role khác → clear token/session, `unauthenticated` + access denied.
+  5. HTTP 401 → clear session; network error/timeout → `error` + giữ token + retry.
+- Thêm trạng thái `loading`/`error` vào `AuthContext`; `ProtectedRoute` hiển thị “Restoring your session…” thay vì redirect khi đang bootstrap.
+- `Header` dùng `displayName = user?.username?.trim() || 'Administrator'` và avatar initial an toàn.
+- Không thay đổi backend vì `/api/users/me` đã trả đúng `UserResponse` gồm `userId`, `username`, `email`, `role`, `preferredLanguageId`.
+
+### 9.2 AUDIT-012 — Login/Logout lifecycle
+
+**Root cause**
+- `Sidebar` chỉ `navigate('/login')`, không gọi `logout()`.
+- `authService.login()` lưu token ngay sau khi backend trả về, trước khi `LoginPage` kiểm tra role ADMIN; login VISITOR để lại token.
+- Token cũ có thể còn khi login mới thất bại/bị từ chối.
+
+**Implementation**
+- `authService.login()` chỉ trả `LoginResponse`, **không** persist token.
+- `LoginPage` xóa session cũ (`clearAuth()`) trước mỗi login attempt; chỉ gọi `setAuth()` sau khi `isAdminRole()` đạt; VISITOR nhận thông báo access denied và không có token.
+- `AuthProvider.handleLogin()` kiểm tra ADMIN lần nữa trước khi `authStorage.setToken()` (defense in depth).
+- `Sidebar` và `Header` đều gọi `AuthContext.logout()` rồi `navigate('/login')`; logout xóa `sessionStorage` và reset state trong bộ nhớ.
+- Refresh sau logout không còn token để bootstrap.
+
+### 9.3 AUDIT-013 — Global 401/403/network handling
+
+**Implementation**
+- `apiClient` phát hiện HTTP 401 trên request authenticated (có token) và:
+  - Chỉ xử lý nếu token trong storage vẫn là token của request (tránh request cũ xóa token mới).
+  - Xóa token, phát `authEvents.emitUnauthorized()` tới `AuthProvider`.
+  - Bỏ qua `/api/auth/*` để 401 do sai username/password chỉ hiển thị lỗi đăng nhập, không redirect loop.
+- `AuthProvider` subscribe event 401 và reset session + hiển thị “Your session has expired. Please sign in again.”; `ProtectedRoute` dùng `Navigate replace` nên không tạo nhiều redirect.
+- HTTP 403: giữ nguyên session, chỉ throw `ApiError` để trang hiển thị access denied.
+- Network error (`fetch` reject): `ApiError(status 0)`, **không** xóa token; bootstrap chuyển `error` + retry.
+- Token expiration: backend không có refresh-token endpoint nên không thêm refresh/revoke; dùng 401 của backend làm nguồn xác định invalid/expired. Không dùng JWT decode cho identity/role.
+- Không tạo circular dependency: `apiClient → authEvents/authStorage`; `AuthContext → authService/apiClient/authEvents` một chiều.
+
+## 10. Files Changed (Wave 2)
+
+**Source**
+- `frontend/src/services/authService.ts`
+- `frontend/src/services/apiClient.ts`
+- `frontend/src/services/authEvents.ts` (new)
+- `frontend/src/context/AuthContext.ts`
+- `frontend/src/context/AuthContext.tsx`
+- `frontend/src/App.tsx`
+- `frontend/src/App.css`
+- `frontend/src/components/layout/Header.tsx`
+- `frontend/src/components/layout/Sidebar.tsx`
+- `frontend/src/pages/LoginPage.tsx`
+
+**Test / tooling**
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/vite.config.ts`
+- `frontend/src/test/setup.ts` (new)
+- `frontend/src/__tests__/App.test.tsx` (new)
+- `frontend/src/components/layout/__tests__/Header.test.tsx` (new)
+- `frontend/src/components/layout/__tests__/Sidebar.test.tsx` (new)
+- `frontend/src/context/__tests__/AuthContext.test.tsx` (new)
+- `frontend/src/pages/__tests__/LoginPage.test.tsx` (new)
+- `frontend/src/services/__tests__/apiClient.test.ts` (new)
+- `frontend/src/services/__tests__/authService.test.ts` (new)
+
+**CI**
+- `.github/workflows/ci.yml` — thêm `npm test` vào `frontend-checks` (required, không `continue-on-error`, không `|| true`).
+
+**Không thay đổi:** backend, mobile, Compose, `mobile/eslint.config.js`, `scripts/integration/__pycache__/`.
+
+## 11. Regression Tests
+
+Bộ test dùng Vitest 5 + React Testing Library + jsdom, chạy qua `npm test`.
+
+**Auth bootstrap**
+1. Không token → `unauthenticated`, không gọi `/users/me`.
+2. Token + profile ADMIN → `authenticated`.
+3. Token + profile VISITOR → clear token/session + access denied.
+4. Token expired/invalid → 401 → clear session.
+5. Network error → `error`, giữ token, có retry.
+6. Profile thiếu `username` → Header không crash, hiển thị fallback.
+
+**Login**
+7. ADMIN login → session + token được lưu.
+8. VISITOR login → không lưu token/session.
+9. Wrong credentials → lỗi `Invalid username or password`, không redirect.
+10. Login lại sau logout → dùng token mới, không reuse token cũ.
+11. Login VISITOR khi còn token cũ → token cũ bị xóa, không giữ admin session.
+
+**Logout**
+12. Sidebar gọi `logout()` của AuthContext.
+13. Logout xóa storage + in-memory session.
+14. Refresh sau logout không khôi phục phiên.
+
+**Global API errors**
+15. Authenticated 401 → clear session + emit unauthorized.
+16. Login 401 → chỉ lỗi credentials, không global logout/redirect loop.
+17. HTTP 403 → không clear session.
+18. Network error → không clear session.
+19. Request cũ trả 401 không xóa token mới (race protection).
+
+**Protected routes**
+20. Bootstrap loading → không redirect nhầm.
+21. Unauthenticated → login.
+22. Non-ADMIN → không vào admin routes.
+23. ADMIN → vào dashboard.
+
+## 12. Kết quả Kiểm chứng Wave 2
+
+| Check | Kết quả | Chi tiết |
+|---|---|---|
+| Frontend tests | **PASS** | 7 test files, **33 tests** |
+| Frontend lint | **PASS** | `eslint .`, exit 0 |
+| Frontend build | **PASS** | `tsc -b && vite build`, 47 modules |
+| Backend `AuthControllerTest` | **PASS** | 18/18 tests (H2 container; không thay đổi backend) |
+| `GET /api/users/me` không token | **PASS** | HTTP 401, envelope `success=false` |
+| Login sai credentials | **PASS** | HTTP 401, `Invalid username or password` |
+| Public content API | **PASS** | `GET /api/heritage-sites` → 200 |
+| `git diff --check` | **PASS** | Không lỗi whitespace |
+| Admin login thật trên browser | **NOT VERIFIED** | Không có credentials/browser automation |
+| Refresh trang sau login thật | **NOT VERIFIED** | Phụ thuộc browser + backend thật |
+| Logout/expiry/403 E2E trên UI | **NOT VERIFIED** | Unit tests dùng mock fetch, không thay thế E2E |
+| CI trên PR #21 | **PASS** | `frontend-checks`, `backend-test`, `docker-build`, `integration-smoke`, `mobile-tests` pass; `mobile-static-analysis` (advisory) fail do nợ cũ của mobile, không do Wave 2 |
+
+## 13. Rủi ro còn lại
+
+- **Chưa E2E browser với backend thật:** không có credentials và browser automation; các test hiện tại xác minh logic client, không xác minh tích hợp UI–backend.
+- **Không có refresh/revoke token:** đúng hiện trạng backend; token hết hạn chỉ được phát hiện khi API trả 401. Muốn refresh/revoke cần thay đổi backend (ngoài scope).
+- **Role thay đổi giữa phiên:** nếu backend đổi quyền của user sau bootstrap, client chỉ cập nhật khi gọi lại `/users/me` hoặc đăng nhập lại; backend vẫn là nguồn kiểm soát cuối cùng.
+- **Network error lúc bootstrap:** admin UI chuyển sang trạng thái lỗi + retry thay vì vào app; đây là hành vi có chủ đích để không coi network error là token invalid.
+- **sessionStorage:** vẫn giữ nguyên chiến lược hiện tại (mất khi đóng tab); rủi ro XSS token theft không thay đổi trong wave này.
+- **Package audit:** `npm install` báo vulnerabilities hiện hữu; không chạy `npm audit fix --force` để tránh nâng cấp ngoài scope.
+
+## 14. Git Delivery Wave 2
+
+- Branch: `fix/admin-auth-session`
+- Base: `origin/main` @ `dd7c939` (PR #20 đã merge)
+- Commits dự kiến:
+  1. `fix(frontend): restore admin session from authenticated profile`
+  2. `fix(frontend): handle logout and unauthorized sessions`
+  3. `test(frontend): cover admin authentication lifecycle`
+- Push branch và tạo PR về `main`; không tự merge.

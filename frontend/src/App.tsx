@@ -12,13 +12,32 @@ import { useAuth } from './context/useAuth'
 import './App.css'
 
 function ProtectedRoute() {
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated, user, status, authError, retrySession } =
+    useAuth()
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+  if (status === 'loading') {
+    return (
+      <div className="auth-status" role="status" aria-live="polite">
+        Restoring your session…
+      </div>
+    )
   }
 
-  if (user?.role?.toUpperCase() !== 'ADMIN') {
+  if (status === 'error') {
+    return (
+      <div className="auth-status auth-status--error" role="alert">
+        <p>{authError ?? 'Unable to verify your session.'}</p>
+        <button type="button" onClick={retrySession}>
+          Try again
+        </button>
+      </div>
+    )
+  }
+
+  if (
+    !isAuthenticated ||
+    user?.role?.trim().toUpperCase() !== 'ADMIN'
+  ) {
     return <Navigate to="/login" replace />
   }
 

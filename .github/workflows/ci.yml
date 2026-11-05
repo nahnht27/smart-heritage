@@ -75,6 +75,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Run authentication regression tests
+        run: npm test
+
       # `npm run build` runs `tsc -b && vite build`, which is the project's
       # TypeScript check and production build in one required step.
       - name: TypeScript and production build

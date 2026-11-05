@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { navItems } from '../../config/navigation'
+import { useAuth } from '../../context/useAuth'
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -103,8 +104,10 @@ function getNavLabel(label: string) {
 
 function Sidebar({ isCollapsed }: SidebarProps) {
   const navigate = useNavigate()
+  const { logout } = useAuth()
 
   function handleLogout() {
+    logout()
     navigate('/login', { replace: true })
   }
 

@@ -1,5 +1,6 @@
 import { env } from '../config/env'
 import type { ApiResponse } from '../types/api'
+import { authEvents } from './authEvents'
 import { authStorage } from './authStorage'
 
 export class ApiError extends Error {
@@ -48,6 +49,20 @@ export async function apiRequest<T>(
   }
 
   const result: unknown = await response.json().catch(() => null)
+
+  // A rejected login is an expected authentication failure, not an expired
+  // session. Only authenticated requests trigger the global sign-out signal.
+  const isCredentialRequest = path.startsWith('/api/auth/')
+
+  if (
+    response.status === 401 &&
+    token &&
+    !isCredentialRequest &&
+    authStorage.getToken() === token
+  ) {
+    authStorage.clearToken()
+    authEvents.emitUnauthorized()
+  }
 
   if (
     typeof result !== 'object' ||

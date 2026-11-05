@@ -12,6 +12,24 @@ const LOGIN_ENDPOINT = '/api/auth/login'
 const REGISTER_ENDPOINT = '/api/auth/register'
 const PROFILE_ENDPOINT = '/api/users/me'
 
+/**
+ * The backend JWT only contains `sub` (username) and `role`. Profile fields
+ * must always come from an authenticated API response, never from the token.
+ */
+export function mapUserResponse(user: UserResponse): AuthUser {
+  return {
+    userId: user.userId,
+    username: user.username ?? '',
+    email: user.email ?? '',
+    role: user.role ?? '',
+    preferredLanguageId: user.preferredLanguageId ?? null,
+  }
+}
+
+export function isAdminRole(role: string | null | undefined): boolean {
+  return typeof role === 'string' && role.trim().toUpperCase() === 'ADMIN'
+}
+
 export async function login(
   payload: LoginRequest,
 ): Promise<LoginResponse> {
@@ -20,16 +38,16 @@ export async function login(
     body: JSON.stringify(payload),
   })
 
-  if (!result.data?.accessToken) {
+  if (!result.data?.accessToken || !result.data.user) {
     throw new ApiError(
       'The server did not return login data.',
       200,
     )
   }
 
-  // Persist the JWT access token so protected requests can use it.
-  authStorage.setToken(result.data.accessToken)
-
+  // The caller must verify the ADMIN role and persist the token only after
+  // that check succeeds. Persisting here would keep a VISITOR token around
+  // when the admin login is rejected.
   return result.data
 }
 
@@ -52,12 +70,7 @@ export async function register(
 }
 
 export async function getProfile(): Promise<UserResponse> {
-  const token = authStorage.getToken()
-  const result = await apiRequest<UserResponse>(PROFILE_ENDPOINT, {
-    headers: {
-      Authorization: `Bearer ${token ?? ''}`,
-    },
-  })
+  const result = await apiRequest<UserResponse>(PROFILE_ENDPOINT)
 
   if (!result.data) {
     throw new ApiError(
@@ -72,12 +85,8 @@ export async function getProfile(): Promise<UserResponse> {
 export async function updateProfile(
   payload: UpdateProfileRequest,
 ): Promise<UserResponse> {
-  const token = authStorage.getToken()
   const result = await apiRequest<UserResponse>(PROFILE_ENDPOINT, {
     method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token ?? ''}`,
-    },
     body: JSON.stringify(payload),
   })
 
@@ -95,34 +104,6 @@ export function getToken(): string | null {
   return authStorage.getToken()
 }
 
-export function isAuthenticated(): boolean {
-  return authStorage.getToken() !== null
-}
-
 export function logout(): void {
   authStorage.clearToken()
-}
-
-export function getCurrentUser(): AuthUser | null {
-  const token = authStorage.getToken()
-  if (!token) {
-    return null
-  }
-
-  try {
-    const payload = token.split('.')[1]
-    if (!payload) {
-      return null
-    }
-    const decoded = JSON.parse(atob(payload))
-    return {
-      userId: decoded.userId,
-      username: decoded.username,
-      email: decoded.email,
-      role: decoded.role,
-      preferredLanguageId: decoded.preferredLanguageId,
-    }
-  } catch {
-    return null
-  }
 }

@@ -14,6 +14,8 @@ function Header({
 }: HeaderProps) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const displayName = user?.username?.trim() || 'Administrator'
+  const avatarInitial = displayName.charAt(0).toUpperCase()
 
   const handleLogout = () => {
     logout()
@@ -52,7 +54,7 @@ function Header({
         {user && (
           <div className="admin-header__user-profile">
             <div className="admin-header__avatar">
-              {user.username.charAt(0).toUpperCase()}
+              {avatarInitial}
             </div>
 
             <div className="admin-header__user-info">
@@ -60,7 +62,7 @@ function Header({
                 Signed in as
               </span>
               <span className="admin-header__user-name">
-                {user.username}
+                {displayName}
               </span>
             </div>
 
