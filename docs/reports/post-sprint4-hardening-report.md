@@ -330,7 +330,7 @@ Bộ test dùng Vitest 5 + React Testing Library + jsdom, chạy qua `npm test`.
 | Admin login thật trên browser | **NOT VERIFIED** | Không có credentials/browser automation |
 | Refresh trang sau login thật | **NOT VERIFIED** | Phụ thuộc browser + backend thật |
 | Logout/expiry/403 E2E trên UI | **NOT VERIFIED** | Unit tests dùng mock fetch, không thay thế E2E |
-| CI trên PR branch | **PENDING** | Chưa push branch/PR tại thời điểm viết |
+| CI trên PR #21 | **PASS** | `frontend-checks`, `backend-test`, `docker-build`, `integration-smoke`, `mobile-tests` pass; `mobile-static-analysis` (advisory) fail do nợ cũ của mobile, không do Wave 2 |
 
 ## 13. Rủi ro còn lại
 
