@@ -1,15 +1,18 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { FormEvent } from 'react'
-import { login } from '../services/authService'
+import {
+  isAdminRole,
+  login as loginWithCredentials,
+  mapUserResponse,
+} from '../services/authService'
 import { ApiError } from '../services/apiClient'
 import { useAuth } from '../context/useAuth'
-import type { AuthUser } from '../types/auth'
 import './LoginPage.css'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { login: setAuth } = useAuth()
+  const { login: setAuth, logout: clearAuth, authError } = useAuth()
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -43,31 +46,27 @@ export default function LoginPage() {
 
     if (Object.keys(nextErrors).length > 0) return
 
+    // A new login attempt must never inherit a stale token/session.
+    clearAuth()
     setIsSubmitting(true)
 
     try {
-      const result = await login({
+      const result = await loginWithCredentials({
         username: username.trim(),
         password,
       })
 
-      const accessToken = result.accessToken
-      const user: AuthUser = {
-        userId: result.user.userId,
-        username: result.user.username,
-        email: result.user.email,
-        role: result.user.role,
-        preferredLanguageId: result.user.preferredLanguageId,
-      }
+      const user = mapUserResponse(result.user)
 
-      if (user.role?.toUpperCase() !== 'ADMIN') {
+      if (!isAdminRole(user.role)) {
+        clearAuth()
         setMessage(
           'Access denied. An administrator account is required.',
         )
         return
       }
 
-      setAuth(accessToken, user)
+      setAuth(result.accessToken, user)
       setIsSuccess(true)
       setMessage('Login successful.')
 
@@ -231,12 +230,12 @@ export default function LoginPage() {
             )}
           </div>
 
-          {message && (
+          {(message || authError) && (
             <p
               className="login-message"
               role={isSuccess ? 'status' : 'alert'}
             >
-              {message}
+              {message || authError}
             </p>
           )}
 
