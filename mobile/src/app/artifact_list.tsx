@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { heritageApi, type Artifact, type HeritageSite } from '../services/heritageApi';
+import { heritageApi, type Artifact } from '../services/heritageApi';
+import { RemoteImage } from '../components/remote-image';
 
 export default function ArtifactListScreen() {
   const router = useRouter();
@@ -35,7 +36,7 @@ export default function ArtifactListScreen() {
           }
         }
 
-        const result = await heritageApi.getArtifactsBySite(siteIdNum);
+        const result = await heritageApi.getArtifactsWithThumbnailsBySite(siteIdNum);
         if (!mounted) return;
         if (!result.ok || !result.data) {
           setError(result.error || 'Không tải được danh sách hiện vật');
@@ -102,7 +103,11 @@ export default function ArtifactListScreen() {
               }
               activeOpacity={0.75}
             >
-              <Image source={{ uri: art.imageUrl ?? undefined }} style={styles.itemImage} />
+              <RemoteImage
+                uri={art.imageUrl}
+                style={styles.itemImage}
+                accessibilityLabel={art.name}
+              />
               <View style={styles.itemInfo}>
                 <View style={styles.tagRow}>
                   <Text style={styles.categoryBadge}>{art.siteName || 'Di sản'}</Text>

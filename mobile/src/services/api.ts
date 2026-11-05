@@ -38,6 +38,41 @@ export interface RequestOptions extends RequestInit {
 }
 
 /**
+ * Compose a request URL from the configured API base and a relative endpoint.
+ *
+ * The base URL may already include the `/api` prefix (the default for local
+ * development and Docker). Screens must not repeat that prefix, but legacy
+ * callers such as `/api/auth/login` are still normalized so the request never
+ * becomes `/api/api/...`.
+ */
+export function buildApiUrl(
+  endpoint: string,
+  baseUrl: string = API_BASE_URL
+): string {
+  const trimmedEndpoint = endpoint.trim();
+
+  if (/^https?:\/\//i.test(trimmedEndpoint)) {
+    return trimmedEndpoint;
+  }
+
+  const normalizedBase = baseUrl.replace(/\/+$/, '');
+  let normalizedEndpoint = trimmedEndpoint.replace(/^\/+/, '');
+
+  if (
+    /\/api$/i.test(normalizedBase) &&
+    /^api(\/|$)/i.test(normalizedEndpoint)
+  ) {
+    normalizedEndpoint = normalizedEndpoint.slice(3).replace(/^\/+/, '');
+  }
+
+  if (!normalizedEndpoint) {
+    return normalizedBase;
+  }
+
+  return `${normalizedBase}/${normalizedEndpoint}`;
+}
+
+/**
  * Core fetch wrapper with timeout and standardized response shape
  */
 export async function apiRequest<T = any>(
@@ -46,9 +81,7 @@ export async function apiRequest<T = any>(
 ): Promise<ApiResponse<T>> {
   const { timeoutMs = 10000, token, headers = {}, ...rest } = options;
 
-  const url = endpoint.startsWith('http')
-    ? endpoint
-    : `${API_BASE_URL.replace(/\/$/, '')}/${endpoint.replace(/^\//, '')}`;
+  const url = buildApiUrl(endpoint);
 
   const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',

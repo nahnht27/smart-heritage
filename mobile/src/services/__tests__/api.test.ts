@@ -5,7 +5,7 @@
  * `{ success, message, data, timestamp, path, errors }`. `apiRequest`
  * must unwrap `data` for service helpers.
  */
-import { apiRequest } from '../api';
+import { apiRequest, buildApiUrl } from '../api';
 
 jest.mock('react-native', () => ({
   Platform: { OS: 'ios' },
@@ -22,6 +22,58 @@ function jsonResponse(status: number, body: unknown) {
     json: async () => body,
   };
 }
+
+describe('buildApiUrl', () => {
+  it.each([
+    [
+      'development base with /api and relative auth endpoint',
+      'auth/login',
+      'http://localhost:8080/api',
+      'http://localhost:8080/api/auth/login',
+    ],
+    [
+      'legacy caller repeating /api does not double the prefix',
+      '/api/auth/login',
+      'http://localhost:8080/api',
+      'http://localhost:8080/api/auth/login',
+    ],
+    [
+      'trailing slash on the base is ignored',
+      '/api/auth/register',
+      'http://10.0.2.2:8080/api/',
+      'http://10.0.2.2:8080/api/auth/register',
+    ],
+    [
+      'base without /api and endpoint with /api',
+      '/api/auth/register',
+      'https://api.example.com',
+      'https://api.example.com/api/auth/register',
+    ],
+    [
+      'production base with /api',
+      'auth/login',
+      'https://heritage.example.com/api',
+      'https://heritage.example.com/api/auth/login',
+    ],
+    [
+      'public content endpoint is unchanged',
+      'heritage-sites',
+      'http://localhost:8080/api',
+      'http://localhost:8080/api/heritage-sites',
+    ],
+  ] as const)('%s', (_label, endpoint, baseUrl, expected) => {
+    expect(buildApiUrl(endpoint, baseUrl)).toBe(expected);
+  });
+
+  it('keeps absolute URLs untouched', () => {
+    expect(
+      buildApiUrl(
+        'https://cdn.example.com/image.jpg',
+        'http://localhost:8080/api',
+      ),
+    ).toBe('https://cdn.example.com/image.jpg');
+  });
+});
 
 describe('apiRequest', () => {
   beforeEach(() => {
