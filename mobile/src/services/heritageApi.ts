@@ -1,22 +1,24 @@
 /**
  * Smart Heritage - Heritage Content API Service
  *
- * Sprint 3 (LTJ-33): Thay mock data bằng API backend thật cho Heritage Sites và Artifacts.
+ * LTJ-46: Dùng API backend thật cho Heritage Sites, Artifacts và Multimedia.
  *
- * Endpoint prefix: /api (tuân theo README_M3 và apiClient hiện có).
+ * Endpoint prefix: /api (tuân theo apiClient hiện có).
  * - GET /api/heritage-sites
  * - GET /api/heritage-sites/{id}
+ * - GET /api/artifacts
  * - GET /api/artifacts?siteId={siteId}
  * - GET /api/artifacts/{id}
  * - GET /api/multimedia?artifactId={id}
  *
  * apiRequest đã unwrap envelope ApiResponse<T> của backend về trường `data`.
  * Các field backend không cung cấp (tagline, openHours, ticketPrice, heroImageUrl,
- * era, category, locationInMuseum, imageUrl, isFeatured, durationSeconds) được để
- * null/mặc định thay vì bịa dữ liệu, tuân thủ "không giả vờ dữ liệu từ server".
+ * era, category, locationInMuseum, imageUrl, durationSeconds) được để null thay vì
+ * bịa dữ liệu, tuân thủ "không giả vờ dữ liệu từ server".
  */
 
 import { apiClient } from './api';
+import { normalizeMediaType, type MediaType } from '../utils/media';
 
 export interface HeritageSite {
   id: number;
@@ -31,19 +33,19 @@ export interface HeritageSite {
 
 export interface Artifact {
   id: string | number;
+  siteId: number;
   name: string;
   era: string | null;
   category: string | null;
   description: string;
   locationInMuseum: string | null;
   imageUrl: string | null;
-  isFeatured?: boolean;
 }
 
 export interface Multimedia {
   id: string | number;
   artifactId: string | number;
-  type: 'image' | 'audio' | 'video';
+  type: MediaType;
   url: string;
   title?: string | null;
   durationSeconds?: number | null;
@@ -101,13 +103,13 @@ function mapHeritageSite(s: BackendHeritageSite): HeritageSite {
 function mapArtifact(a: BackendArtifact): Artifact {
   return {
     id: a.artifactId,
+    siteId: a.siteId,
     name: a.name,
     era: null,
     category: null,
     description: a.description,
     locationInMuseum: null,
     imageUrl: null,
-    isFeatured: false,
   };
 }
 
@@ -115,9 +117,7 @@ function mapMultimedia(m: BackendMultimedia): Multimedia {
   return {
     id: m.multimediaId,
     artifactId: m.artifactId,
-    type: (m.type === 'image' || m.type === 'audio' || m.type === 'video'
-      ? m.type
-      : 'image') as Multimedia['type'],
+    type: normalizeMediaType(m.type),
     url: m.url,
     title: m.title,
     durationSeconds: null,
@@ -145,8 +145,20 @@ export const heritageApi = {
     };
   },
 
+  async getArtifacts(): Promise<HeritageApiResponse<Artifact[]>> {
+    const result = await apiClient.get<BackendArtifact[]>(ARTIFACTS);
+    return {
+      data: result.data?.map(mapArtifact) ?? null,
+      error: result.error,
+      status: result.status,
+      ok: result.ok,
+    };
+  },
+
   async getArtifactsBySite(siteId: number | string): Promise<HeritageApiResponse<Artifact[]>> {
-    const result = await apiClient.get<BackendArtifact[]>(`${ARTIFACTS}?siteId=${siteId}`);
+    const result = await apiClient.get<BackendArtifact[]>(
+      `${ARTIFACTS}?siteId=${encodeURIComponent(String(siteId))}`
+    );
     return {
       data: result.data?.map(mapArtifact) ?? null,
       error: result.error,
