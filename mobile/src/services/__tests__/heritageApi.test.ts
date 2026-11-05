@@ -100,6 +100,29 @@ describe('heritageApi', () => {
     });
   });
 
+  describe('getArtifacts', () => {
+    it('gọi GET artifacts không lọc site và trả về danh sách đã map', async () => {
+      mockGet.mockResolvedValue({
+        data: [backendArtifact],
+        error: null,
+        status: 200,
+        ok: true,
+      });
+
+      const result = await heritageApi.getArtifacts();
+
+      expect(mockGet).toHaveBeenCalledWith('artifacts');
+      expect(result.ok).toBe(true);
+      expect(result.data).toHaveLength(1);
+      expect(result.data?.[0]).toMatchObject({
+        id: 101,
+        siteId: 1,
+        name: 'Trống Đồng Đông Sơn',
+        description: 'Hiện vật tiêu biểu',
+      });
+    });
+  });
+
   describe('getArtifactsBySite', () => {
     it('gọi GET artifacts?siteId={siteId} và trả về danh sách artifact đã map', async () => {
       mockGet.mockResolvedValue({
@@ -116,9 +139,9 @@ describe('heritageApi', () => {
       expect(result.data).toHaveLength(1);
       expect(result.data?.[0]).toMatchObject({
         id: 101,
+        siteId: 1,
         name: 'Trống Đồng Đông Sơn',
         description: 'Hiện vật tiêu biểu',
-        isFeatured: false,
       });
     });
   });
@@ -161,6 +184,23 @@ describe('heritageApi', () => {
         type: 'image',
         url: 'https://example.com/img1.jpg',
       });
+    });
+
+    it('chuẩn hóa type backend (kể cả chữ hoa) và đánh dấu type lạ là unknown', async () => {
+      mockGet.mockResolvedValue({
+        data: [
+          { ...backendMultimedia, multimediaId: 1, type: 'AUDIO' },
+          { ...backendMultimedia, multimediaId: 2, type: 'document' },
+        ],
+        error: null,
+        status: 200,
+        ok: true,
+      });
+
+      const result = await heritageApi.getArtifactMultimedia('101');
+
+      expect(result.data?.[0].type).toBe('audio');
+      expect(result.data?.[1].type).toBe('unknown');
     });
   });
 });
