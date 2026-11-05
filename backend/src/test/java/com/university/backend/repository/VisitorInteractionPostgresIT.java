@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
     "spring.datasource.username=postgres",
     "spring.datasource.password=postgres",
     "spring.datasource.driver-class-name=org.postgresql.Driver",
-    "spring.jpa.hibernate.ddl-auto=create-drop",
+    "spring.jpa.hibernate.ddl-auto=create",
     "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect"
 })
 public class VisitorInteractionPostgresIT {
