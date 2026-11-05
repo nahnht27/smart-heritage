@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { apiClient } from '../services/api';
-import { authStorage } from '../services/authStorage';
+import { authApi } from '../services/authApi';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -98,12 +97,7 @@ export default function LoginScreen() {
 
     try {
       // Login via backend M1: POST /api/auth/login
-      const result = await apiClient.post<{
-        accessToken: string;
-        tokenType: string;
-        expiresIn: number;
-        user: { userId: number; username: string; email: string; role: string };
-      }>('/api/auth/login', {
+      const result = await authApi.login({
         username: identifier.trim(),
         password,
       });
@@ -113,9 +107,6 @@ export default function LoginScreen() {
         setIsLoading(false);
         return;
       }
-
-      // Persist JWT access token for protected endpoints
-      await authStorage.setToken(result.data.accessToken);
 
       setIsLoading(false);
       router.replace('/home');
@@ -136,13 +127,7 @@ export default function LoginScreen() {
 
     try {
       // Register via backend M1: POST /api/auth/register
-      const result = await apiClient.post<{
-        userId: number;
-        username: string;
-        email: string;
-        role: string;
-        preferredLanguageId: number | null;
-      }>('/api/auth/register', {
+      const result = await authApi.register({
         username: identifier.trim(),
         email: email.trim(),
         password,
