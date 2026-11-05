@@ -16,8 +16,15 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -51,45 +58,29 @@ public class VisitorInteractionPostgresIT {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    @Test
-    void shouldConnectToPostgreSQL() throws Exception {
+   
+    private Integer getVisitorRoleId() {
 
-        try (Connection connection = dataSource.getConnection()) {
-
-            assertTrue(connection.isValid(5));
-
-            assertEquals(
-                "PostgreSQL",
-                connection.getMetaData().getDatabaseProductName()
-            );
-
-            assertEquals(
-                "smart_heritage_test",
-                connection.getCatalog()
-            );
-
-            System.out.println("PostgreSQL connection: PASS");
-        }
-    }
-
-    
-    @Test
-    void shouldPersistVisitorInteraction() throws Exception {
-
-  
-        Integer roleId = jdbcTemplate.queryForObject(
+        return jdbcTemplate.queryForObject(
             """
             INSERT INTO role(name)
             VALUES ('VISITOR')
+            ON CONFLICT (name)
+            DO UPDATE SET name = EXCLUDED.name
             RETURNING role_id
             """,
             Integer.class
         );
+    }
 
-        String username = "m5_pg_visitor";
-        String password = "TestPass123!";
+  
+    private Integer createTestUser(
+        Integer roleId,
+        String username,
+        String password
+    ) {
 
-        Integer userId = jdbcTemplate.queryForObject(
+        return jdbcTemplate.queryForObject(
             """
             INSERT INTO "user"
                 (role_id, username, email, password_hash)
@@ -99,9 +90,13 @@ public class VisitorInteractionPostgresIT {
             Integer.class,
             roleId,
             username,
-            "m5_pg_visitor@example.com",
+            username + "@example.com",
             passwordEncoder.encode(password)
         );
+    }
+
+    
+    private Integer createTestArtifact() {
 
         Integer siteId = jdbcTemplate.queryForObject(
             """
@@ -112,7 +107,7 @@ public class VisitorInteractionPostgresIT {
             Integer.class
         );
 
-        Integer artifactId = jdbcTemplate.queryForObject(
+        return jdbcTemplate.queryForObject(
             """
             INSERT INTO artifact(site_id, name)
             VALUES (?, 'M5 Test Artifact')
@@ -121,8 +116,14 @@ public class VisitorInteractionPostgresIT {
             Integer.class,
             siteId
         );
+    }
 
-       
+  
+    private String loginAndGetToken(
+        String username,
+        String password
+    ) throws Exception {
+
         String loginBody = objectMapper.writeValueAsString(
             Map.of(
                 "username", username,
@@ -148,10 +149,15 @@ public class VisitorInteractionPostgresIT {
 
         assertFalse(token.isBlank());
 
-     
-        UUID eventId = UUID.randomUUID();
+        return token;
+    }
 
-        String requestBody = objectMapper.writeValueAsString(
+    private String createInteractionRequest(
+        UUID eventId,
+        Integer artifactId
+    ) throws Exception {
+
+        return objectMapper.writeValueAsString(
             Map.of(
                 "eventId", eventId.toString(),
                 "artifactId", artifactId,
@@ -162,7 +168,78 @@ public class VisitorInteractionPostgresIT {
                 "interactedAt", "2026-11-01T10:00:00Z"
             )
         );
+    }
 
+  
+    private Long countInteractions(UUID eventId) {
+
+        return jdbcTemplate.queryForObject(
+            """
+            SELECT COUNT(*)
+            FROM visitor_interaction
+            WHERE event_id = ?::uuid
+            """,
+            Long.class,
+            eventId.toString()
+        );
+    }
+
+   
+    @Test
+    void shouldConnectToPostgreSQL() throws Exception {
+
+        try (Connection connection = dataSource.getConnection()) {
+
+            assertTrue(connection.isValid(5));
+
+            assertEquals(
+                "PostgreSQL",
+                connection.getMetaData().getDatabaseProductName()
+            );
+
+            assertEquals(
+                "smart_heritage_test",
+                connection.getCatalog()
+            );
+
+            System.out.println("PostgreSQL connection: PASS");
+        }
+    }
+
+  
+    @Test
+    void shouldPersistVisitorInteraction() throws Exception {
+
+        Integer roleId = getVisitorRoleId();
+
+        String suffix = UUID.randomUUID()
+            .toString()
+            .substring(0, 8);
+
+        String username = "m5_visitor_" + suffix;
+        String password = "TestPass123!";
+
+        Integer userId = createTestUser(
+            roleId,
+            username,
+            password
+        );
+
+        Integer artifactId = createTestArtifact();
+
+        String token = loginAndGetToken(
+            username,
+            password
+        );
+
+        UUID eventId = UUID.randomUUID();
+
+        String requestBody = createInteractionRequest(
+            eventId,
+            artifactId
+        );
+
+      
         String apiResponse = mockMvc.perform(
                 post("/api/interactions")
                     .header("Authorization", "Bearer " + token)
@@ -176,7 +253,6 @@ public class VisitorInteractionPostgresIT {
             .getResponse()
             .getContentAsString();
 
-        
         Map<String, Object> stored = jdbcTemplate.queryForMap(
             """
             SELECT event_id, user_id, artifact_id,
@@ -194,13 +270,16 @@ public class VisitorInteractionPostgresIT {
         assertEquals(artifactId, stored.get("artifact_id"));
         assertEquals("VIEW", stored.get("interaction_type"));
         assertEquals("vi", stored.get("language_code"));
-        assertEquals(30L, stored.get("duration_seconds"));
+
+        assertEquals(
+            30L,
+            ((Number) stored.get("duration_seconds")).longValue()
+        );
 
         assertNotNull(stored.get("started_at"));
         assertNotNull(stored.get("ended_at"));
         assertNotNull(stored.get("interacted_at"));
 
-        
         JsonNode responseData = objectMapper
             .readTree(apiResponse)
             .path("data");
@@ -216,25 +295,17 @@ public class VisitorInteractionPostgresIT {
         );
 
         assertEquals(
-            ((Number) stored.get("duration_seconds")).longValue(),
+            30L,
             responseData.path("durationSeconds").asLong()
         );
 
-        Long recordCount = jdbcTemplate.queryForObject(
-            """
-            SELECT COUNT(*)
-            FROM visitor_interaction
-            WHERE event_id = ?::uuid
-            """,
-            Long.class,
-            eventId.toString()
+        assertEquals(1L, countInteractions(eventId));
+
+        System.out.println(
+            "VisitorInteraction persistence: PASS"
         );
 
-        assertEquals(1L, recordCount);
-
-        System.out.println("VisitorInteraction persistence: PASS");
-
-        
+      
         mockMvc.perform(
                 post("/api/interactions")
                     .header("Authorization", "Bearer " + token)
@@ -248,59 +319,25 @@ public class VisitorInteractionPostgresIT {
             .andExpect(jsonPath("$.data.eventId")
                 .value(eventId.toString()));
 
-        Long countAfterDuplicate = jdbcTemplate.queryForObject(
-            """
-            SELECT COUNT(*)
-            FROM visitor_interaction
-            WHERE event_id = ?::uuid
-            """,
-            Long.class,
-            eventId.toString()
+        assertEquals(1L, countInteractions(eventId));
+
+        System.out.println(
+            "D1 - Sequential duplicate: PASS"
         );
 
-        assertEquals(1L, countAfterDuplicate);
+        
+        String secondUsername = "m5_second_" + suffix;
 
-        System.out.println("D1 - Sequential duplicate: PASS");
-
-        // TEST D2: A different user submits the same eventId
-        String secondUsername = "m5_pg_visitor_2";
-
-        jdbcTemplate.update(
-            """
-            INSERT INTO "user"
-                (role_id, username, email, password_hash)
-            VALUES (?, ?, ?, ?)
-            """,
+        createTestUser(
             roleId,
             secondUsername,
-            "m5_pg_visitor_2@example.com",
-            passwordEncoder.encode(password)
+            password
         );
 
-        String secondLoginBody = objectMapper.writeValueAsString(
-            Map.of(
-                "username", secondUsername,
-                "password", password
-            )
+        String secondToken = loginAndGetToken(
+            secondUsername,
+            password
         );
-
-        String secondLoginResponse = mockMvc.perform(
-                post("/api/auth/login")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(secondLoginBody)
-            )
-            .andExpect(status().isOk())
-            .andReturn()
-            .getResponse()
-            .getContentAsString();
-
-        String secondToken = objectMapper
-            .readTree(secondLoginResponse)
-            .path("data")
-            .path("accessToken")
-            .asText();
-
-        assertFalse(secondToken.isBlank());
 
         mockMvc.perform(
                 post("/api/interactions")
@@ -311,18 +348,178 @@ public class VisitorInteractionPostgresIT {
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.success").value(false));
 
-        Long countAfterOtherUser = jdbcTemplate.queryForObject(
-            """
-            SELECT COUNT(*)
-            FROM visitor_interaction
-            WHERE event_id = ?::uuid
-            """,
-            Long.class,
-            eventId.toString()
+        assertEquals(1L, countInteractions(eventId));
+
+        System.out.println(
+            "D2 - Different user duplicate: PASS"
+        );
+    }
+
+   
+    @Test
+    void shouldPreventConcurrentDuplicateEvents() throws Exception {
+
+     
+        Integer roleId = getVisitorRoleId();
+
+        String suffix = UUID.randomUUID()
+            .toString()
+            .substring(0, 8);
+
+        String username = "m5_concurrent_" + suffix;
+        String password = "TestPass123!";
+
+        Integer userId = createTestUser(
+            roleId,
+            username,
+            password
         );
 
-        assertEquals(1L, countAfterOtherUser);
+        Integer artifactId = createTestArtifact();
 
-        System.out.println("D2 - Different user duplicate: PASS");
+        String token = loginAndGetToken(
+            username,
+            password
+        );
+
+        UUID eventId = UUID.randomUUID();
+
+        String requestBody = createInteractionRequest(
+            eventId,
+            artifactId
+        );
+
+       
+        ExecutorService executor =
+            Executors.newFixedThreadPool(2);
+
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try {
+
+            Callable<Integer> requestTask = () -> {
+
+                ready.countDown();
+
+                if (!start.await(10, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException(
+                        "Concurrent start timeout"
+                    );
+                }
+
+                return mockMvc.perform(
+                        post("/api/interactions")
+                            .header(
+                                "Authorization",
+                                "Bearer " + token
+                            )
+                            .contentType(
+                                MediaType.APPLICATION_JSON
+                            )
+                            .content(requestBody)
+                    )
+                    .andReturn()
+                    .getResponse()
+                    .getStatus();
+            };
+
+          
+            Future<Integer> firstFuture =
+                executor.submit(requestTask);
+
+            Future<Integer> secondFuture =
+                executor.submit(requestTask);
+
+            assertTrue(
+                ready.await(10, TimeUnit.SECONDS),
+                "Both requests must be ready"
+            );
+
+            start.countDown();
+
+          
+            int firstStatus = firstFuture.get(
+                30,
+                TimeUnit.SECONDS
+            );
+
+            int secondStatus = secondFuture.get(
+                30,
+                TimeUnit.SECONDS
+            );
+
+            System.out.println(
+                "D3 first HTTP status: " + firstStatus
+            );
+
+            System.out.println(
+                "D3 second HTTP status: " + secondStatus
+            );
+
+          
+            long createdCount = List.of(
+                firstStatus,
+                secondStatus
+            ).stream()
+             .filter(code -> code == 201)
+             .count();
+
+            assertEquals(
+                1L,
+                createdCount,
+                "Exactly one request must create the event"
+            );
+
+            
+            int duplicateStatus =
+                firstStatus == 201
+                    ? secondStatus
+                    : firstStatus;
+
+            assertTrue(
+                duplicateStatus == 200
+                    || duplicateStatus == 409,
+                "Duplicate must return HTTP 200 or 409"
+            );
+
+            
+            Long recordCount = countInteractions(eventId);
+
+            assertEquals(
+                1L,
+                recordCount,
+                "PostgreSQL must contain exactly one event"
+            );
+
+            Integer storedUserId =
+                jdbcTemplate.queryForObject(
+                    """
+                    SELECT user_id
+                    FROM visitor_interaction
+                    WHERE event_id = ?::uuid
+                    """,
+                    Integer.class,
+                    eventId.toString()
+                );
+
+            assertEquals(userId, storedUserId);
+
+            System.out.println("Concurrent duplicate event test completed successfully.");
+
+            System.out.println(
+                "Event ID: " + eventId
+            );
+
+            System.out.println(
+                "Rows in PostgreSQL: " + recordCount
+            );
+
+        } finally {
+
+            start.countDown();
+
+            executor.shutdownNow();
+        }
     }
 }
