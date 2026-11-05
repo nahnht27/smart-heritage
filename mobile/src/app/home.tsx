@@ -28,7 +28,7 @@ export default function HomeScreen() {
 
   // Content data states (real API)
   const [sites, setSites] = useState<HeritageSite[]>([]);
-  const [featuredArtifacts, setFeaturedArtifacts] = useState<Artifact[]>([]);
+  const [discoveryArtifacts, setDiscoveryArtifacts] = useState<Artifact[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -42,23 +42,23 @@ export default function HomeScreen() {
       setIsLoadingData(true);
       setDataError(null);
       try {
-        const sitesResult = await heritageApi.getHeritageSites();
+        const [sitesResult, artifactsResult] = await Promise.all([
+          heritageApi.getHeritageSites(),
+          heritageApi.getArtifacts(),
+        ]);
         if (!mounted) return;
+
         if (!sitesResult.ok || !sitesResult.data) {
           setDataError(sitesResult.error || 'Không tải được danh sách di sản');
-          setIsLoadingData(false);
           return;
         }
-        setSites(sitesResult.data);
 
-        const firstSite = sitesResult.data[0];
-        if (firstSite) {
-          const artifactsResult = await heritageApi.getArtifactsBySite(firstSite.id);
-          if (!mounted) return;
-          if (artifactsResult.ok && artifactsResult.data) {
-            setFeaturedArtifacts(artifactsResult.data.filter((a) => a.isFeatured));
-          }
-        }
+        setSites(sitesResult.data);
+        setDiscoveryArtifacts(
+          artifactsResult.ok && artifactsResult.data
+            ? artifactsResult.data.slice(0, 6)
+            : []
+        );
       } catch {
         if (mounted) {
           setDataError('Lỗi kết nối mạng. Vui lòng thử lại.');
@@ -158,21 +158,33 @@ export default function HomeScreen() {
               </View>
             ) : (
               <>
-                <Image
-                  source={{ uri: site.heroImageUrl ?? undefined }}
-                  style={styles.heroImage}
-                  resizeMode="cover"
-                />
+                {site.heroImageUrl ? (
+                  <Image
+                    source={{ uri: site.heroImageUrl }}
+                    style={styles.heroImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={[styles.heroImage, styles.heroImageFallback]}>
+                    <Text style={styles.heroFallbackText}>🏛️</Text>
+                  </View>
+                )}
                 <View style={styles.heroOverlay}>
                   <View style={styles.siteBadge}>
                     <Text style={styles.siteBadgeText}>Khu Di tích Lịch sử</Text>
                   </View>
                   <Text style={styles.siteName}>{site.name}</Text>
-                  <Text style={styles.siteTagline}>{site.tagline}</Text>
+                  {site.tagline ? (
+                    <Text style={styles.siteTagline}>{site.tagline}</Text>
+                  ) : null}
 
                   <View style={styles.siteInfoRow}>
-                    <Text style={styles.siteInfoItem}>📍 {site.location}</Text>
-                    <Text style={styles.siteInfoItem}>🕒 {site.openHours}</Text>
+                    {site.location ? (
+                      <Text style={styles.siteInfoItem}>📍 {site.location}</Text>
+                    ) : null}
+                    {site.openHours ? (
+                      <Text style={styles.siteInfoItem}>🕒 {site.openHours}</Text>
+                    ) : null}
                   </View>
                 </View>
               </>
@@ -192,6 +204,50 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      {/* 2b. Heritage Sites (real API) */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Địa điểm Di sản</Text>
+        <Text style={styles.sectionSubtitle}>Chọn địa điểm để xem hiện vật</Text>
+      </View>
+
+      {sites.length === 0 ? (
+        <View style={styles.emptySites}>
+          <Text style={styles.emptyText}>Chưa có địa điểm di sản</Text>
+        </View>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.siteList}
+        >
+          {sites.map((heritageSite) => (
+            <TouchableOpacity
+              key={heritageSite.id}
+              style={styles.siteChip}
+              onPress={() =>
+                router.push({
+                  pathname: '/artifact_list',
+                  params: {
+                    siteId: String(heritageSite.id),
+                    siteName: heritageSite.name,
+                  },
+                })
+              }
+              activeOpacity={0.75}
+            >
+              <Text style={styles.siteChipName} numberOfLines={1}>
+                {heritageSite.name}
+              </Text>
+              {heritageSite.location ? (
+                <Text style={styles.siteChipLocation} numberOfLines={1}>
+                  📍 {heritageSite.location}
+                </Text>
+              ) : null}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
       {/* 3. Quick Navigation Features Grid */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Khám phá Di sản</Text>
@@ -201,7 +257,14 @@ export default function HomeScreen() {
       <View style={styles.grid}>
         <TouchableOpacity
           style={styles.card}
-          onPress={() => router.push('/artifact_list')}
+          onPress={() =>
+            site
+              ? router.push({
+                  pathname: '/artifact_list',
+                  params: { siteId: String(site.id), siteName: site.name },
+                })
+              : router.push('/artifact_list')
+          }
           activeOpacity={0.7}
         >
           <View style={[styles.cardIconBox, { backgroundColor: '#EFF6FF' }]}>
@@ -248,42 +311,60 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* 4. Featured Artifacts Section */}
+      {/* 4. Discovery Artifacts Section */}
       <View style={styles.sectionHeader}>
         <View>
-          <Text style={styles.sectionTitle}>Bảo vật Tiêu biểu</Text>
-          <Text style={styles.sectionSubtitle}>Hiện vật nổi bật không nên bỏ lỡ</Text>
+          <Text style={styles.sectionTitle}>Khám phá Hiện vật</Text>
+          <Text style={styles.sectionSubtitle}>Hiện vật tiêu biểu từ hệ thống</Text>
         </View>
       </View>
 
-      <View style={styles.featuredList}>
-        {featuredArtifacts.map((art) => (
-          <TouchableOpacity
-            key={art.id}
-            style={styles.artifactCard}
-            onPress={() =>
-              router.push({
-                pathname: '/artifact_detail',
-                params: { id: art.id, name: art.name },
-              })
-            }
-            activeOpacity={0.8}
-          >
-            <Image source={{ uri: art.imageUrl ?? undefined }} style={styles.artifactImage} />
-            <View style={styles.artifactContent}>
-              <View style={styles.artifactTagRow}>
-                <Text style={styles.artifactCategoryBadge}>{art.category}</Text>
-                <Text style={styles.artifactEra}>{art.era}</Text>
+      {discoveryArtifacts.length === 0 ? (
+        <View style={styles.emptySites}>
+          <Text style={styles.emptyText}>Chưa có hiện vật nào</Text>
+        </View>
+      ) : (
+        <View style={styles.featuredList}>
+          {discoveryArtifacts.map((art) => (
+            <TouchableOpacity
+              key={art.id}
+              style={styles.artifactCard}
+              onPress={() =>
+                router.push({
+                  pathname: '/artifact_detail',
+                  params: { id: art.id, name: art.name },
+                })
+              }
+              activeOpacity={0.8}
+            >
+              {art.imageUrl ? (
+                <Image source={{ uri: art.imageUrl }} style={styles.artifactImage} />
+              ) : (
+                <View style={[styles.artifactImage, styles.artifactImageFallback]}>
+                  <Text style={styles.artifactFallbackText}>🏺</Text>
+                </View>
+              )}
+              <View style={styles.artifactContent}>
+                {art.category || art.era ? (
+                  <View style={styles.artifactTagRow}>
+                    {art.category ? (
+                      <Text style={styles.artifactCategoryBadge}>{art.category}</Text>
+                    ) : (
+                      <View />
+                    )}
+                    {art.era ? <Text style={styles.artifactEra}>{art.era}</Text> : null}
+                  </View>
+                ) : null}
+                <Text style={styles.artifactName}>{art.name}</Text>
+                <Text style={styles.artifactDescription} numberOfLines={2}>
+                  {art.description}
+                </Text>
+                <Text style={styles.viewDetailLink}>Xem thông tin chi tiết →</Text>
               </View>
-              <Text style={styles.artifactName}>{art.name}</Text>
-              <Text style={styles.artifactDescription} numberOfLines={2}>
-                {art.description}
-              </Text>
-              <Text style={styles.viewDetailLink}>Xem thông tin chi tiết →</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* 5. User Account / Logout Action */}
       <View style={styles.accountSection}>
@@ -336,6 +417,43 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     opacity: 0.5,
+  },
+  heroImageFallback: {
+    opacity: 1,
+    backgroundColor: '#1E293B',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroFallbackText: {
+    fontSize: 56,
+    opacity: 0.6,
+  },
+  siteList: {
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  siteChip: {
+    width: 180,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+  },
+  siteChipName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  siteChipLocation: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 4,
+  },
+  emptySites: {
+    marginHorizontal: 16,
+    paddingVertical: 20,
+    alignItems: 'center',
   },
   heroOverlay: {
     position: 'absolute',
@@ -510,6 +628,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 140,
     backgroundColor: '#E2E8F0',
+  },
+  artifactImageFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  artifactFallbackText: {
+    fontSize: 40,
+    opacity: 0.5,
   },
   artifactContent: {
     padding: 14,

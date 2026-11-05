@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { heritageApi, type Artifact, type Multimedia } from '../services/heritageApi';
+import { interactionApi } from '../services/interactionApi';
+import { MultimediaPlayer } from '../components/multimedia-player';
+import { isPlayableUrl } from '../utils/media';
+import { createEventId } from '../utils/id';
 
 export default function ArtifactDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -14,6 +18,10 @@ export default function ArtifactDetailScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const artifactId = Array.isArray(id) ? id[0] : id;
+
+  // eventId được tạo một lần cho mỗi artifact và giữ nguyên khi retry.
+  const viewEventRef = useRef<{ artifactId: string; eventId: string } | null>(null);
+  const viewSentForRef = useRef<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -37,6 +45,28 @@ export default function ArtifactDetailScreen() {
         }
         setArtifact(artifactResult.data);
 
+        // Chỉ ghi nhận VIEW khi artifact đã tải thành công và user đã đăng nhập.
+        // Lỗi gửi sự kiện KHÔNG làm hỏng luồng xem nội dung.
+        const artifactKey = String(artifactId);
+        if (!viewEventRef.current || viewEventRef.current.artifactId !== artifactKey) {
+          viewEventRef.current = { artifactId: artifactKey, eventId: createEventId() };
+          viewSentForRef.current = null;
+        }
+
+        if (viewSentForRef.current !== artifactKey) {
+          const viewResult = await interactionApi.sendInteraction({
+            eventId: viewEventRef.current.eventId,
+            artifactId: Number(artifactId),
+            interactionType: 'VIEW',
+            languageCode: 'vi',
+          });
+
+          // Giữ cùng eventId cho lần retry nếu gửi thất bại.
+          if (viewResult.ok) {
+            viewSentForRef.current = artifactKey;
+          }
+        }
+
         const multimediaResult = await heritageApi.getArtifactMultimedia(artifactId);
         if (!mounted) return;
         if (multimediaResult.ok && multimediaResult.data) {
@@ -56,6 +86,24 @@ export default function ArtifactDetailScreen() {
       mounted = false;
     };
   }, [artifactId, refreshKey]);
+
+  const handleAudioPlay = useCallback(
+    (item: Multimedia) => {
+      const numericArtifactId = Number(artifactId);
+      if (!Number.isFinite(numericArtifactId)) {
+        return;
+      }
+
+      void interactionApi.sendInteraction({
+        eventId: createEventId(),
+        artifactId: numericArtifactId,
+        interactionType: 'AUDIO_PLAY',
+        languageCode: 'vi',
+        startedAt: new Date().toISOString(),
+      });
+    },
+    [artifactId]
+  );
 
   const handleRetry = () => {
     setError(null);
@@ -82,45 +130,79 @@ export default function ArtifactDetailScreen() {
     );
   }
 
-  const mainImageUrl = artifact.imageUrl;
-  const multimediaImages = multimedia.filter((m) => m.type === 'image');
+  const firstImageMedia = multimedia.find(
+    (item) => item.type === 'image' && isPlayableUrl(item.url)
+  );
+  const heroImageUrl = isPlayableUrl(artifact.imageUrl)
+    ? artifact.imageUrl
+    : firstImageMedia?.url ?? null;
+
+  const galleryImages = multimedia.filter(
+    (item) => item.type === 'image' && item.url !== heroImageUrl
+  );
+  const playableMedia = multimedia.filter(
+    (item) => item.type === 'audio' || item.type === 'video'
+  );
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <Image source={{ uri: mainImageUrl ?? undefined }} style={styles.heroImage} />
+      {heroImageUrl ? (
+        <Image source={{ uri: heroImageUrl }} style={styles.heroImage} resizeMode="cover" />
+      ) : (
+        <View style={[styles.heroImage, styles.heroImageFallback]}>
+          <Text style={styles.heroFallbackText}>🏺</Text>
+        </View>
+      )}
 
-      {multimediaImages.length > 0 && (
+      {galleryImages.length > 0 && (
         <View style={styles.multimediaSection}>
           <Text style={styles.multimediaTitle}>Hình ảnh liên quan</Text>
           <View style={styles.multimediaList}>
-            {multimediaImages.map((m) => (
-              <TouchableOpacity
-                key={m.id}
-                style={styles.multimediaItem}
-                onPress={() => {}}
-              >
-                <Image source={{ uri: m.url }} style={styles.multimediaImage} />
-              </TouchableOpacity>
+            {galleryImages.map((item) => (
+              <MultimediaPlayer key={item.id} item={item} />
+            ))}
+          </View>
+        </View>
+      )}
+
+      {playableMedia.length > 0 && (
+        <View style={styles.multimediaSection}>
+          <Text style={styles.multimediaTitle}>Âm thanh & Video</Text>
+          <View style={styles.playableList}>
+            {playableMedia.map((item) => (
+              <MultimediaPlayer
+                key={item.id}
+                item={item}
+                onAudioPlay={handleAudioPlay}
+              />
             ))}
           </View>
         </View>
       )}
 
       <View style={styles.content}>
-        <View style={styles.badgeRow}>
-          <Text style={styles.categoryBadge}>{artifact.category}</Text>
-          <Text style={styles.eraText}>{artifact.era}</Text>
-        </View>
+        {artifact.category || artifact.era ? (
+          <View style={styles.badgeRow}>
+            {artifact.category ? (
+              <Text style={styles.categoryBadge}>{artifact.category}</Text>
+            ) : (
+              <View />
+            )}
+            {artifact.era ? <Text style={styles.eraText}>{artifact.era}</Text> : null}
+          </View>
+        ) : null}
 
         <Text style={styles.title}>{artifact.name}</Text>
 
-        <View style={styles.locationCard}>
-          <Text style={styles.locationIcon}>📍</Text>
-          <View style={styles.locationTextContainer}>
-            <Text style={styles.locationLabel}>Vị trí trưng bày:</Text>
-            <Text style={styles.locationValue}>{artifact.locationInMuseum}</Text>
+        {artifact.locationInMuseum ? (
+          <View style={styles.locationCard}>
+            <Text style={styles.locationIcon}>📍</Text>
+            <View style={styles.locationTextContainer}>
+              <Text style={styles.locationLabel}>Vị trí trưng bày:</Text>
+              <Text style={styles.locationValue}>{artifact.locationInMuseum}</Text>
+            </View>
           </View>
-        </View>
+        ) : null}
 
         <Text style={styles.sectionHeader}>Mô tả hiện vật</Text>
         <Text style={styles.description}>{artifact.description}</Text>
@@ -149,6 +231,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 260,
     backgroundColor: '#0F172A',
+  },
+  heroImageFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroFallbackText: {
+    fontSize: 64,
+    opacity: 0.5,
+  },
+  playableList: {
+    gap: 12,
   },
   multimediaSection: {
     paddingHorizontal: 16,

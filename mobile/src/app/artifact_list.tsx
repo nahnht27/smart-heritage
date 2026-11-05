@@ -1,18 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  ActivityIndicator,
+  TextInput,
+} from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { heritageApi, type Artifact } from '../services/heritageApi';
+import { filterArtifacts } from '../utils/artifact';
 
 export default function ArtifactListScreen() {
   const router = useRouter();
-  const { siteId } = useLocalSearchParams();
+  const { siteId, siteName } = useLocalSearchParams();
 
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const resolvedSiteId = (Array.isArray(siteId) ? siteId[0] : siteId) ?? '1';
+  // Không hardcode siteId: dùng site được chọn từ Home, nếu thiếu thì tải tất cả.
+  const resolvedSiteId = (Array.isArray(siteId) ? siteId[0] : siteId) ?? null;
+  const resolvedSiteName = (Array.isArray(siteName) ? siteName[0] : siteName) ?? null;
 
   useEffect(() => {
     let mounted = true;
@@ -21,7 +34,9 @@ export default function ArtifactListScreen() {
       setIsLoading(true);
       setError(null);
       try {
-        const result = await heritageApi.getArtifactsBySite(resolvedSiteId);
+        const result = resolvedSiteId
+          ? await heritageApi.getArtifactsBySite(resolvedSiteId)
+          : await heritageApi.getArtifacts();
         if (!mounted) return;
         if (!result.ok || !result.data) {
           setError(result.error || 'Không tải được danh sách hiện vật');
@@ -43,6 +58,8 @@ export default function ArtifactListScreen() {
       mounted = false;
     };
   }, [resolvedSiteId, refreshKey]);
+
+  const filteredArtifacts = filterArtifacts(artifacts, search);
 
   const handleRetry = () => {
     setError(null);
@@ -72,19 +89,32 @@ export default function ArtifactListScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       <View style={styles.header}>
-        <Text style={styles.title}>Danh mục Hiện vật</Text>
+        <Text style={styles.title}>{resolvedSiteName || 'Danh mục Hiện vật'}</Text>
         <Text style={styles.subtitle}>
           Tổng hợp {artifacts.length} hiện vật quý giá tại khu di sản
         </Text>
       </View>
 
-      {artifacts.length === 0 ? (
+      <TextInput
+        style={styles.searchInput}
+        value={search}
+        onChangeText={setSearch}
+        placeholder="Tìm kiếm hiện vật..."
+        placeholderTextColor="#94A3B8"
+        autoCorrect={false}
+      />
+
+      {filteredArtifacts.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Chưa có hiện vật nào được hiển thị</Text>
+          <Text style={styles.emptyText}>
+            {artifacts.length === 0
+              ? 'Chưa có hiện vật nào được hiển thị'
+              : 'Không tìm thấy hiện vật phù hợp'}
+          </Text>
         </View>
       ) : (
         <View style={styles.list}>
-          {artifacts.map((art) => (
+          {filteredArtifacts.map((art) => (
             <TouchableOpacity
               key={art.id}
               style={styles.item}
@@ -96,14 +126,24 @@ export default function ArtifactListScreen() {
               }
               activeOpacity={0.75}
             >
-              <Image source={{ uri: art.imageUrl ?? undefined }} style={styles.itemImage} />
-              <View style={styles.itemInfo}>
-                <View style={styles.tagRow}>
-                  <Text style={styles.categoryBadge}>{art.category}</Text>
+              {art.imageUrl ? (
+                <Image source={{ uri: art.imageUrl }} style={styles.itemImage} />
+              ) : (
+                <View style={[styles.itemImage, styles.itemImageFallback]}>
+                  <Text style={styles.itemFallbackText}>🏺</Text>
                 </View>
+              )}
+              <View style={styles.itemInfo}>
+                {art.category ? (
+                  <View style={styles.tagRow}>
+                    <Text style={styles.categoryBadge}>{art.category}</Text>
+                  </View>
+                ) : null}
                 <Text style={styles.itemName}>{art.name}</Text>
-                <Text style={styles.itemEra}>Niên đại: {art.era}</Text>
-                <Text style={styles.itemLocation}>📍 {art.locationInMuseum}</Text>
+                {art.era ? <Text style={styles.itemEra}>Niên đại: {art.era}</Text> : null}
+                {art.locationInMuseum ? (
+                  <Text style={styles.itemLocation}>📍 {art.locationInMuseum}</Text>
+                ) : null}
               </View>
             </TouchableOpacity>
           ))}
@@ -132,10 +172,29 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 2,
   },
+  searchInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0F172A',
+    marginBottom: 14,
+  },
   itemImage: {
     width: 100,
     height: 110,
     backgroundColor: '#E2E8F0',
+  },
+  itemImageFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  itemFallbackText: {
+    fontSize: 30,
+    opacity: 0.5,
   },
   itemInfo: {
     flex: 1,
