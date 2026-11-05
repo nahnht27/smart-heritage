@@ -36,12 +36,62 @@ export interface Artifact {
   address?: string | null;
 }
 
+export type MultimediaType = 'IMAGE' | 'AUDIO' | 'VIDEO' | 'UNKNOWN';
+
 export interface Multimedia {
   id: number;
   artifactId: number;
-  type: string;
+  type: MultimediaType;
   title: string | null;
   url: string;
+}
+
+const SUPPORTED_MULTIMEDIA_TYPES: MultimediaType[] = [
+  'IMAGE',
+  'AUDIO',
+  'VIDEO',
+];
+
+/**
+ * The backend stores the type exactly as submitted by the admin web (`IMAGE`),
+ * while older data/tests may use lowercase (`image`). Normalize once here so
+ * every screen can compare against the same values.
+ */
+export function normalizeMultimediaType(
+  type: string | null | undefined,
+): MultimediaType {
+  const normalized = (type ?? '').trim().toUpperCase();
+
+  return (SUPPORTED_MULTIMEDIA_TYPES as string[]).includes(normalized)
+    ? (normalized as MultimediaType)
+    : 'UNKNOWN';
+}
+
+/**
+ * Accept only absolute HTTP(S) URLs. `null`, empty strings, relative paths and
+ * malformed values must never reach `<Image />`.
+ */
+export function isUsableMediaUrl(
+  url: string | null | undefined,
+): url is string {
+  return typeof url === 'string' && /^https?:\/\/\S+$/i.test(url.trim());
+}
+
+/**
+ * Select the first usable image from an artifact's multimedia list.
+ */
+export function selectArtifactThumbnail(
+  multimedia: Multimedia[] | null | undefined,
+): string | null {
+  if (!Array.isArray(multimedia)) {
+    return null;
+  }
+
+  const image = multimedia.find(
+    (item) => item.type === 'IMAGE' && isUsableMediaUrl(item.url),
+  );
+
+  return image ? image.url.trim() : null;
 }
 
 // Backend DTO shapes (từ ApiResponse.data sau khi unwrap)
@@ -100,7 +150,7 @@ function mapMultimedia(m: BackendMultimedia): Multimedia {
   return {
     id: m.multimediaId,
     artifactId: m.artifactId,
-    type: m.type,
+    type: normalizeMultimediaType(m.type),
     title: m.title,
     url: m.url,
   };
@@ -180,5 +230,43 @@ export const heritageApi = {
       status: result.status,
       ok: result.ok,
     };
+  },
+
+  async getArtifactThumbnail(artifactId: string | number): Promise<string | null> {
+    const result = await heritageApi.getArtifactMultimedia(artifactId);
+
+    if (!result.ok || !result.data) {
+      return null;
+    }
+
+    return selectArtifactThumbnail(result.data);
+  },
+
+  async getArtifactsWithThumbnailsBySite(
+    siteId: string | number,
+    limit?: number,
+  ): Promise<{
+    data: Artifact[] | null;
+    error: string | null;
+    status: number;
+    ok: boolean;
+  }> {
+    const result = await heritageApi.getArtifactsBySite(siteId);
+
+    if (!result.ok || !result.data) {
+      return result;
+    }
+
+    const selectedArtifacts =
+      typeof limit === 'number' ? result.data.slice(0, limit) : result.data;
+
+    const data = await Promise.all(
+      selectedArtifacts.map(async (artifact) => ({
+        ...artifact,
+        imageUrl: await heritageApi.getArtifactThumbnail(artifact.id),
+      })),
+    );
+
+    return { ...result, data };
   },
 };

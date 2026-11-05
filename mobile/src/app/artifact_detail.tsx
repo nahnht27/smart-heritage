@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { heritageApi, type Artifact, type Multimedia } from '../services/heritageApi';
+import {
+  heritageApi,
+  isUsableMediaUrl,
+  type Artifact,
+  type Multimedia,
+} from '../services/heritageApi';
+import { RemoteImage } from '../components/remote-image';
 
 export default function ArtifactDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -81,16 +87,18 @@ export default function ArtifactDetailScreen() {
     );
   }
 
-  const multimediaImages = multimedia.filter((m) => m.type === 'image');
-  const heroImageUrl = multimediaImages.length > 0 ? multimediaImages[0].url : undefined;
+  const multimediaImages = multimedia.filter(
+    (m) => m.type === 'IMAGE' && isUsableMediaUrl(m.url),
+  );
+  const heroImageUrl = multimediaImages.length > 0 ? multimediaImages[0].url : null;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      {heroImageUrl ? (
-        <Image source={{ uri: heroImageUrl }} style={styles.heroImage} />
-      ) : (
-        <View style={styles.heroImage} />
-      )}
+      <RemoteImage
+        uri={heroImageUrl}
+        style={styles.heroImage}
+        accessibilityLabel={artifact.name}
+      />
 
       {multimediaImages.length > 0 && (
         <View style={styles.multimediaSection}>
@@ -102,7 +110,11 @@ export default function ArtifactDetailScreen() {
                 style={styles.multimediaItem}
                 onPress={() => {}}
               >
-                <Image source={{ uri: m.url }} style={styles.multimediaImage} />
+                <RemoteImage
+                  uri={m.url}
+                  style={styles.multimediaImage}
+                  accessibilityLabel={m.title ?? artifact.name}
+                />
               </TouchableOpacity>
             ))}
           </View>

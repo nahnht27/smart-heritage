@@ -5,13 +5,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { heritageApi, type HeritageSite, type Artifact } from '../services/heritageApi';
 import { apiClient } from '../services/api';
 import { authStorage } from '../services/authStorage';
+import { RemoteImage } from '../components/remote-image';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -29,8 +29,8 @@ export default function HomeScreen() {
   // Content data states (real API)
   const [sites, setSites] = useState<HeritageSite[]>([]);
   const [featuredArtifacts, setFeaturedArtifacts] = useState<Artifact[]>([]);
-  const [isLoadingData, setIsLoadingData] = useState(true);
-  const [dataError, setDataError] = useState<string | null>(null);
+  const [, setIsLoadingData] = useState(true);
+  const [, setDataError] = useState<string | null>(null);
 
   const site = sites[0] ?? null;
 
@@ -52,12 +52,15 @@ export default function HomeScreen() {
 
         const firstSite = sitesResult.data[0];
         if (firstSite) {
-          const artifactsResult = await heritageApi.getArtifactsBySite(firstSite.id);
+          const artifactsResult = await heritageApi.getArtifactsWithThumbnailsBySite(
+            firstSite.id,
+            3,
+          );
           if (!mounted) return;
           if (artifactsResult.ok && artifactsResult.data) {
             // Backend không cung cấp trường isFeatured, nên hiển thị một tập con xác định
             // từ dữ liệu thật thay vì giả dough dữ liệu featured.
-            setFeaturedArtifacts(artifactsResult.data.slice(0, 3));
+            setFeaturedArtifacts(artifactsResult.data);
           }
         }
       } catch {
@@ -138,11 +141,7 @@ export default function HomeScreen() {
           </View>
         ) : (
               <>
-                <Image
-                  source={{ uri: undefined }}
-                  style={styles.heroImage}
-                  resizeMode="cover"
-                />
+                <View style={styles.heroImage} />
                 <View style={styles.heroOverlay}>
                   <View style={styles.siteBadge}>
                     <Text style={styles.siteBadgeText}>Khu Di tích Lịch sử</Text>
@@ -248,7 +247,11 @@ export default function HomeScreen() {
             }
             activeOpacity={0.8}
           >
-            <Image source={{ uri: undefined }} style={styles.artifactImage} />
+            <RemoteImage
+              uri={art.imageUrl}
+              style={styles.artifactImage}
+              accessibilityLabel={art.name}
+            />
             <View style={styles.artifactContent}>
               <View style={styles.artifactTagRow}>
                 <Text style={styles.artifactCategoryBadge}>{art.siteName || 'Di sản'}</Text>
