@@ -275,6 +275,20 @@ class VisitorInteractionControllerTest {
                 .andExpect(jsonPath("$.success").value(false));
     }
 
+    @Test
+    void timeseries_shouldRequireAdminRole() throws Exception {
+        mockMvc.perform(get("/api/analytics/interactions/timeseries")
+                        .param("from", "2026-10-01T00:00:00Z")
+                        .param("to", "2026-10-02T00:00:00Z"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/analytics/interactions/timeseries")
+                        .header("Authorization", "Bearer " + visitorToken)
+                        .param("from", "2026-10-01T00:00:00Z")
+                        .param("to", "2026-10-02T00:00:00Z"))
+                .andExpect(status().isForbidden());
+    }
+
     private String createUserAndGetToken(String username, String roleName) throws Exception {
         Role role = roleRepository.findByName(roleName)
                 .orElseGet(() -> roleRepository.save(new Role(roleName)));

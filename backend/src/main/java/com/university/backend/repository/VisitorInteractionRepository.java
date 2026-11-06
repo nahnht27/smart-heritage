@@ -1,6 +1,7 @@
 package com.university.backend.repository;
 
 import com.university.backend.dto.InteractionTypeCountResponse;
+import com.university.backend.dto.LanguageCountResponse;
 import com.university.backend.dto.PopularArtifactResponse;
 import com.university.backend.entity.VisitorInteraction;
 import org.springframework.data.domain.Pageable;
@@ -62,4 +63,20 @@ public interface VisitorInteractionRepository
             @Param("from") Instant from,
             @Param("to") Instant to,
             Pageable pageable);
+
+    @Query(value = """
+            SELECT
+                CAST(i.interacted_at AT TIME ZONE 'UTC' AS DATE) AS "interactionDate",
+                COUNT(*) AS "totalInteractions",
+                COUNT(DISTINCT i.visitor_id) AS "uniqueVisitors"
+            FROM visitor_interaction i
+            WHERE i.interacted_at >= :from
+              AND i.interacted_at < :to
+            GROUP BY CAST(i.interacted_at AT TIME ZONE 'UTC' AS DATE)
+            ORDER BY CAST(i.interacted_at AT TIME ZONE 'UTC' AS DATE) ASC
+            """, nativeQuery = true)
+    List<DailyInteractionProjection> findDailyInteractions(
+            @Param("from") Instant from,
+            @Param("to") Instant to);
+
 }
