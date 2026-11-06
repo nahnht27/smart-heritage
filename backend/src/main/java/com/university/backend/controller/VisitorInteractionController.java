@@ -7,6 +7,7 @@ import com.university.backend.dto.InteractionRecordResponse;
 import com.university.backend.dto.InteractionSummaryResponse;
 import com.university.backend.exception.BadRequestException;
 import com.university.backend.service.VisitorInteractionService;
+import com.university.backend.dto.DailyInteractionResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 @RestController
 public class VisitorInteractionController {
@@ -32,10 +34,8 @@ public class VisitorInteractionController {
     public ResponseEntity<ApiResponse<InteractionRecordResponse>> createInteraction(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody CreateInteractionRequest request) {
-        InteractionCreationResult result =
-                interactionService.createInteraction(userDetails.getUsername(), request);
-        InteractionRecordResponse response =
-                InteractionRecordResponse.fromEntity(result.interaction());
+        InteractionCreationResult result = interactionService.createInteraction(userDetails.getUsername(), request);
+        InteractionRecordResponse response = InteractionRecordResponse.fromEntity(result.interaction());
         if (!result.created()) {
             return ResponseEntity.ok(ApiResponse.success(
                     "Interaction event was already recorded", response));
@@ -53,6 +53,19 @@ public class VisitorInteractionController {
         return ResponseEntity.ok(ApiResponse.success(
                 "Interaction summary retrieved successfully",
                 interactionService.getSummary(from, to)));
+    }
+
+    @GetMapping("/api/analytics/interactions/timeseries")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<DailyInteractionResponse>>> getTimeSeries(
+            @RequestParam Instant from,
+            @RequestParam Instant to) {
+
+        validateRange(from, to);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                "Daily interaction time-series retrieved successfully",
+                interactionService.getDailyTimeSeries(from, to)));
     }
 
     private void validateRange(Instant from, Instant to) {

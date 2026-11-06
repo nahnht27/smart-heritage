@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.university.backend.dto.InteractionTypeCountResponse;
 import com.university.backend.dto.PopularArtifactResponse;
+import com.university.backend.service.VisitorInteractionService;
+import com.university.backend.dto.DailyInteractionResponse;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,7 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -38,6 +41,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -46,12 +50,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles(value = "postgres-test", inheritProfiles = false)
 @TestPropertySource(properties = {
-    "spring.datasource.url=jdbc:postgresql://localhost:5432/smart_heritage_test",
-    "spring.datasource.username=postgres",
-    "spring.datasource.password=${M5_TEST_DB_PASSWORD:postgres}",
-    "spring.datasource.driver-class-name=org.postgresql.Driver",
-    "spring.jpa.hibernate.ddl-auto=create",
-    "spring.jpa.open-in-view=false"
+        "spring.datasource.url=jdbc:postgresql://localhost:5432/smart_heritage_test",
+        "spring.datasource.username=postgres",
+        "spring.datasource.password=${M5_TEST_DB_PASSWORD:postgres}",
+        "spring.datasource.driver-class-name=org.postgresql.Driver",
+        "spring.jpa.hibernate.ddl-auto=create",
+        "spring.jpa.open-in-view=false"
 })
 public class VisitorInteractionPostgresIT {
 
@@ -74,94 +78,84 @@ public class VisitorInteractionPostgresIT {
     private VisitorInteractionRepository interactionRepository;
 
     @Autowired
+    private VisitorInteractionService interactionService;
+
+    @Autowired
     private PlatformTransactionManager transactionManager;
-
-
-
-    
 
     private Integer getVisitorRoleId() {
         return jdbcTemplate.queryForObject(
-            """
-            INSERT INTO role(name)
-            VALUES ('VISITOR')
-            ON CONFLICT (name)
-            DO UPDATE SET name = EXCLUDED.name
-            RETURNING role_id
-            """,
-            Integer.class
-        );
+                """
+                        INSERT INTO role(name)
+                        VALUES ('VISITOR')
+                        ON CONFLICT (name)
+                        DO UPDATE SET name = EXCLUDED.name
+                        RETURNING role_id
+                        """,
+                Integer.class);
     }
 
     private Integer createTestUser(
-        Integer roleId,
-        String username,
-        String password
-    ) {
+            Integer roleId,
+            String username,
+            String password) {
         return jdbcTemplate.queryForObject(
-            """
-            INSERT INTO "user"
-                (role_id, username, email, password_hash)
-            VALUES (?, ?, ?, ?)
-            RETURNING user_id
-            """,
-            Integer.class,
-            roleId,
-            username,
-            username + "@example.com",
-            passwordEncoder.encode(password)
-        );
+                """
+                        INSERT INTO "user"
+                            (role_id, username, email, password_hash)
+                        VALUES (?, ?, ?, ?)
+                        RETURNING user_id
+                        """,
+                Integer.class,
+                roleId,
+                username,
+                username + "@example.com",
+                passwordEncoder.encode(password));
     }
 
     private Integer createTestArtifact() {
 
         Integer siteId = jdbcTemplate.queryForObject(
-            """
-            INSERT INTO heritage_site(name)
-            VALUES ('M5 Test Heritage Site')
-            RETURNING site_id
-            """,
-            Integer.class
-        );
+                """
+                        INSERT INTO heritage_site(name)
+                        VALUES ('M5 Test Heritage Site')
+                        RETURNING site_id
+                        """,
+                Integer.class);
 
         return jdbcTemplate.queryForObject(
-            """
-            INSERT INTO artifact(site_id, name)
-            VALUES (?, 'M5 Test Artifact')
-            RETURNING artifact_id
-            """,
-            Integer.class,
-            siteId
-        );
+                """
+                        INSERT INTO artifact(site_id, name)
+                        VALUES (?, 'M5 Test Artifact')
+                        RETURNING artifact_id
+                        """,
+                Integer.class,
+                siteId);
     }
 
     private String loginAndGetToken(
-        String username,
-        String password
-    ) throws Exception {
+            String username,
+            String password) throws Exception {
 
         String loginBody = objectMapper.writeValueAsString(
-            Map.of(
-                "username", username,
-                "password", password
-            )
-        );
+                Map.of(
+                        "username", username,
+                        "password", password));
 
         String loginResponse = mockMvc.perform(
                 post("/api/auth/login")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(loginBody)
-            )
-            .andExpect(status().isOk())
-            .andReturn()
-            .getResponse()
-            .getContentAsString();
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
 
         String token = objectMapper
-            .readTree(loginResponse)
-            .path("data")
-            .path("accessToken")
-            .asText();
+                .readTree(loginResponse)
+                .path("data")
+                .path("accessToken")
+                .asText();
 
         assertFalse(token.isBlank());
 
@@ -169,29 +163,25 @@ public class VisitorInteractionPostgresIT {
     }
 
     private String createInteractionRequest(
-        UUID eventId,
-        Integer artifactId
-    ) throws Exception {
+            UUID eventId,
+            Integer artifactId) throws Exception {
 
         return objectMapper.writeValueAsString(
-            Map.of(
-                "eventId", eventId.toString(),
-                "artifactId", artifactId,
-                "interactionType", "VIEW",
-                "languageCode", "vi",
-                "startedAt", "2026-11-01T10:00:00Z",
-                "endedAt", "2026-11-01T10:00:30Z",
-                "interactedAt", "2026-11-01T10:00:00Z"
-            )
-        );
+                Map.of(
+                        "eventId", eventId.toString(),
+                        "artifactId", artifactId,
+                        "interactionType", "VIEW",
+                        "languageCode", "vi",
+                        "startedAt", "2026-11-01T10:00:00Z",
+                        "endedAt", "2026-11-01T10:00:30Z",
+                        "interactedAt", "2026-11-01T10:00:00Z"));
     }
 
     private Map<String, Object> createDurationRequest(
-        UUID eventId,
-        Integer artifactId,
-        String startedAt,
-        String endedAt
-    ) {
+            UUID eventId,
+            Integer artifactId,
+            String startedAt,
+            String endedAt) {
 
         Map<String, Object> request = new HashMap<>();
 
@@ -209,46 +199,41 @@ public class VisitorInteractionPostgresIT {
     private Long countInteractions(UUID eventId) {
 
         return jdbcTemplate.queryForObject(
-            """
-            SELECT COUNT(*)
-            FROM visitor_interaction
-            WHERE event_id = ?::uuid
-            """,
-            Long.class,
-            eventId.toString()
-        );
+                """
+                        SELECT COUNT(*)
+                        FROM visitor_interaction
+                        WHERE event_id = ?::uuid
+                        """,
+                Long.class,
+                eventId.toString());
     }
 
     private void insertAnalyticsInteraction(
-        Integer userId,
-        Integer artifactId,
-        String interactionType,
-        String languageCode,
-        Instant interactedAt
-    ) {
+            Integer userId,
+            Integer artifactId,
+            String interactionType,
+            String languageCode,
+            Instant interactedAt) {
 
         jdbcTemplate.update(
-            """
-            INSERT INTO visitor_interaction
-                (event_id, user_id, artifact_id,
-                 interaction_type, language_code,
-                 started_at, ended_at, interacted_at,
-                 duration_seconds)
-            VALUES (?::uuid, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            UUID.randomUUID().toString(),
-            userId,
-            artifactId,
-            interactionType,
-            languageCode,
-            Timestamp.from(interactedAt),
-            Timestamp.from(interactedAt.plusSeconds(30)),
-            Timestamp.from(interactedAt),
-            30L
-        );
+                """
+                        INSERT INTO visitor_interaction
+                            (event_id, user_id, artifact_id,
+                             interaction_type, language_code,
+                             started_at, ended_at, interacted_at,
+                             duration_seconds)
+                        VALUES (?::uuid, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                UUID.randomUUID().toString(),
+                userId,
+                artifactId,
+                interactionType,
+                languageCode,
+                Timestamp.from(interactedAt),
+                Timestamp.from(interactedAt.plusSeconds(30)),
+                Timestamp.from(interactedAt),
+                30L);
     }
-
-    
 
     @Test
     void shouldConnectToPostgreSQL() throws Exception {
@@ -258,18 +243,14 @@ public class VisitorInteractionPostgresIT {
             assertTrue(connection.isValid(5));
 
             assertEquals(
-                "PostgreSQL",
-                connection.getMetaData().getDatabaseProductName()
-            );
+                    "PostgreSQL",
+                    connection.getMetaData().getDatabaseProductName());
 
             assertEquals(
-                "smart_heritage_test",
-                connection.getCatalog()
-            );
+                    "smart_heritage_test",
+                    connection.getCatalog());
         }
     }
-
-    
 
     @Test
     void shouldPersistVisitorInteraction() throws Exception {
@@ -277,58 +258,52 @@ public class VisitorInteractionPostgresIT {
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         String username = "m5_visitor_" + suffix;
         String password = "TestPass123!";
 
         Integer userId = createTestUser(
-            roleId,
-            username,
-            password
-        );
+                roleId,
+                username,
+                password);
 
         Integer artifactId = createTestArtifact();
 
         String token = loginAndGetToken(
-            username,
-            password
-        );
+                username,
+                password);
 
         UUID eventId = UUID.randomUUID();
 
         String requestBody = createInteractionRequest(
-            eventId,
-            artifactId
-        );
+                eventId,
+                artifactId);
 
         String apiResponse = mockMvc.perform(
                 post("/api/interactions")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(requestBody)
-            )
-            .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.success").value(true))
-            .andExpect(
-                jsonPath("$.data.durationSeconds").value(30)
-            )
-            .andReturn()
-            .getResponse()
-            .getContentAsString();
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(
+                        jsonPath("$.data.durationSeconds").value(30))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
 
         Map<String, Object> stored = jdbcTemplate.queryForMap(
-            """
-            SELECT event_id, user_id, artifact_id,
-                   interaction_type, language_code,
-                   started_at, ended_at, interacted_at,
-                   duration_seconds
-            FROM visitor_interaction
-            WHERE event_id = ?::uuid
-            """,
-            eventId.toString()
-        );
+                """
+                        SELECT event_id, user_id, artifact_id,
+                               interaction_type, language_code,
+                               started_at, ended_at, interacted_at,
+                               duration_seconds
+                        FROM visitor_interaction
+                        WHERE event_id = ?::uuid
+                        """,
+                eventId.toString());
 
         assertEquals(eventId, stored.get("event_id"));
         assertEquals(userId, stored.get("user_id"));
@@ -337,84 +312,68 @@ public class VisitorInteractionPostgresIT {
         assertEquals("vi", stored.get("language_code"));
 
         assertEquals(
-            30L,
-            ((Number) stored.get("duration_seconds")).longValue()
-        );
+                30L,
+                ((Number) stored.get("duration_seconds")).longValue());
 
         assertNotNull(stored.get("started_at"));
         assertNotNull(stored.get("ended_at"));
         assertNotNull(stored.get("interacted_at"));
 
         JsonNode responseData = objectMapper
-            .readTree(apiResponse)
-            .path("data");
+                .readTree(apiResponse)
+                .path("data");
 
         assertEquals(
-            eventId.toString(),
-            responseData.path("eventId").asText()
-        );
+                eventId.toString(),
+                responseData.path("eventId").asText());
 
         assertEquals(
-            artifactId.intValue(),
-            responseData.path("artifactId").asInt()
-        );
+                artifactId.intValue(),
+                responseData.path("artifactId").asInt());
 
         assertEquals(
-            30L,
-            responseData.path("durationSeconds").asLong()
-        );
+                30L,
+                responseData.path("durationSeconds").asLong());
 
         assertEquals(1L, countInteractions(eventId));
-
-      
 
         mockMvc.perform(
                 post("/api/interactions")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(requestBody)
-            )
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.success").value(true))
-            .andExpect(
-                jsonPath("$.message")
-                    .value("Interaction event was already recorded")
-            )
-            .andExpect(
-                jsonPath("$.data.eventId")
-                    .value(eventId.toString())
-            );
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(
+                        jsonPath("$.message")
+                                .value("Interaction event was already recorded"))
+                .andExpect(
+                        jsonPath("$.data.eventId")
+                                .value(eventId.toString()));
 
         assertEquals(1L, countInteractions(eventId));
-
-        
 
         String secondUsername = "m5_second_" + suffix;
 
         createTestUser(
-            roleId,
-            secondUsername,
-            password
-        );
+                roleId,
+                secondUsername,
+                password);
 
         String secondToken = loginAndGetToken(
-            secondUsername,
-            password
-        );
+                secondUsername,
+                password);
 
         mockMvc.perform(
                 post("/api/interactions")
-                    .header("Authorization", "Bearer " + secondToken)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(requestBody)
-            )
-            .andExpect(status().isConflict())
-            .andExpect(jsonPath("$.success").value(false));
+                        .header("Authorization", "Bearer " + secondToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
 
         assertEquals(1L, countInteractions(eventId));
     }
-
-    
 
     @Test
     void shouldPreventConcurrentDuplicateEvents() throws Exception {
@@ -422,34 +381,30 @@ public class VisitorInteractionPostgresIT {
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         String username = "m5_concurrent_" + suffix;
         String password = "TestPass123!";
 
         Integer userId = createTestUser(
-            roleId,
-            username,
-            password
-        );
+                roleId,
+                username,
+                password);
 
         Integer artifactId = createTestArtifact();
 
         String token = loginAndGetToken(
-            username,
-            password
-        );
+                username,
+                password);
 
         UUID eventId = UUID.randomUUID();
 
         String requestBody = createInteractionRequest(
-            eventId,
-            artifactId
-        );
+                eventId,
+                artifactId);
 
-        ExecutorService executor =
-            Executors.newFixedThreadPool(2);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
 
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
@@ -462,91 +417,75 @@ public class VisitorInteractionPostgresIT {
 
                 if (!start.await(10, TimeUnit.SECONDS)) {
                     throw new IllegalStateException(
-                        "Concurrent start timeout"
-                    );
+                            "Concurrent start timeout");
                 }
 
                 return mockMvc.perform(
                         post("/api/interactions")
-                            .header(
-                                "Authorization",
-                                "Bearer " + token
-                            )
-                            .contentType(
-                                MediaType.APPLICATION_JSON
-                            )
-                            .content(requestBody)
-                    )
-                    .andReturn()
-                    .getResponse()
-                    .getStatus();
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token)
+                                .contentType(
+                                        MediaType.APPLICATION_JSON)
+                                .content(requestBody))
+                        .andReturn()
+                        .getResponse()
+                        .getStatus();
             };
 
-            Future<Integer> firstFuture =
-                executor.submit(requestTask);
+            Future<Integer> firstFuture = executor.submit(requestTask);
 
-            Future<Integer> secondFuture =
-                executor.submit(requestTask);
+            Future<Integer> secondFuture = executor.submit(requestTask);
 
             assertTrue(
-                ready.await(10, TimeUnit.SECONDS),
-                "Both requests must be ready"
-            );
+                    ready.await(10, TimeUnit.SECONDS),
+                    "Both requests must be ready");
 
             start.countDown();
 
             int firstStatus = firstFuture.get(
-                30,
-                TimeUnit.SECONDS
-            );
+                    30,
+                    TimeUnit.SECONDS);
 
             int secondStatus = secondFuture.get(
-                30,
-                TimeUnit.SECONDS
-            );
+                    30,
+                    TimeUnit.SECONDS);
 
             long createdCount = List.of(
-                firstStatus,
-                secondStatus
-            ).stream()
-             .filter(code -> code == 201)
-             .count();
+                    firstStatus,
+                    secondStatus).stream()
+                    .filter(code -> code == 201)
+                    .count();
 
             assertEquals(
-                1L,
-                createdCount,
-                "Exactly one request must create the event"
-            );
+                    1L,
+                    createdCount,
+                    "Exactly one request must create the event");
 
-            int duplicateStatus =
-                firstStatus == 201
+            int duplicateStatus = firstStatus == 201
                     ? secondStatus
                     : firstStatus;
 
             assertTrue(
-                duplicateStatus == 200
-                    || duplicateStatus == 409,
-                "Duplicate must return HTTP 200 or 409"
-            );
+                    duplicateStatus == 200
+                            || duplicateStatus == 409,
+                    "Duplicate must return HTTP 200 or 409");
 
             Long recordCount = countInteractions(eventId);
 
             assertEquals(
-                1L,
-                recordCount,
-                "PostgreSQL must contain exactly one event"
-            );
+                    1L,
+                    recordCount,
+                    "PostgreSQL must contain exactly one event");
 
-            Integer storedUserId =
-                jdbcTemplate.queryForObject(
+            Integer storedUserId = jdbcTemplate.queryForObject(
                     """
-                    SELECT user_id
-                    FROM visitor_interaction
-                    WHERE event_id = ?::uuid
-                    """,
+                            SELECT user_id
+                            FROM visitor_interaction
+                            WHERE event_id = ?::uuid
+                            """,
                     Integer.class,
-                    eventId.toString()
-                );
+                    eventId.toString());
 
             assertEquals(userId, storedUserId);
 
@@ -557,32 +496,28 @@ public class VisitorInteractionPostgresIT {
         }
     }
 
-    
-
     @Test
     void shouldCalculateAndPersistDurationCorrectly() throws Exception {
 
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         String username = "m5_duration_" + suffix;
         String password = "TestPass123!";
 
         Integer userId = createTestUser(
-            roleId,
-            username,
-            password
-        );
+                roleId,
+                username,
+                password);
 
         Integer artifactId = createTestArtifact();
 
         String token = loginAndGetToken(
-            username,
-            password
-        );
+                username,
+                password);
 
         UUID eventId = UUID.randomUUID();
 
@@ -590,128 +525,102 @@ public class VisitorInteractionPostgresIT {
         String endedAt = "2026-11-01T10:02:05Z";
 
         Map<String, Object> request = createDurationRequest(
-            eventId,
-            artifactId,
-            startedAt,
-            endedAt
-        );
+                eventId,
+                artifactId,
+                startedAt,
+                endedAt);
 
-    
         mockMvc.perform(
                 post("/api/interactions")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        objectMapper.writeValueAsString(request)
-                    )
-            )
-            .andExpect(status().isCreated())
-            .andExpect(
-                jsonPath("$.data.durationSeconds").value(125)
-            );
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(
+                        jsonPath("$.data.durationSeconds").value(125));
 
         Map<String, Object> stored = jdbcTemplate.queryForMap(
-            """
-            SELECT user_id, duration_seconds,
-                   started_at, ended_at, interacted_at
-            FROM visitor_interaction
-            WHERE event_id = ?::uuid
-            """,
-            eventId.toString()
-        );
+                """
+                        SELECT user_id, duration_seconds,
+                               started_at, ended_at, interacted_at
+                        FROM visitor_interaction
+                        WHERE event_id = ?::uuid
+                        """,
+                eventId.toString());
 
         assertEquals(userId, stored.get("user_id"));
 
         assertEquals(
-            125L,
-            ((Number) stored.get("duration_seconds")).longValue()
-        );
+                125L,
+                ((Number) stored.get("duration_seconds")).longValue());
 
         assertEquals(
-            Instant.parse(startedAt),
-            ((Timestamp) stored.get("started_at")).toInstant()
-        );
+                Instant.parse(startedAt),
+                ((Timestamp) stored.get("started_at")).toInstant());
 
         assertEquals(
-            Instant.parse(endedAt),
-            ((Timestamp) stored.get("ended_at")).toInstant()
-        );
+                Instant.parse(endedAt),
+                ((Timestamp) stored.get("ended_at")).toInstant());
 
         assertEquals(
-            Instant.parse(startedAt),
-            ((Timestamp) stored.get("interacted_at")).toInstant()
-        );
+                Instant.parse(startedAt),
+                ((Timestamp) stored.get("interacted_at")).toInstant());
 
         assertEquals(1L, countInteractions(eventId));
-
-  
 
         UUID zeroEventId = UUID.randomUUID();
 
         request.put(
-            "eventId",
-            zeroEventId.toString()
-        );
+                "eventId",
+                zeroEventId.toString());
 
         request.put(
-            "endedAt",
-            startedAt
-        );
+                "endedAt",
+                startedAt);
 
         mockMvc.perform(
                 post("/api/interactions")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        objectMapper.writeValueAsString(request)
-                    )
-            )
-            .andExpect(status().isCreated())
-            .andExpect(
-                jsonPath("$.data.durationSeconds").value(0)
-            );
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(
+                        jsonPath("$.data.durationSeconds").value(0));
 
         Long zeroDuration = jdbcTemplate.queryForObject(
-            """
-            SELECT duration_seconds
-            FROM visitor_interaction
-            WHERE event_id = ?::uuid
-            """,
-            Long.class,
-            zeroEventId.toString()
-        );
+                """
+                        SELECT duration_seconds
+                        FROM visitor_interaction
+                        WHERE event_id = ?::uuid
+                        """,
+                Long.class,
+                zeroEventId.toString());
 
         assertEquals(0L, zeroDuration);
         assertEquals(1L, countInteractions(zeroEventId));
 
-      
-
         UUID invalidEventId = UUID.randomUUID();
 
         request.put(
-            "eventId",
-            invalidEventId.toString()
-        );
+                "eventId",
+                invalidEventId.toString());
 
         request.put(
-            "endedAt",
-            "2026-11-01T09:59:00Z"
-        );
+                "endedAt",
+                "2026-11-01T09:59:00Z");
 
         mockMvc.perform(
                 post("/api/interactions")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        objectMapper.writeValueAsString(request)
-                    )
-            )
-            .andExpect(status().isBadRequest());
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
 
         assertEquals(0L, countInteractions(invalidEventId));
     }
-
-    
 
     @Test
     void shouldHandleMissingEndTime() throws Exception {
@@ -719,61 +628,53 @@ public class VisitorInteractionPostgresIT {
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         String username = "m5_null_end_" + suffix;
         String password = "TestPass123!";
 
         createTestUser(
-            roleId,
-            username,
-            password
-        );
+                roleId,
+                username,
+                password);
 
         Integer artifactId = createTestArtifact();
 
         String token = loginAndGetToken(
-            username,
-            password
-        );
+                username,
+                password);
 
         UUID eventId = UUID.randomUUID();
 
         Map<String, Object> request = createDurationRequest(
-            eventId,
-            artifactId,
-            "2026-11-01T10:00:00Z",
-            null
-        );
+                eventId,
+                artifactId,
+                "2026-11-01T10:00:00Z",
+                null);
 
         mockMvc.perform(
                 post("/api/interactions")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(
-                        objectMapper.writeValueAsString(request)
-                    )
-            )
-            .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.success").value(true));
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true));
 
         assertEquals(1L, countInteractions(eventId));
 
         Map<String, Object> stored = jdbcTemplate.queryForMap(
-            """
-            SELECT ended_at, duration_seconds
-            FROM visitor_interaction
-            WHERE event_id = ?::uuid
-            """,
-            eventId.toString()
-        );
+                """
+                        SELECT ended_at, duration_seconds
+                        FROM visitor_interaction
+                        WHERE event_id = ?::uuid
+                        """,
+                eventId.toString());
 
         assertNull(stored.get("ended_at"));
         assertNull(stored.get("duration_seconds"));
     }
-
-    
 
     @Test
     void shouldAggregateAnalyticsCorrectly() {
@@ -781,20 +682,18 @@ public class VisitorInteractionPostgresIT {
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         Integer user1 = createTestUser(
-            roleId,
-            "analytics_user1_" + suffix,
-            "TestPass123!"
-        );
+                roleId,
+                "analytics_user1_" + suffix,
+                "TestPass123!");
 
         Integer user2 = createTestUser(
-            roleId,
-            "analytics_user2_" + suffix,
-            "TestPass123!"
-        );
+                roleId,
+                "analytics_user2_" + suffix,
+                "TestPass123!");
 
         Integer artifact1 = createTestArtifact();
         Integer artifact2 = createTestArtifact();
@@ -803,56 +702,44 @@ public class VisitorInteractionPostgresIT {
         Instant to = Instant.parse("2025-01-11T00:00:00Z");
 
         insertAnalyticsInteraction(
-            user1, artifact1, "VIEW", "vi", from
-        );
+                user1, artifact1, "VIEW", "vi", from);
 
         insertAnalyticsInteraction(
-            user1, artifact1, "AUDIO_PLAY", "vi",
-            from.plusSeconds(3600)
-        );
+                user1, artifact1, "AUDIO_PLAY", "vi",
+                from.plusSeconds(3600));
 
         insertAnalyticsInteraction(
-            user2, artifact1, "VIEW", "en",
-            from.plusSeconds(7200)
-        );
+                user2, artifact1, "VIEW", "en",
+                from.plusSeconds(7200));
 
         insertAnalyticsInteraction(
-            user2, artifact2, "SCAN", "en",
-            from.plusSeconds(10800)
-        );
+                user2, artifact2, "SCAN", "en",
+                from.plusSeconds(10800));
 
         // Must be excluded: before 'from'
 
         insertAnalyticsInteraction(
-            user1, artifact2, "VIEW", "vi",
-            from.minusSeconds(1)
-        );
-
-   
+                user1, artifact2, "VIEW", "vi",
+                from.minusSeconds(1));
 
         insertAnalyticsInteraction(
-            user2, artifact2, "SCAN", "en", to
-        );
+                user2, artifact2, "SCAN", "en", to);
 
-        long totalInteractions =
-            interactionRepository.countInPeriod(from, to);
+        long totalInteractions = interactionRepository.countInPeriod(from, to);
 
-        long uniqueVisitors =
-            interactionRepository.countUniqueVisitorsInPeriod(from, to);
+        long uniqueVisitors = interactionRepository.countUniqueVisitorsInPeriod(from, to);
 
         assertEquals(4L, totalInteractions);
         assertEquals(2L, uniqueVisitors);
 
-        List<InteractionTypeCountResponse> types =
-            interactionRepository.countByTypeInPeriod(from, to);
+        List<InteractionTypeCountResponse> types = interactionRepository.countByTypeInPeriod(from, to);
 
         Map<String, Long> typeCounts = new HashMap<>();
 
         for (InteractionTypeCountResponse item : types) {
             typeCounts.put(
-                item.interactionType(),
-                item.count()
-            );
+                    item.interactionType(),
+                    item.count());
         }
 
         assertEquals(3, typeCounts.size());
@@ -860,37 +747,29 @@ public class VisitorInteractionPostgresIT {
         assertEquals(1L, typeCounts.get("AUDIO_PLAY"));
         assertEquals(1L, typeCounts.get("SCAN"));
 
-        List<PopularArtifactResponse> popular =
-            interactionRepository.findPopularArtifactsInPeriod(
+        List<PopularArtifactResponse> popular = interactionRepository.findPopularArtifactsInPeriod(
                 from,
                 to,
-                PageRequest.of(0, 10)
-            );
+                PageRequest.of(0, 10));
 
         assertEquals(2, popular.size());
 
         assertEquals(
-            artifact1,
-            popular.get(0).artifactId()
-        );
+                artifact1,
+                popular.get(0).artifactId());
 
         assertEquals(
-            3L,
-            popular.get(0).interactionCount()
-        );
+                3L,
+                popular.get(0).interactionCount());
 
         assertEquals(
-            artifact2,
-            popular.get(1).artifactId()
-        );
+                artifact2,
+                popular.get(1).artifactId());
 
         assertEquals(
-            1L,
-            popular.get(1).interactionCount()
-        );
+                1L,
+                popular.get(1).interactionCount());
     }
-
-    
 
     @Test
     void shouldReturnEmptyAnalyticsForPeriodWithoutData() {
@@ -899,31 +778,23 @@ public class VisitorInteractionPostgresIT {
         Instant to = Instant.parse("2030-01-02T00:00:00Z");
 
         assertEquals(
-            0L,
-            interactionRepository.countInPeriod(from, to)
-        );
+                0L,
+                interactionRepository.countInPeriod(from, to));
 
         assertEquals(
-            0L,
-            interactionRepository.countUniqueVisitorsInPeriod(from, to)
-        );
+                0L,
+                interactionRepository.countUniqueVisitorsInPeriod(from, to));
 
         assertTrue(
-            interactionRepository.countByTypeInPeriod(
-                from, to
-            ).isEmpty()
-        );
+                interactionRepository.countByTypeInPeriod(
+                        from, to).isEmpty());
 
         assertTrue(
-            interactionRepository.findPopularArtifactsInPeriod(
-                from,
-                to,
-                PageRequest.of(0, 10)
-            ).isEmpty()
-        );
+                interactionRepository.findPopularArtifactsInPeriod(
+                        from,
+                        to,
+                        PageRequest.of(0, 10)).isEmpty());
     }
-
-   
 
     @Test
     void shouldLimitPopularArtifactsToTen() {
@@ -931,14 +802,13 @@ public class VisitorInteractionPostgresIT {
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         Integer userId = createTestUser(
-            roleId,
-            "analytics_top_" + suffix,
-            "TestPass123!"
-        );
+                roleId,
+                "analytics_top_" + suffix,
+                "TestPass123!");
 
         Instant from = Instant.parse("2025-02-01T00:00:00Z");
         Instant to = Instant.parse("2025-02-02T00:00:00Z");
@@ -952,20 +822,17 @@ public class VisitorInteractionPostgresIT {
             artifactIds.add(artifactId);
 
             insertAnalyticsInteraction(
-                userId,
-                artifactId,
-                "VIEW",
-                "vi",
-                from.plusSeconds(i * 60L)
-            );
+                    userId,
+                    artifactId,
+                    "VIEW",
+                    "vi",
+                    from.plusSeconds(i * 60L));
         }
 
-        List<PopularArtifactResponse> popular =
-            interactionRepository.findPopularArtifactsInPeriod(
+        List<PopularArtifactResponse> popular = interactionRepository.findPopularArtifactsInPeriod(
                 from,
                 to,
-                PageRequest.of(0, 10)
-            );
+                PageRequest.of(0, 10));
 
         assertEquals(10, popular.size());
 
@@ -974,22 +841,19 @@ public class VisitorInteractionPostgresIT {
         for (int i = 0; i < 10; i++) {
 
             assertEquals(
-                artifactIds.get(i),
-                popular.get(i).artifactId()
-            );
+                    artifactIds.get(i),
+                    popular.get(i).artifactId());
 
             assertEquals(
-                1L,
-                popular.get(i).interactionCount()
-            );
+                    1L,
+                    popular.get(i).interactionCount());
         }
 
         assertEquals(
-            11L,
-            interactionRepository.countInPeriod(from, to)
-        );
+                11L,
+                interactionRepository.countInPeriod(from, to));
     }
-    
+
     @Test
     void shouldEnforceAnalyticsAuthenticationAndAuthorization()
             throws Exception {
@@ -999,98 +863,74 @@ public class VisitorInteractionPostgresIT {
         String from = "2025-03-01T00:00:00Z";
         String to = "2025-03-02T00:00:00Z";
 
-        
         mockMvc.perform(
-                org.springframework.test.web.servlet.request
-                    .MockMvcRequestBuilders.get(endpoint)
-                    .param("from", from)
-                    .param("to", to)
-            )
-            .andExpect(status().isUnauthorized());
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint)
+                        .param("from", from)
+                        .param("to", to))
+                .andExpect(status().isUnauthorized());
 
-      
         Integer visitorRoleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         String visitorUsername = "security_visitor_" + suffix;
         String password = "TestPass123!";
 
         createTestUser(
-            visitorRoleId,
-            visitorUsername,
-            password
-        );
+                visitorRoleId,
+                visitorUsername,
+                password);
 
         String visitorToken = loginAndGetToken(
-            visitorUsername,
-            password
-        );
+                visitorUsername,
+                password);
 
-        
         mockMvc.perform(
-                org.springframework.test.web.servlet.request
-                    .MockMvcRequestBuilders.get(endpoint)
-                    .header(
-                        "Authorization",
-                        "Bearer " + visitorToken
-                    )
-                    .param("from", from)
-                    .param("to", to)
-            )
-            .andExpect(status().isForbidden());
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint)
+                        .header(
+                                "Authorization",
+                                "Bearer " + visitorToken)
+                        .param("from", from)
+                        .param("to", to))
+                .andExpect(status().isForbidden());
 
-       
         Integer adminRoleId = jdbcTemplate.queryForObject(
-            """
-            INSERT INTO role(name)
-            VALUES ('ADMIN')
-            ON CONFLICT (name)
-            DO UPDATE SET name = EXCLUDED.name
-            RETURNING role_id
-            """,
-            Integer.class
-        );
+                """
+                        INSERT INTO role(name)
+                        VALUES ('ADMIN')
+                        ON CONFLICT (name)
+                        DO UPDATE SET name = EXCLUDED.name
+                        RETURNING role_id
+                        """,
+                Integer.class);
 
-     
         String adminUsername = "security_admin_" + suffix;
 
         createTestUser(
-            adminRoleId,
-            adminUsername,
-            password
-        );
+                adminRoleId,
+                adminUsername,
+                password);
 
         String adminToken = loginAndGetToken(
-            adminUsername,
-            password
-        );
+                adminUsername,
+                password);
 
-    
         mockMvc.perform(
-                org.springframework.test.web.servlet.request
-                    .MockMvcRequestBuilders.get(endpoint)
-                    .header(
-                        "Authorization",
-                        "Bearer " + adminToken
-                    )
-                    .param("from", from)
-                    .param("to", to)
-            )
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.success").value(true))
-            .andExpect(
-                jsonPath("$.data.totalInteractions").exists()
-            )
-            .andExpect(
-                jsonPath("$.data.uniqueVisitors").exists()
-            );
+                org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint)
+                        .header(
+                                "Authorization",
+                                "Bearer " + adminToken)
+                        .param("from", from)
+                        .param("to", to))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(
+                        jsonPath("$.data.totalInteractions").exists())
+                .andExpect(
+                        jsonPath("$.data.uniqueVisitors").exists());
     }
-
-    
-   
 
     @Test
     void shouldRejectInvalidInteractionRequests()
@@ -1099,8 +939,8 @@ public class VisitorInteractionPostgresIT {
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         String username = "m5_reliability_" + suffix;
         String password = "TestPass123!";
@@ -1110,150 +950,112 @@ public class VisitorInteractionPostgresIT {
         Integer artifactId = createTestArtifact();
 
         String token = loginAndGetToken(
-            username,
-            password
-        );
+                username,
+                password);
 
-       
         UUID missingEventId = UUID.randomUUID();
 
-        Map<String, Object> missingIdRequest =
-            createDurationRequest(
+        Map<String, Object> missingIdRequest = createDurationRequest(
                 missingEventId,
                 artifactId,
                 "2026-11-01T10:00:00Z",
-                "2026-11-01T10:00:30Z"
-            );
+                "2026-11-01T10:00:30Z");
 
-                        
         missingIdRequest.remove("eventId");
 
-
         Long countBefore = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM visitor_interaction",
-            Long.class
-        );
+                "SELECT COUNT(*) FROM visitor_interaction",
+                Long.class);
 
-
-mockMvc.perform(
-        post("/api/interactions")
-            .header("Authorization", "Bearer " + token)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(
-                missingIdRequest
-            ))
-    )
-    .andExpect(status().isBadRequest());
-
+        mockMvc.perform(
+                post("/api/interactions")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                missingIdRequest)))
+                .andExpect(status().isBadRequest());
 
         Long countAfter = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM visitor_interaction",
-            Long.class
-        );
-
+                "SELECT COUNT(*) FROM visitor_interaction",
+                Long.class);
 
         assertEquals(
-            countBefore,
-            countAfter,
-            "Missing eventId must not create any interaction"
-         );
+                countBefore,
+                countAfter,
+                "Missing eventId must not create any interaction");
 
-
-        
         UUID invalidTypeEventId = UUID.randomUUID();
 
-        Map<String, Object> invalidTypeRequest =
-            createDurationRequest(
+        Map<String, Object> invalidTypeRequest = createDurationRequest(
                 invalidTypeEventId,
                 artifactId,
                 "2026-11-01T10:00:00Z",
-                "2026-11-01T10:00:30Z"
-            );
+                "2026-11-01T10:00:30Z");
 
         invalidTypeRequest.put(
-            "interactionType",
-            "INVALID_TYPE"
-        );
+                "interactionType",
+                "INVALID_TYPE");
 
         mockMvc.perform(
                 post("/api/interactions")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(
-                        invalidTypeRequest
-                    ))
-            )
-            .andExpect(status().isBadRequest());
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                invalidTypeRequest)))
+                .andExpect(status().isBadRequest());
 
         assertEquals(
-            0L,
-            countInteractions(invalidTypeEventId)
-        );
+                0L,
+                countInteractions(invalidTypeEventId));
 
-    
         UUID invalidLanguageEventId = UUID.randomUUID();
 
-        Map<String, Object> invalidLanguageRequest =
-            createDurationRequest(
+        Map<String, Object> invalidLanguageRequest = createDurationRequest(
                 invalidLanguageEventId,
                 artifactId,
                 "2026-11-01T10:00:00Z",
-                "2026-11-01T10:00:30Z"
-            );
+                "2026-11-01T10:00:30Z");
 
         invalidLanguageRequest.put(
-            "languageCode",
-            "123_INVALID"
-        );
+                "languageCode",
+                "123_INVALID");
 
         mockMvc.perform(
                 post("/api/interactions")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(
-                        invalidLanguageRequest
-                    ))
-            )
-            .andExpect(status().isBadRequest());
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                invalidLanguageRequest)))
+                .andExpect(status().isBadRequest());
 
         assertEquals(
-            0L,
-            countInteractions(invalidLanguageEventId)
-        );
+                0L,
+                countInteractions(invalidLanguageEventId));
 
-       
         UUID invalidArtifactEventId = UUID.randomUUID();
 
-        Map<String, Object> invalidArtifactRequest =
-            createDurationRequest(
+        Map<String, Object> invalidArtifactRequest = createDurationRequest(
                 invalidArtifactEventId,
                 artifactId,
                 "2026-11-01T10:00:00Z",
-                "2026-11-01T10:00:30Z"
-            );
+                "2026-11-01T10:00:30Z");
 
         invalidArtifactRequest.put(
-            "artifactId",
-            -1
-        );
+                "artifactId",
+                -1);
 
         mockMvc.perform(
                 post("/api/interactions")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(
-                        invalidArtifactRequest
-                    ))
-            )
-            .andExpect(status().isBadRequest());
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                invalidArtifactRequest)))
+                .andExpect(status().isBadRequest());
 
         assertEquals(
-            0L,
-            countInteractions(invalidArtifactEventId)
-        );
+                0L,
+                countInteractions(invalidArtifactEventId));
     }
-
-    
 
     @Test
     void shouldRejectInvalidTimeWithoutPersisting()
@@ -1262,51 +1064,43 @@ mockMvc.perform(
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         String username = "m5_invalid_time_" + suffix;
         String password = "TestPass123!";
 
         createTestUser(
-            roleId,
-            username,
-            password
-        );
+                roleId,
+                username,
+                password);
 
         Integer artifactId = createTestArtifact();
 
         String token = loginAndGetToken(
-            username,
-            password
-        );
+                username,
+                password);
 
         UUID eventId = UUID.randomUUID();
 
-        Map<String, Object> request =
-            createDurationRequest(
+        Map<String, Object> request = createDurationRequest(
                 eventId,
                 artifactId,
                 "2026-11-01T10:05:00Z",
-                "2026-11-01T10:00:00Z"
-            );
+                "2026-11-01T10:00:00Z");
 
         mockMvc.perform(
                 post("/api/interactions")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(request))
-            )
-            .andExpect(status().isBadRequest());
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
 
         assertEquals(
-            0L,
-            countInteractions(eventId),
-            "Invalid interaction must not be persisted"
-        );
+                0L,
+                countInteractions(eventId),
+                "Invalid interaction must not be persisted");
     }
-    
-   
 
     @Test
     void shouldMeasurePostgreSQLPerformanceBaseline() {
@@ -1318,117 +1112,90 @@ mockMvc.perform(
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         Integer userId = createTestUser(
-            roleId,
-            "m5_performance_" + suffix,
-            "TestPass123!"
-        );
+                roleId,
+                "m5_performance_" + suffix,
+                "TestPass123!");
 
         Integer artifactId = createTestArtifact();
 
         Instant from = Instant.parse("2025-04-01T00:00:00Z");
         Instant to = Instant.parse("2025-04-02T00:00:00Z");
 
-       
-
         long insertStart = System.nanoTime();
 
         for (int i = 0; i < recordCount; i++) {
 
             insertAnalyticsInteraction(
-                userId,
-                artifactId,
-                "VIEW",
-                "vi",
-                from.plusSeconds(i)
-            );
+                    userId,
+                    artifactId,
+                    "VIEW",
+                    "vi",
+                    from.plusSeconds(i));
         }
 
         long insertEnd = System.nanoTime();
 
-        double insertMs =
-            (insertEnd - insertStart) / 1_000_000.0;
+        double insertMs = (insertEnd - insertStart) / 1_000_000.0;
 
-        double averageInsertMs =
-            insertMs / recordCount;
+        double averageInsertMs = insertMs / recordCount;
 
-        double insertThroughput =
-            recordCount / (insertMs / 1000.0);
+        double insertThroughput = recordCount / (insertMs / 1000.0);
 
-       
+        long totalInteractions = interactionRepository.countInPeriod(from, to);
 
-        long totalInteractions =
-            interactionRepository.countInPeriod(from, to);
-
-        long uniqueVisitors =
-            interactionRepository.countUniqueVisitorsInPeriod(
-                from, to
-            );
+        long uniqueVisitors = interactionRepository.countUniqueVisitorsInPeriod(
+                from, to);
 
         assertEquals(
-            recordCount,
-            totalInteractions,
-            "PostgreSQL must contain all inserted records"
-        );
+                recordCount,
+                totalInteractions,
+                "PostgreSQL must contain all inserted records");
 
         assertEquals(
-            1L,
-            uniqueVisitors,
-            "All interactions belong to one visitor"
-        );
+                1L,
+                uniqueVisitors,
+                "All interactions belong to one visitor");
 
-        List<InteractionTypeCountResponse> types =
-            interactionRepository.countByTypeInPeriod(
-                from, to
-            );
+        List<InteractionTypeCountResponse> types = interactionRepository.countByTypeInPeriod(
+                from, to);
 
         assertEquals(1, types.size());
         assertEquals("VIEW", types.get(0).interactionType());
         assertEquals(recordCount, types.get(0).count());
 
-        List<PopularArtifactResponse> popular =
-            interactionRepository.findPopularArtifactsInPeriod(
+        List<PopularArtifactResponse> popular = interactionRepository.findPopularArtifactsInPeriod(
                 from,
                 to,
-                PageRequest.of(0, 10)
-            );
+                PageRequest.of(0, 10));
 
         assertEquals(1, popular.size());
         assertEquals(artifactId, popular.get(0).artifactId());
 
         assertEquals(
-            recordCount,
-            popular.get(0).interactionCount()
-        );
-
-       
+                recordCount,
+                popular.get(0).interactionCount());
 
         for (int i = 0; i < warmupRuns; i++) {
 
             interactionRepository.countInPeriod(from, to);
 
             interactionRepository.countUniqueVisitorsInPeriod(
-                from, to
-            );
+                    from, to);
 
             interactionRepository.countByTypeInPeriod(
-                from, to
-            );
+                    from, to);
 
             interactionRepository.findPopularArtifactsInPeriod(
-                from,
-                to,
-                PageRequest.of(0, 10)
-            );
+                    from,
+                    to,
+                    PageRequest.of(0, 10));
         }
 
-        
-
-        List<Long> queryLatencyNanos =
-            new ArrayList<>();
+        List<Long> queryLatencyNanos = new ArrayList<>();
 
         for (int i = 0; i < measuredRuns; i++) {
 
@@ -1437,26 +1204,21 @@ mockMvc.perform(
             interactionRepository.countInPeriod(from, to);
 
             interactionRepository.countUniqueVisitorsInPeriod(
-                from, to
-            );
+                    from, to);
 
             interactionRepository.countByTypeInPeriod(
-                from, to
-            );
+                    from, to);
 
             interactionRepository.findPopularArtifactsInPeriod(
-                from,
-                to,
-                PageRequest.of(0, 10)
-            );
+                    from,
+                    to,
+                    PageRequest.of(0, 10));
 
             long queryEnd = System.nanoTime();
 
             queryLatencyNanos.add(
-                queryEnd - queryStart
-            );
+                    queryEnd - queryStart);
         }
-
 
         queryLatencyNanos.sort(Long::compareTo);
 
@@ -1466,121 +1228,92 @@ mockMvc.perform(
             totalQueryNanos += latency;
         }
 
-        double averageQueryMs =
-            totalQueryNanos / measuredRuns / 1_000_000.0;
+        double averageQueryMs = totalQueryNanos / measuredRuns / 1_000_000.0;
 
-        int p95Index =
-            (int) Math.ceil(measuredRuns * 0.95) - 1;
+        int p95Index = (int) Math.ceil(measuredRuns * 0.95) - 1;
 
-        double p95QueryMs =
-            queryLatencyNanos.get(p95Index) / 1_000_000.0;
+        double p95QueryMs = queryLatencyNanos.get(p95Index) / 1_000_000.0;
 
-        double minQueryMs =
-            queryLatencyNanos.get(0) / 1_000_000.0;
+        double minQueryMs = queryLatencyNanos.get(0) / 1_000_000.0;
 
-        double maxQueryMs =
-            queryLatencyNanos.get(measuredRuns - 1)
+        double maxQueryMs = queryLatencyNanos.get(measuredRuns - 1)
                 / 1_000_000.0;
-
-        
 
         System.out.println();
         System.out.println(
-            "=========================================="
-        );
+                "==========================================");
         System.out.println(
-            "M5 - POSTGRESQL PERFORMANCE BASELINE"
-        );
+                "M5 - POSTGRESQL PERFORMANCE BASELINE");
         System.out.println(
-            "=========================================="
-        );
+                "==========================================");
 
         System.out.println(
-            "Database: smart_heritage_test"
-        );
+                "Database: smart_heritage_test");
 
         System.out.println(
-            "Inserted records: " + recordCount
-        );
+                "Inserted records: " + recordCount);
 
         System.out.printf(
-            java.util.Locale.US,
-            "Total insert time: %.2f ms%n",
-            insertMs
-        );
+                java.util.Locale.US,
+                "Total insert time: %.2f ms%n",
+                insertMs);
 
         System.out.printf(
-            java.util.Locale.US,
-            "Average insert latency: %.3f ms%n",
-            averageInsertMs
-        );
+                java.util.Locale.US,
+                "Average insert latency: %.3f ms%n",
+                averageInsertMs);
 
         System.out.printf(
-            java.util.Locale.US,
-            "Insert throughput: %.2f records/sec%n",
-            insertThroughput
-        );
+                java.util.Locale.US,
+                "Insert throughput: %.2f records/sec%n",
+                insertThroughput);
 
         System.out.println(
-            "------------------------------------------"
-        );
+                "------------------------------------------");
 
         System.out.println(
-            "Analytics warmup runs: " + warmupRuns
-        );
+                "Analytics warmup runs: " + warmupRuns);
 
         System.out.println(
-            "Analytics measured runs: " + measuredRuns
-        );
+                "Analytics measured runs: " + measuredRuns);
 
         System.out.printf(
-            java.util.Locale.US,
-            "Average analytics latency: %.3f ms%n",
-            averageQueryMs
-        );
+                java.util.Locale.US,
+                "Average analytics latency: %.3f ms%n",
+                averageQueryMs);
 
         System.out.printf(
-            java.util.Locale.US,
-            "P95 analytics latency: %.3f ms%n",
-            p95QueryMs
-        );
+                java.util.Locale.US,
+                "P95 analytics latency: %.3f ms%n",
+                p95QueryMs);
 
         System.out.printf(
-            java.util.Locale.US,
-            "Min analytics latency: %.3f ms%n",
-            minQueryMs
-        );
+                java.util.Locale.US,
+                "Min analytics latency: %.3f ms%n",
+                minQueryMs);
 
         System.out.printf(
-            java.util.Locale.US,
-            "Max analytics latency: %.3f ms%n",
-            maxQueryMs
-        );
+                java.util.Locale.US,
+                "Max analytics latency: %.3f ms%n",
+                maxQueryMs);
 
         System.out.println(
-            "------------------------------------------"
-        );
+                "------------------------------------------");
 
         System.out.println(
-            "Total interactions verified: "
-                + totalInteractions
-        );
+                "Total interactions verified: "
+                        + totalInteractions);
 
         System.out.println(
-            "Unique visitors verified: "
-                + uniqueVisitors
-        );
+                "Unique visitors verified: "
+                        + uniqueVisitors);
 
         System.out.println(
-            "Database integrity: PASS"
-        );
+                "Database integrity: PASS");
 
         System.out.println(
-            "=========================================="
-        );
+                "==========================================");
     }
-    
-   
 
     @Test
     void shouldRejectNonexistentArtifactWithoutPersisting()
@@ -1589,8 +1322,8 @@ mockMvc.perform(
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         String username = "m5_missing_artifact_" + suffix;
         String password = "TestPass123!";
@@ -1598,48 +1331,40 @@ mockMvc.perform(
         createTestUser(roleId, username, password);
 
         String token = loginAndGetToken(
-            username, password
-        );
+                username, password);
 
         Integer nonexistentArtifactId = 999999999;
 
         Integer existingCount = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM artifact WHERE artifact_id = ?",
-            Integer.class,
-            nonexistentArtifactId
-        );
+                "SELECT COUNT(*) FROM artifact WHERE artifact_id = ?",
+                Integer.class,
+                nonexistentArtifactId);
 
         assertEquals(
-            0,
-            existingCount,
-            "Artifact ID must not exist before the test"
-        );
+                0,
+                existingCount,
+                "Artifact ID must not exist before the test");
 
         UUID eventId = UUID.randomUUID();
 
         Map<String, Object> request = createDurationRequest(
-            eventId,
-            nonexistentArtifactId,
-            "2026-11-01T10:00:00Z",
-            "2026-11-01T10:00:30Z"
-        );
+                eventId,
+                nonexistentArtifactId,
+                "2026-11-01T10:00:00Z",
+                "2026-11-01T10:00:30Z");
 
         mockMvc.perform(
                 post("/api/interactions")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(request))
-            )
-            .andExpect(status().isNotFound());
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound());
 
         assertEquals(
-            0L,
-            countInteractions(eventId),
-            "Nonexistent artifact must not create interaction"
-        );
+                0L,
+                countInteractions(eventId),
+                "Nonexistent artifact must not create interaction");
     }
-
-    
 
     @Test
     void shouldRejectMalformedEventId()
@@ -1648,8 +1373,8 @@ mockMvc.perform(
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         String username = "m5_invalid_uuid_" + suffix;
         String password = "TestPass123!";
@@ -1659,44 +1384,36 @@ mockMvc.perform(
         Integer artifactId = createTestArtifact();
 
         String token = loginAndGetToken(
-            username, password
-        );
+                username, password);
 
         Map<String, Object> request = createDurationRequest(
-            UUID.randomUUID(),
-            artifactId,
-            "2026-11-01T10:00:00Z",
-            "2026-11-01T10:00:30Z"
-        );
+                UUID.randomUUID(),
+                artifactId,
+                "2026-11-01T10:00:00Z",
+                "2026-11-01T10:00:30Z");
 
         request.put("eventId", "invalid-uuid");
 
         Long countBefore = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM visitor_interaction",
-            Long.class
-        );
+                "SELECT COUNT(*) FROM visitor_interaction",
+                Long.class);
 
         mockMvc.perform(
                 post("/api/interactions")
-                    .header("Authorization", "Bearer " + token)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(request))
-            )
-            .andExpect(status().isBadRequest());
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
 
         Long countAfter = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM visitor_interaction",
-            Long.class
-        );
+                "SELECT COUNT(*) FROM visitor_interaction",
+                Long.class);
 
         assertEquals(
-            countBefore,
-            countAfter,
-            "Invalid UUID must not create interaction"
-        );
+                countBefore,
+                countAfter,
+                "Invalid UUID must not create interaction");
     }
-
-  
 
     @Test
     void shouldRejectMissingRequiredTimestamps()
@@ -1705,8 +1422,8 @@ mockMvc.perform(
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         String username = "m5_missing_time_" + suffix;
         String password = "TestPass123!";
@@ -1716,50 +1433,41 @@ mockMvc.perform(
         Integer artifactId = createTestArtifact();
 
         String token = loginAndGetToken(
-            username, password
-        );
+                username, password);
 
         String[] requiredFields = {
-            "startedAt",
-            "interactedAt"
+                "startedAt",
+                "interactedAt"
         };
 
         for (String missingField : requiredFields) {
 
             UUID eventId = UUID.randomUUID();
 
-            Map<String, Object> request =
-                createDurationRequest(
+            Map<String, Object> request = createDurationRequest(
                     eventId,
                     artifactId,
                     "2026-11-01T10:00:00Z",
-                    "2026-11-01T10:00:30Z"
-                );
+                    "2026-11-01T10:00:30Z");
 
             request.remove(missingField);
 
             mockMvc.perform(
                     post("/api/interactions")
-                        .header(
-                            "Authorization",
-                            "Bearer " + token
-                        )
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(
-                            objectMapper.writeValueAsString(request)
-                        )
-                )
-                .andExpect(status().isBadRequest());
+                            .header(
+                                    "Authorization",
+                                    "Bearer " + token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(
+                                    objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest());
 
             assertEquals(
-                0L,
-                countInteractions(eventId),
-                missingField + " is required"
-            );
+                    0L,
+                    countInteractions(eventId),
+                    missingField + " is required");
         }
     }
-
-   
 
     @Test
     void shouldRollbackTransactionOnDuplicateEventId() {
@@ -1767,169 +1475,131 @@ mockMvc.perform(
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         Integer userId = createTestUser(
-            roleId,
-            "m5_rollback_" + suffix,
-            "TestPass123!"
-        );
+                roleId,
+                "m5_rollback_" + suffix,
+                "TestPass123!");
 
         Integer artifactId = createTestArtifact();
 
         UUID eventId = UUID.randomUUID();
 
-        Instant startedAt =
-            Instant.parse("2026-11-01T10:00:00Z");
+        Instant startedAt = Instant.parse("2026-11-01T10:00:00Z");
 
         String insertSql = """
-            INSERT INTO visitor_interaction
-                (event_id, user_id, artifact_id,
-                 interaction_type, language_code,
-                 started_at, ended_at,
-                 interacted_at, duration_seconds)
-            VALUES (
-                ?::uuid, ?, ?, 'VIEW', 'vi',
-                ?, ?, ?, 30
-            )
-            """;
+                INSERT INTO visitor_interaction
+                    (event_id, user_id, artifact_id,
+                     interaction_type, language_code,
+                     started_at, ended_at,
+                     interacted_at, duration_seconds)
+                VALUES (
+                    ?::uuid, ?, ?, 'VIEW', 'vi',
+                    ?, ?, ?, 30
+                )
+                """;
 
         assertEquals(
-            0L,
-            countInteractions(eventId)
-        );
+                0L,
+                countInteractions(eventId));
 
-        TransactionTemplate transactionTemplate =
-            new TransactionTemplate(transactionManager);
-
-        
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
 
         assertThrows(
-            DataAccessException.class,
-            () -> transactionTemplate.executeWithoutResult(
-                status -> {
+                DataAccessException.class,
+                () -> transactionTemplate.executeWithoutResult(
+                        status -> {
 
-                    jdbcTemplate.update(
-                        insertSql,
-                        eventId.toString(),
-                        userId,
-                        artifactId,
-                        Timestamp.from(startedAt),
-                        Timestamp.from(
-                            startedAt.plusSeconds(30)
-                        ),
-                        Timestamp.from(startedAt)
-                    );
+                            jdbcTemplate.update(
+                                    insertSql,
+                                    eventId.toString(),
+                                    userId,
+                                    artifactId,
+                                    Timestamp.from(startedAt),
+                                    Timestamp.from(
+                                            startedAt.plusSeconds(30)),
+                                    Timestamp.from(startedAt));
 
-                    assertEquals(
-                        1L,
-                        countInteractions(eventId),
-                        "First insert must be visible inside transaction"
-                    );
+                            assertEquals(
+                                    1L,
+                                    countInteractions(eventId),
+                                    "First insert must be visible inside transaction");
 
-                    
-                    jdbcTemplate.update(
-                        insertSql,
-                        eventId.toString(),
-                        userId,
-                        artifactId,
-                        Timestamp.from(startedAt),
-                        Timestamp.from(
-                            startedAt.plusSeconds(30)
-                        ),
-                        Timestamp.from(startedAt)
-                    );
-                }
-            )
-        );
+                            jdbcTemplate.update(
+                                    insertSql,
+                                    eventId.toString(),
+                                    userId,
+                                    artifactId,
+                                    Timestamp.from(startedAt),
+                                    Timestamp.from(
+                                            startedAt.plusSeconds(30)),
+                                    Timestamp.from(startedAt));
+                        }));
 
-      
         assertEquals(
-            0L,
-            countInteractions(eventId),
-            "Failed transaction must leave no partial records"
-        );
+                0L,
+                countInteractions(eventId),
+                "Failed transaction must leave no partial records");
     }
-    
-    
 
     @Test
     void shouldVerifyPostgreSQLSchemaConstraints() {
 
-        List<Map<String, Object>> constraints =
-            jdbcTemplate.queryForList("""
+        List<Map<String, Object>> constraints = jdbcTemplate.queryForList("""
                 SELECT contype, pg_get_constraintdef(oid) AS definition
                 FROM pg_constraint
                 WHERE conrelid = 'visitor_interaction'::regclass
                 """);
 
         assertTrue(
-            constraints.stream().anyMatch(c ->
-                "p".equals(c.get("contype").toString())
-            ),
-            "visitor_interaction must have a primary key"
-        );
+                constraints.stream().anyMatch(c -> "p".equals(c.get("contype").toString())),
+                "visitor_interaction must have a primary key");
 
         assertTrue(
-            constraints.stream().anyMatch(c ->
-                "u".equals(c.get("contype").toString())
-                && c.get("definition").toString()
-                    .contains("event_id")
-            ),
-            "event_id must have a UNIQUE constraint"
-        );
+                constraints.stream().anyMatch(c -> "u".equals(c.get("contype").toString())
+                        && c.get("definition").toString()
+                                .contains("event_id")),
+                "event_id must have a UNIQUE constraint");
 
         assertTrue(
-            constraints.stream().anyMatch(c ->
-                "f".equals(c.get("contype").toString())
-                && c.get("definition").toString()
-                    .contains("user_id")
-            ),
-            "user_id must have a FOREIGN KEY"
-        );
+                constraints.stream().anyMatch(c -> "f".equals(c.get("contype").toString())
+                        && c.get("definition").toString()
+                                .contains("user_id")),
+                "user_id must have a FOREIGN KEY");
 
         assertTrue(
-            constraints.stream().anyMatch(c ->
-                "f".equals(c.get("contype").toString())
-                && c.get("definition").toString()
-                    .contains("artifact_id")
-            ),
-            "artifact_id must have a FOREIGN KEY"
-        );
+                constraints.stream().anyMatch(c -> "f".equals(c.get("contype").toString())
+                        && c.get("definition").toString()
+                                .contains("artifact_id")),
+                "artifact_id must have a FOREIGN KEY");
 
         Map<String, String> expectedTypes = Map.of(
-            "event_id", "uuid",
-            "started_at", "timestamp with time zone",
-            "ended_at", "timestamp with time zone",
-            "interacted_at", "timestamp with time zone",
-            "duration_seconds", "bigint"
-        );
+                "event_id", "uuid",
+                "started_at", "timestamp with time zone",
+                "ended_at", "timestamp with time zone",
+                "interacted_at", "timestamp with time zone",
+                "duration_seconds", "bigint");
 
         Map<String, String> actualTypes = new HashMap<>();
 
         jdbcTemplate.query("""
-            SELECT column_name, data_type
-            FROM information_schema.columns
-            WHERE table_schema = current_schema()
-              AND table_name = 'visitor_interaction'
-            """, rs -> {
-                actualTypes.put(
+                SELECT column_name, data_type
+                FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name = 'visitor_interaction'
+                """, rs -> {
+            actualTypes.put(
                     rs.getString("column_name"),
-                    rs.getString("data_type")
-                );
-            });
+                    rs.getString("data_type"));
+        });
 
-        expectedTypes.forEach((column, type) ->
-            assertEquals(
+        expectedTypes.forEach((column, type) -> assertEquals(
                 type,
                 actualTypes.get(column),
-                "Unexpected PostgreSQL type for " + column
-            )
-        );
+                "Unexpected PostgreSQL type for " + column));
     }
-
-   
 
     @Test
     void shouldRejectInvalidArtifactForeignKey() {
@@ -1937,58 +1607,50 @@ mockMvc.perform(
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         Integer userId = createTestUser(
-            roleId,
-            "m5_fk_" + suffix,
-            "TestPass123!"
-        );
+                roleId,
+                "m5_fk_" + suffix,
+                "TestPass123!");
 
         Integer invalidArtifactId = 999999999;
 
         Long existingArtifacts = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM artifact WHERE artifact_id = ?",
-            Long.class,
-            invalidArtifactId
-        );
+                "SELECT COUNT(*) FROM artifact WHERE artifact_id = ?",
+                Long.class,
+                invalidArtifactId);
 
         assertEquals(0L, existingArtifacts);
 
         UUID eventId = UUID.randomUUID();
 
-        Instant timestamp =
-            Instant.parse("2026-11-01T10:00:00Z");
+        Instant timestamp = Instant.parse("2026-11-01T10:00:00Z");
 
         assertThrows(
-            DataIntegrityViolationException.class,
-            () -> jdbcTemplate.update("""
-                INSERT INTO visitor_interaction
-                    (event_id, user_id, artifact_id,
-                     interaction_type, language_code,
-                     started_at, ended_at,
-                     interacted_at, duration_seconds)
-                VALUES (?::uuid, ?, ?, 'VIEW', 'vi',
-                        ?, ?, ?, 30)
-                """,
-                eventId.toString(),
-                userId,
-                invalidArtifactId,
-                Timestamp.from(timestamp),
-                Timestamp.from(timestamp.plusSeconds(30)),
-                Timestamp.from(timestamp)
-            )
-        );
+                DataIntegrityViolationException.class,
+                () -> jdbcTemplate.update("""
+                        INSERT INTO visitor_interaction
+                            (event_id, user_id, artifact_id,
+                             interaction_type, language_code,
+                             started_at, ended_at,
+                             interacted_at, duration_seconds)
+                        VALUES (?::uuid, ?, ?, 'VIEW', 'vi',
+                                ?, ?, ?, 30)
+                        """,
+                        eventId.toString(),
+                        userId,
+                        invalidArtifactId,
+                        Timestamp.from(timestamp),
+                        Timestamp.from(timestamp.plusSeconds(30)),
+                        Timestamp.from(timestamp)));
 
         assertEquals(
-            0L,
-            countInteractions(eventId),
-            "FK violation must not persist interaction"
-        );
+                0L,
+                countInteractions(eventId),
+                "FK violation must not persist interaction");
     }
-
-   
 
     @Test
     void shouldPersistConcurrentDifferentEvents()
@@ -1997,8 +1659,8 @@ mockMvc.perform(
         Integer roleId = getVisitorRoleId();
 
         String suffix = UUID.randomUUID()
-            .toString()
-            .substring(0, 8);
+                .toString()
+                .substring(0, 8);
 
         String username = "m5_parallel_" + suffix;
         String password = "TestPass123!";
@@ -2008,25 +1670,21 @@ mockMvc.perform(
         Integer artifactId = createTestArtifact();
 
         String token = loginAndGetToken(
-            username,
-            password
-        );
+                username,
+                password);
 
         UUID firstEventId = UUID.randomUUID();
         UUID secondEventId = UUID.randomUUID();
 
         String firstBody = createInteractionRequest(
-            firstEventId,
-            artifactId
-        );
+                firstEventId,
+                artifactId);
 
         String secondBody = createInteractionRequest(
-            secondEventId,
-            artifactId
-        );
+                secondEventId,
+                artifactId);
 
-        ExecutorService executor =
-            Executors.newFixedThreadPool(2);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
 
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
@@ -2041,16 +1699,14 @@ mockMvc.perform(
 
                 return mockMvc.perform(
                         post("/api/interactions")
-                            .header(
-                                "Authorization",
-                                "Bearer " + token
-                            )
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(firstBody)
-                    )
-                    .andReturn()
-                    .getResponse()
-                    .getStatus();
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(firstBody))
+                        .andReturn()
+                        .getResponse()
+                        .getStatus();
             };
 
             Callable<Integer> secondTask = () -> {
@@ -2062,63 +1718,50 @@ mockMvc.perform(
 
                 return mockMvc.perform(
                         post("/api/interactions")
-                            .header(
-                                "Authorization",
-                                "Bearer " + token
-                            )
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(secondBody)
-                    )
-                    .andReturn()
-                    .getResponse()
-                    .getStatus();
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(secondBody))
+                        .andReturn()
+                        .getResponse()
+                        .getStatus();
             };
 
-            Future<Integer> first =
-                executor.submit(firstTask);
+            Future<Integer> first = executor.submit(firstTask);
 
-            Future<Integer> second =
-                executor.submit(secondTask);
+            Future<Integer> second = executor.submit(secondTask);
 
             assertTrue(
-                ready.await(10, TimeUnit.SECONDS)
-            );
+                    ready.await(10, TimeUnit.SECONDS));
 
             start.countDown();
 
             int firstStatus = first.get(
-                30, TimeUnit.SECONDS
-            );
+                    30, TimeUnit.SECONDS);
 
             int secondStatus = second.get(
-                30, TimeUnit.SECONDS
-            );
+                    30, TimeUnit.SECONDS);
 
             assertEquals(201, firstStatus);
             assertEquals(201, secondStatus);
 
             assertEquals(
-                1L,
-                countInteractions(firstEventId)
-            );
+                    1L,
+                    countInteractions(firstEventId));
 
             assertEquals(
-                1L,
-                countInteractions(secondEventId)
-            );
+                    1L,
+                    countInteractions(secondEventId));
 
             System.out.println(
-                "Concurrent requests: 2"
-            );
+                    "Concurrent requests: 2");
             System.out.println(
-                "Successful inserts: 2"
-            );
+                    "Successful inserts: 2");
             System.out.println(
-                "Duplicate rows: 0"
-            );
+                    "Duplicate rows: 0");
             System.out.println(
-                "HTTP status distribution: 201=2"
-            );
+                    "HTTP status distribution: 201=2");
 
         } finally {
             start.countDown();
@@ -2126,7 +1769,67 @@ mockMvc.perform(
         }
     }
 
+    @Test
+    void shouldAggregateDailyTimeSeriesCorrectly() {
 
+        Integer roleId = getVisitorRoleId();
 
+        String suffix = UUID.randomUUID()
+                .toString().substring(0, 8);
 
+        Integer user1 = createTestUser(
+                roleId, "daily_user1_" + suffix, "TestPass123!");
+
+        Integer user2 = createTestUser(
+                roleId, "daily_user2_" + suffix, "TestPass123!");
+
+        Integer artifactId = createTestArtifact();
+
+        Instant from = Instant.parse("2025-06-01T00:00:00Z");
+        Instant to = Instant.parse("2025-06-04T00:00:00Z");
+
+        insertAnalyticsInteraction(
+                user1, artifactId, "VIEW", "vi",
+                Instant.parse("2025-06-01T08:00:00Z"));
+
+        insertAnalyticsInteraction(
+                user1, artifactId, "AUDIO_PLAY", "vi",
+                Instant.parse("2025-06-01T09:00:00Z"));
+
+        insertAnalyticsInteraction(
+                user2, artifactId, "SCAN", "en",
+                Instant.parse("2025-06-01T10:00:00Z"));
+
+        insertAnalyticsInteraction(
+                user1, artifactId, "VIEW", "vi",
+                Instant.parse("2025-06-03T12:00:00Z"));
+
+        List<DailyInteractionResponse> result = interactionService.getDailyTimeSeries(from, to);
+
+        assertEquals(3, result.size());
+
+        assertEquals(
+                LocalDate.parse("2025-06-01"),
+                result.get(0).date());
+
+        assertEquals(3L, result.get(0).totalInteractions());
+        assertEquals(2L, result.get(0).uniqueVisitors());
+
+      
+        assertEquals(
+                LocalDate.parse("2025-06-02"),
+                result.get(1).date());
+
+        assertEquals(0L, result.get(1).totalInteractions());
+        assertEquals(0L, result.get(1).uniqueVisitors());
+
+      
+        assertEquals(
+                LocalDate.parse("2025-06-03"),
+                result.get(2).date());
+
+        assertEquals(1L, result.get(2).totalInteractions());
+        assertEquals(1L, result.get(2).uniqueVisitors());
+
+    }
 }
