@@ -120,6 +120,33 @@ public class VisitorInteractionService {
         return response;
     }
 
+    @Transactional(readOnly = true)
+    public List<LanguageCountResponse> getLanguageAnalytics(Instant from, Instant to) {
+        Map<String, Long> counts = new HashMap<>();
+        for (LanguageCountResponse row
+                : interactionRepository.countByLanguageInPeriod(from, to)) {
+            counts.merge(
+                    normalizeLanguage(row.languageCode()),
+                    row.interactionCount(),
+                    Long::sum);
+        }
+
+        return counts.entrySet().stream()
+                .sorted(Comparator
+                        .<Map.Entry<String, Long>>comparingLong(Map.Entry::getValue)
+                        .reversed()
+                        .thenComparing(Map.Entry::getKey))
+                .map(entry -> new LanguageCountResponse(
+                        entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    private String normalizeLanguage(String languageCode) {
+        return languageCode == null || languageCode.isBlank()
+                ? UNKNOWN_LANGUAGE
+                : languageCode.trim();
+    }
+
     private boolean isSameIdentity(
             VisitorInteraction existing,
             String username,

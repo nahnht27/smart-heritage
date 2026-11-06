@@ -70,6 +70,17 @@ public class VisitorInteractionController {
                 interactionService.getDailyTimeSeries(from, to)));
     }
 
+    @GetMapping("/api/analytics/interactions/languages")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<LanguageCountResponse>>> getLanguageAnalytics(
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to) {
+        validateRequiredRange(from, to);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Language analytics retrieved successfully",
+                interactionService.getLanguageAnalytics(from, to)));
+    }
+
     private void validateRequiredRange(Instant from, Instant to) {
         if (from == null || to == null) {
             throw new BadRequestException(

@@ -79,4 +79,16 @@ public interface VisitorInteractionRepository
             @Param("from") Instant from,
             @Param("to") Instant to);
 
+    @Query("""
+            select new com.university.backend.dto.LanguageCountResponse(
+                i.languageCode, count(i))
+            from VisitorInteraction i
+            where i.interactedAt >= :from
+                and i.interactedAt < :to
+            group by i.languageCode
+            order by count(i) desc, i.languageCode asc
+            """)
+    List<LanguageCountResponse> countByLanguageInPeriod(
+            @Param("from") Instant from,
+            @Param("to") Instant to);
 }

@@ -277,6 +277,43 @@ class VisitorInteractionServiceTest {
                 row.totalInteractions() == 0L && row.uniqueVisitors() == 0L));
     }
 
+    @Test
+    void getLanguageAnalytics_shouldTrimMergeUnknownAndSortByCountThenCode() {
+        Instant from = Instant.parse("2026-01-01T00:00:00Z");
+        Instant to = Instant.parse("2026-01-02T00:00:00Z");
+        when(interactionRepository.countByLanguageInPeriod(from, to))
+                .thenReturn(List.of(
+                        new LanguageCountResponse("vi", 2L),
+                        new LanguageCountResponse("vi ", 1L),
+                        new LanguageCountResponse("en", 3L),
+                        new LanguageCountResponse("", 1L),
+                        new LanguageCountResponse(null, 1L)));
+
+        List<LanguageCountResponse> result =
+                interactionService.getLanguageAnalytics(from, to);
+
+        assertEquals(3, result.size());
+        assertEquals("en", result.get(0).languageCode());
+        assertEquals(3L, result.get(0).interactionCount());
+        assertEquals("vi", result.get(1).languageCode());
+        assertEquals(3L, result.get(1).interactionCount());
+        assertEquals("UNKNOWN", result.get(2).languageCode());
+        assertEquals(2L, result.get(2).interactionCount());
+        assertEquals(8L, result.stream()
+                .mapToLong(LanguageCountResponse::interactionCount)
+                .sum());
+    }
+
+    @Test
+    void getLanguageAnalytics_shouldReturnEmptyListWhenThereIsNoData() {
+        Instant from = Instant.parse("2026-01-01T00:00:00Z");
+        Instant to = Instant.parse("2026-01-02T00:00:00Z");
+        when(interactionRepository.countByLanguageInPeriod(from, to))
+                .thenReturn(List.of());
+
+        assertTrue(interactionService.getLanguageAnalytics(from, to).isEmpty());
+    }
+
     private DailyInteractionProjection dailyRow(
             String date,
             long totalInteractions,
