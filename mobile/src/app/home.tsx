@@ -29,8 +29,9 @@ export default function HomeScreen() {
   // Content data states (real API)
   const [sites, setSites] = useState<HeritageSite[]>([]);
   const [featuredArtifacts, setFeaturedArtifacts] = useState<Artifact[]>([]);
-  const [, setIsLoadingData] = useState(true);
-  const [, setDataError] = useState<string | null>(null);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [contentRefreshKey, setContentRefreshKey] = useState(0);
 
   const site = sites[0] ?? null;
 
@@ -76,7 +77,7 @@ export default function HomeScreen() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [contentRefreshKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -125,6 +126,10 @@ export default function HomeScreen() {
     };
   }, []);
 
+  const handleRetryContent = () => {
+    setContentRefreshKey((prev) => prev + 1);
+  };
+
   const handleLogout = async () => {
     await authStorage.clearToken();
     setUser(null);
@@ -135,7 +140,23 @@ export default function HomeScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       {/* 1. Heritage Site Landing Banner */}
       <View style={styles.heroCard}>
-        {!site ? (
+        {isLoadingData ? (
+          <View style={styles.emptyBanner} testID="loading-container">
+            <ActivityIndicator size="large" color="#D97706" />
+            <Text style={styles.emptyText}>Đang tải nội dung...</Text>
+          </View>
+        ) : dataError ? (
+          <View style={styles.emptyBanner}>
+            <Text style={styles.heroErrorText}>{dataError}</Text>
+            <TouchableOpacity
+              style={styles.heroRetryButton}
+              onPress={handleRetryContent}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.heroRetryButtonText}>Thử lại</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !site ? (
           <View style={styles.emptyBanner}>
             <Text style={styles.emptyText}>Chưa có dữ liệu di sản</Text>
           </View>
@@ -321,6 +342,26 @@ const styles = StyleSheet.create({
     color: '#CBD5E1',
     fontSize: 16,
     fontWeight: '600',
+    marginTop: 10,
+  },
+  heroErrorText: {
+    color: '#FCA5A5',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 12,
+    paddingHorizontal: 24,
+    textAlign: 'center',
+  },
+  heroRetryButton: {
+    backgroundColor: '#D97706',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  heroRetryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   heroImage: {
     width: '100%',

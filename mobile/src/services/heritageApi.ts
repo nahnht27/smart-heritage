@@ -187,6 +187,21 @@ export const heritageApi = {
     };
   },
 
+  async getArtifacts(): Promise<{
+    data: Artifact[] | null;
+    error: string | null;
+    status: number;
+    ok: boolean;
+  }> {
+    const result = await apiClient.get<BackendArtifact[]>(ARTIFACTS);
+    return {
+      data: result.data?.map(mapArtifact) ?? null,
+      error: result.error,
+      status: result.status,
+      ok: result.ok,
+    };
+  },
+
   async getArtifactsBySite(siteId: number | string): Promise<{
     data: Artifact[] | null;
     error: string | null;
@@ -242,6 +257,15 @@ export const heritageApi = {
     return selectArtifactThumbnail(result.data);
   },
 
+  async getArtifactsWithThumbnails(limit?: number): Promise<{
+    data: Artifact[] | null;
+    error: string | null;
+    status: number;
+    ok: boolean;
+  }> {
+    return attachThumbnails(await heritageApi.getArtifacts(), limit);
+  },
+
   async getArtifactsWithThumbnailsBySite(
     siteId: string | number,
     limit?: number,
@@ -251,22 +275,37 @@ export const heritageApi = {
     status: number;
     ok: boolean;
   }> {
-    const result = await heritageApi.getArtifactsBySite(siteId);
-
-    if (!result.ok || !result.data) {
-      return result;
-    }
-
-    const selectedArtifacts =
-      typeof limit === 'number' ? result.data.slice(0, limit) : result.data;
-
-    const data = await Promise.all(
-      selectedArtifacts.map(async (artifact) => ({
-        ...artifact,
-        imageUrl: await heritageApi.getArtifactThumbnail(artifact.id),
-      })),
-    );
-
-    return { ...result, data };
+    return attachThumbnails(await heritageApi.getArtifactsBySite(siteId), limit);
   },
 };
+
+async function attachThumbnails(
+  result: {
+    data: Artifact[] | null;
+    error: string | null;
+    status: number;
+    ok: boolean;
+  },
+  limit?: number,
+): Promise<{
+  data: Artifact[] | null;
+  error: string | null;
+  status: number;
+  ok: boolean;
+}> {
+  if (!result.ok || !result.data) {
+    return result;
+  }
+
+  const selectedArtifacts =
+    typeof limit === 'number' ? result.data.slice(0, limit) : result.data;
+
+  const data = await Promise.all(
+    selectedArtifacts.map(async (artifact) => ({
+      ...artifact,
+      imageUrl: await heritageApi.getArtifactThumbnail(artifact.id),
+    })),
+  );
+
+  return { ...result, data };
+}

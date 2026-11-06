@@ -1,17 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  TextInput,
+} from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { heritageApi, type Artifact } from '../services/heritageApi';
 import { RemoteImage } from '../components/remote-image';
+import { filterArtifacts } from '../utils/artifact';
 
 export default function ArtifactListScreen() {
   const router = useRouter();
   const { siteId } = useLocalSearchParams();
+  const resolvedSiteId = Array.isArray(siteId) ? siteId[0] : siteId;
 
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -20,23 +31,9 @@ export default function ArtifactListScreen() {
       setIsLoading(true);
       setError(null);
       try {
-        // Nếu có siteId từ navigation, dùng nó; nếu không, lấy danh sách heritage sites và chọn site đầu tiên
-        let siteIdNum: number | undefined;
-        if (siteId) {
-          siteIdNum = Number(siteId);
-        } else {
-          const sitesResult = await heritageApi.getHeritageSites();
-          if (!mounted) return;
-          if (sitesResult.ok && sitesResult.data && sitesResult.data.length > 0) {
-            siteIdNum = sitesResult.data[0].id;
-          } else {
-            setError(sitesResult.error || 'Không tải được danh sách di sản');
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        const result = await heritageApi.getArtifactsWithThumbnailsBySite(siteIdNum);
+        const result = resolvedSiteId
+          ? await heritageApi.getArtifactsWithThumbnailsBySite(resolvedSiteId)
+          : await heritageApi.getArtifactsWithThumbnails();
         if (!mounted) return;
         if (!result.ok || !result.data) {
           setError(result.error || 'Không tải được danh sách hiện vật');
@@ -57,7 +54,12 @@ export default function ArtifactListScreen() {
     return () => {
       mounted = false;
     };
-  }, [refreshKey, siteId]);
+  }, [refreshKey, resolvedSiteId]);
+
+  const filteredArtifacts = useMemo(
+    () => filterArtifacts(artifacts, search),
+    [artifacts, search],
+  );
 
   const handleRetry = () => {
     setError(null);
@@ -70,9 +72,26 @@ export default function ArtifactListScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Danh mục Hiện vật</Text>
         <Text style={styles.subtitle}>
-          {artifacts.length} hiện vật tại khu di sản
+          {isLoading
+            ? 'Đang tải danh sách hiện vật...'
+            : `${filteredArtifacts.length} hiện vật${
+                resolvedSiteId ? ' tại khu di sản' : ''
+              }`}
         </Text>
       </View>
+
+      {!isLoading && !error && artifacts.length > 0 && (
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Tìm kiếm hiện vật..."
+          placeholderTextColor="#94A3B8"
+          autoCorrect={false}
+          clearButtonMode="while-editing"
+          accessibilityLabel="Tìm kiếm hiện vật"
+        />
+      )}
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
@@ -89,9 +108,13 @@ export default function ArtifactListScreen() {
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>Chưa có hiện vật nào được hiển thị</Text>
         </View>
+      ) : filteredArtifacts.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Không tìm thấy hiện vật phù hợp</Text>
+        </View>
       ) : (
         <View style={styles.list}>
-          {artifacts.map((art) => (
+          {filteredArtifacts.map((art) => (
             <TouchableOpacity
               key={art.id}
               style={styles.item}
@@ -131,6 +154,17 @@ const styles = StyleSheet.create({
   header: { marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '800', color: '#1E293B' },
   subtitle: { fontSize: 13, color: '#64748B', marginTop: 4 },
+  searchInput: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    borderWidth: 1,
+    color: '#1E293B',
+    fontSize: 14,
+    marginBottom: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
   list: { gap: 12 },
   item: {
     backgroundColor: '#FFFFFF',
