@@ -84,19 +84,50 @@ jobs:
           cache: maven
           cache-dependency-path: backend/pom.xml
 
-      - name: Verify Flyway migrations on real PostgreSQL
+      - name: Run PostgreSQL integration tests
         env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/smart_heritage_ci
-          SPRING_DATASOURCE_USERNAME: ci_placeholder
-          SPRING_DATASOURCE_PASSWORD: ci_placeholder
-        run: ./mvnw -B -Dtest=VisitorInteractionPostgresIntegrationTest test
+          POSTGRES_TEST_URL: jdbc:postgresql://localhost:5432/smart_heritage_ci
+          POSTGRES_TEST_USERNAME: ci_placeholder
+          POSTGRES_TEST_PASSWORD: ci_placeholder
+        run: ./mvnw -B -Ppostgres-integration verify
 
-      - name: Upload PostgreSQL surefire reports
+      - name: Verify PostgreSQL integration test report
+        run: |
+          python3 - <<'PY'
+          import glob
+          import sys
+          import xml.etree.ElementTree as ET
+
+          reports = glob.glob(
+              "target/failsafe-reports/TEST-*VisitorInteractionPostgresIT.xml"
+          )
+          if len(reports) != 1:
+              print(f"Expected one VisitorInteractionPostgresIT report, found {len(reports)}")
+              sys.exit(1)
+
+          root = ET.parse(reports[0]).getroot()
+          tests = int(root.attrib.get("tests", 0))
+          failures = int(root.attrib.get("failures", 0))
+          errors = int(root.attrib.get("errors", 0))
+          skipped = int(root.attrib.get("skipped", 0))
+          print(
+              f"PostgreSQL integration tests: tests={tests}, "
+              f"failures={failures}, errors={errors}, skipped={skipped}"
+          )
+
+          if tests < 22 or failures or errors or skipped:
+              print("PostgreSQL integration test gate failed")
+              sys.exit(1)
+          PY
+
+      - name: Upload PostgreSQL integration reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: postgres-integration-surefire-reports
-          path: backend/target/surefire-reports
+          name: postgres-integration-reports
+          path: |
+            backend/target/surefire-reports
+            backend/target/failsafe-reports
           retention-days: 7
           if-no-files-found: ignore
 
