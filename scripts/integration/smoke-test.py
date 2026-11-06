@@ -298,10 +298,12 @@ def scenario_interaction(
         return False, None
 
     event_id = str(uuid.uuid4())
+    visitor_id = str(uuid.uuid4())
     interaction_type = "VIEW"
     now = datetime.now(timezone.utc)
     body = {
         "eventId": event_id,
+        "visitorId": visitor_id,
         "artifactId": int(artifact_id),
         "interactionType": interaction_type,
         "languageCode": "vi",
@@ -382,6 +384,61 @@ def scenario_interaction(
     return True, interaction_type
 
 
+def scenario_anonymous_interaction(
+    reporter: Reporter,
+    client: HttpClient,
+    artifact_id: str | None,
+) -> None:
+    """Anonymous visitors must be able to record events without a token."""
+    if not artifact_id:
+        reporter.skip("POST /interactions anonymous", "TEST_ARTIFACT_ID not provided")
+        return
+    if not _interaction_write_enabled():
+        reporter.skip(
+            "POST /interactions anonymous",
+            "write disabled (set ENABLE_INTERACTION_WRITE=true to opt in)",
+        )
+        return
+
+    event_id = str(uuid.uuid4())
+    visitor_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    body = {
+        "eventId": event_id,
+        "visitorId": visitor_id,
+        "artifactId": int(artifact_id),
+        "interactionType": "VIEW",
+        "languageCode": "vi",
+        "startedAt": _iso(now),
+        "interactedAt": _iso(now),
+    }
+
+    status, payload, raw = client.request("POST", "interactions", body=body)
+    reporter.check(
+        "POST /interactions anonymous: HTTP 201",
+        status == 201,
+        f"got HTTP {status}: {raw[:200]}",
+    )
+    assert_envelope(
+        reporter, "POST /interactions anonymous", status, payload, raw
+    )
+
+    status, payload, raw = client.request("POST", "interactions", body=body)
+    reporter.check(
+        "POST /interactions anonymous duplicate: HTTP 200",
+        status == 200,
+        f"got HTTP {status}: {raw[:200]}",
+    )
+    if status == 200:
+        assert_envelope(
+            reporter,
+            "POST /interactions anonymous duplicate",
+            status,
+            payload,
+            raw,
+        )
+
+
 def scenario_concurrent_duplicate(
     reporter: Reporter,
     client: HttpClient,
@@ -421,6 +478,7 @@ def scenario_concurrent_duplicate(
     now = datetime.now(timezone.utc)
     body = {
         "eventId": str(uuid.uuid4()),
+        "visitorId": str(uuid.uuid4()),
         "artifactId": int(artifact_id),
         "interactionType": "VIEW",
         "languageCode": "vi",
@@ -638,6 +696,11 @@ def main() -> int:
         client,
         visitor_token,
         admin_token,
+        os.environ.get("TEST_ARTIFACT_ID"),
+    )
+    scenario_anonymous_interaction(
+        reporter,
+        client,
         os.environ.get("TEST_ARTIFACT_ID"),
     )
     scenario_concurrent_duplicate(

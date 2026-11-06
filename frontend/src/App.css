@@ -272,6 +272,188 @@
   font-size: 12px;
 }
 
+/* Dashboard analytics */
+.dashboard-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.dashboard-toolbar__title {
+  margin: 0 0 4px;
+  color: var(--color-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.dashboard-toolbar__subtitle {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.dashboard-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.dashboard-range select {
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--color-primary);
+  font: inherit;
+}
+
+.analytics-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  border: 1px solid #f1b5b5;
+  border-radius: 9px;
+  background: #fff5f5;
+  color: #9b1c1c;
+  font-size: 12px;
+}
+
+.analytics-error p {
+  margin: 0;
+}
+
+.analytics-error button {
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: #9b1c1c;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.interaction-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  min-height: 194px;
+  padding: 22px 28px 20px;
+}
+
+.interaction-bar {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 152px;
+}
+
+.interaction-bar__value {
+  margin-bottom: 5px;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.interaction-bar__fill {
+  width: min(64px, 70%);
+  min-height: 6px;
+  border-radius: 4px 4px 0 0;
+  background: #344f89;
+}
+
+.interaction-bar__fill--muted {
+  background: #9aaac6;
+}
+
+.interaction-bar__label {
+  margin-top: 8px;
+  color: #7c9de0;
+  font-size: 11px;
+  text-align: center;
+}
+
+.popular-artifacts {
+  display: flex;
+  min-height: 194px;
+  align-items: center;
+  padding: 16px 28px 22px;
+}
+
+.popular-artifacts__list {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.popular-artifacts__list li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 12px;
+}
+
+.popular-artifacts__list li:last-child {
+  border-bottom: 0;
+}
+
+.popular-artifacts__rank {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #f1f2f5;
+  color: var(--color-primary);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.popular-artifacts__name {
+  overflow: hidden;
+  color: var(--color-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popular-artifacts__count {
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.analytics-footnote {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.empty-state {
+  width: 100%;
+  padding: 22px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
 /* Dashboard statistics */
 .dashboard-stats {
   display: grid;
@@ -299,6 +481,7 @@
   font-weight: 650;
   line-height: 1.1;
   letter-spacing: -0.6px;
+  overflow-wrap: anywhere;
 }
 
 .stat-card__label {
@@ -654,6 +837,11 @@
   .activity-table td {
     padding: 11px 14px;
   }
+
+  .interaction-chart,
+  .popular-artifacts {
+    padding-inline: 18px;
+  }
 }
 
 /* Header user profile */
@@ -794,6 +982,11 @@
     grid-template-columns: 1fr;
   }
 
+  .dashboard-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .category-content {
     justify-content: flex-start;
   }
@@ -845,6 +1038,15 @@
     min-width: 66px;
     min-height: 60px;
     padding: 6px 4px;
+  }
+
+  .interaction-chart {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .interaction-bar {
+    min-width: 64px;
   }
 
   .sidebar--collapsed .sidebar__link {

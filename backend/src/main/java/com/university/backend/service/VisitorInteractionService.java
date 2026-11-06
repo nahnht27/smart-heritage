@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.UUID;
 
 @Service
 public class VisitorInteractionService {
@@ -52,7 +54,7 @@ public class VisitorInteractionService {
 
         return interactionRepository.findByEventId(request.getEventId())
                 .map(existing -> {
-                    if (!existing.getUser().getUsername().equals(username)) {
+                    if (!isSameIdentity(existing, username, request.getVisitorId())) {
                         throw new DuplicateResourceException(
                                 "eventId has already been used");
                     }
@@ -78,17 +80,34 @@ public class VisitorInteractionService {
                         PageRequest.of(0, POPULAR_ARTIFACTS_LIMIT)));
     }
 
+    private boolean isSameIdentity(
+            VisitorInteraction existing,
+            String username,
+            UUID visitorId) {
+        if (username != null) {
+            // Authenticated events belong to the principal; the visitor ID may
+            // legitimately change after reinstalling the app.
+            return existing.getUser() != null
+                    && username.equals(existing.getUser().getUsername());
+        }
+        return existing.getUser() == null
+                && Objects.equals(existing.getVisitorId(), visitorId);
+    }
+
     private InteractionCreationResult saveInteraction(
             String username,
             CreateInteractionRequest request) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User user = username == null
+                ? null
+                : userRepository.findByUsername(username)
+                        .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         Artifact artifact = artifactRepository.findById(request.getArtifactId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Artifact not found with ID: " + request.getArtifactId()));
 
         VisitorInteraction interaction = new VisitorInteraction();
         interaction.setEventId(request.getEventId());
+        interaction.setVisitorId(request.getVisitorId());
         interaction.setUser(user);
         interaction.setArtifact(artifact);
         interaction.setInteractionType(

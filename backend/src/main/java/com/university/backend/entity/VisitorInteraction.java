@@ -21,8 +21,11 @@ public class VisitorInteraction {
     @Column(name = "event_id", nullable = false, updatable = false)
     private UUID eventId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @Column(name = "visitor_id", nullable = false, updatable = false)
+    private UUID visitorId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -64,6 +67,14 @@ public class VisitorInteraction {
 
     public void setEventId(UUID eventId) {
         this.eventId = eventId;
+    }
+
+    public UUID getVisitorId() {
+        return visitorId;
+    }
+
+    public void setVisitorId(UUID visitorId) {
+        this.visitorId = visitorId;
     }
 
     public User getUser() {

@@ -3,19 +3,21 @@
  *
  * LTJ-34 (S3-M3-02): Gửi sự kiện tương tác khách tham quan tới backend.
  *
- * Tuân theo contract docs/integration/api-contract.md.
+ * Tuân theo contract docs/requirements/visitor-interaction-data-contract.md.
  *
- * - POST /api/interactions với Authorization: Bearer <token>
- * - Payload: { eventId, artifactId, interactionType, languageCode, startedAt, interactedAt, endedAt? }
+ * - POST /api/interactions is public; the Bearer token is optional.
+ * - Payload: { eventId, visitorId, artifactId, interactionType, languageCode,
+ *   startedAt, interactedAt, endedAt? }
  * - interactionType: VIEW | AUDIO_PLAY | SCAN
- * - eventId là UUID duy nhất, giữ nguyên khi retry cùng một event logic
- * - Nếu chưa đăng nhập, không gửi request (trả về ok=false, error rõ ràng)
- * - Lỗi mạng/API không làm crash hay chặn luồng xem nội dung
- * - Không gửi visitorId, userId, beaconId, durationSeconds (không thuộc contract)
+ * - eventId is a unique UUID and must be reused when retrying one logical event.
+ * - visitorId is the persistent pseudonymous installation UUID.
+ * - userId, beaconId and durationSeconds are never sent by the client.
+ * - API/network failures return a result instead of crashing or blocking content.
  */
 
 import { apiClient } from './api';
 import { authStorage } from './authStorage';
+import { visitorStorage } from './visitorStorage';
 
 export type InteractionType = 'VIEW' | 'AUDIO_PLAY' | 'SCAN';
 
@@ -39,22 +41,11 @@ const ENDPOINT = 'interactions';
 
 // Chỉ dùng cho test isolation
 export function __resetVisitorIdForTest(): void {
-  // No-op: kept for test compatibility
+  visitorStorage.__resetForTest();
 }
 
 export const interactionApi = {
   async recordInteraction(event: CreateInteractionEvent): Promise<InteractionResult> {
-    // Nếu chưa đăng nhập, không gửi request (backend yêu cầu xác thực)
-    const token = await authStorage.getToken();
-    if (!token) {
-      return {
-        ok: false,
-        error: 'Authentication is required to record an interaction.',
-        status: 401,
-      };
-    }
-
-    // eventId phải là UUID hợp lệ
     if (!event.eventId || !isValidUuid(event.eventId)) {
       return {
         ok: false,
@@ -64,8 +55,22 @@ export const interactionApi = {
     }
 
     try {
+      const [token, visitorId] = await Promise.all([
+        authStorage.getToken(),
+        visitorStorage.getVisitorId(),
+      ]);
+
+      if (!isValidUuid(visitorId)) {
+        return {
+          ok: false,
+          error: 'Invalid visitorId: must be a valid UUID.',
+          status: 400,
+        };
+      }
+
       const body = {
         eventId: event.eventId,
+        visitorId,
         artifactId: event.artifactId,
         interactionType: event.interactionType,
         languageCode: event.languageCode ?? 'vi',
@@ -75,7 +80,7 @@ export const interactionApi = {
       };
 
       const result = await apiClient.post<{ interactionId?: number }>(ENDPOINT, body, {
-        token,
+        token: token ?? undefined,
       });
 
       return {

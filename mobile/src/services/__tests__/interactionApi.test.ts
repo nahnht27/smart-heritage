@@ -6,6 +6,7 @@
 import { apiClient } from '../api';
 import { authStorage } from '../authStorage';
 import { interactionApi, __resetVisitorIdForTest, type InteractionType } from '../interactionApi';
+import { visitorStorage } from '../visitorStorage';
 
 jest.mock('../api', () => ({
   apiClient: {
@@ -19,8 +20,17 @@ jest.mock('../authStorage', () => ({
   },
 }));
 
+jest.mock('../visitorStorage', () => ({
+  visitorStorage: {
+    getVisitorId: jest.fn(),
+    __resetForTest: jest.fn(),
+  },
+}));
+
 const mockPost = apiClient.post as jest.Mock;
 const mockGetToken = authStorage.getToken as jest.Mock;
+const mockGetVisitorId = visitorStorage.getVisitorId as jest.Mock;
+const VISITOR_ID = '11111111-1111-4111-8111-111111111111';
 
 const baseEvent = {
   eventId: '550e8400-e29b-41d4-a716-446655440000',
@@ -36,6 +46,7 @@ describe('interactionApi', () => {
     jest.clearAllMocks();
     __resetVisitorIdForTest();
     mockGetToken.mockResolvedValue('fake-token');
+    mockGetVisitorId.mockResolvedValue(VISITOR_ID);
   });
 
   it('gửi sự kiện VIEW thành công và trả về ok', async () => {
@@ -52,21 +63,24 @@ describe('interactionApi', () => {
       }),
       expect.objectContaining({ token: 'fake-token' }),
     );
+    expect(mockPost.mock.calls[0][1].visitorId).toBe(VISITOR_ID);
     expect(result.ok).toBe(true);
     expect(result.status).toBe(201);
     expect(result.error).toBeNull();
     expect(mockPost.mock.calls[0][1].eventId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it('khi chưa đăng nhập, không gửi request', async () => {
+  it('khi chưa đăng nhập, vẫn gửi sự kiện ẩn danh không kèm token', async () => {
     mockGetToken.mockResolvedValue(null);
+    mockPost.mockResolvedValue({ data: { interactionId: 6 }, error: null, status: 201, ok: true });
 
     const result = await interactionApi.recordInteraction(baseEvent);
 
-    expect(mockPost).not.toHaveBeenCalled();
-    expect(result.ok).toBe(false);
-    expect(result.status).toBe(401);
-    expect(result.error).toContain('Authentication is required');
+    expect(mockPost).toHaveBeenCalledTimes(1);
+    expect(mockPost.mock.calls[0][1].visitorId).toBe(VISITOR_ID);
+    expect(mockPost.mock.calls[0][2].token).toBeUndefined();
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe(201);
   });
 
   it('khi API trả lỗi, không crash', async () => {
@@ -105,7 +119,7 @@ describe('interactionApi', () => {
     expect(body.startedAt).toBe('2026-10-24T10:00:00Z');
     expect(body.endedAt).toBe('2026-10-24T10:00:30Z');
     expect(body.interactedAt).toBe('2026-10-24T10:00:00Z');
-    expect(body.visitorId).toBeUndefined();
+    expect(body.visitorId).toBe(VISITOR_ID);
     expect(body.userId).toBeUndefined();
     expect(body.beaconId).toBeUndefined();
     expect(body.durationSeconds).toBeUndefined();
