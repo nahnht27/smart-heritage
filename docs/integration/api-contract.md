@@ -298,11 +298,95 @@ Yêu cầu header `Authorization: Bearer <accessToken>` và role `ADMIN`.
 
 Nếu không có dữ liệu, các danh sách trả về rỗng và các số là 0.
 
+#### 2.7.3 GET `/api/analytics/interactions/timeseries` — chuỗi thời gian theo ngày (ADMIN)
+
+| Tham số | Kiểu | Bắt buộc | Mô tả |
+|---------|------|----------|-------|
+| `from` | Instant (ISO-8601) | Có | Thời điểm bắt đầu khoảng lọc |
+| `to` | Instant (ISO-8601) | Có | Thời điểm kết thúc khoảng lọc |
+
+Yêu cầu header `Authorization: Bearer <accessToken>` và role `ADMIN`.
+
+**Quy tắc:**
+- `from` và `to` đều bắt buộc; thiếu một trong hai trả `400 Bad Request`.
+- `from` phải sớm hơn `to`; khoảng không vượt quá **90 ngày**.
+- Khoảng lọc là `[from, to)`.
+- Mỗi ngày được nhóm theo **UTC calendar date**; response luôn chứa đủ mọi ngày trong khoảng, kể cả ngày không có dữ liệu (giá trị `0`).
+- Ngày cuối cùng là UTC date của `to - 1 nanosecond`; nếu `to` là đúng nửa đêm thì ngày đó không thuộc khoảng.
+
+**Response:** `ApiResponse<List<DailyInteractionResponse>>`
+
+| Trường | Kiểu | Mô tả |
+|--------|------|-------|
+| `date` | LocalDate (`YYYY-MM-DD`) | Ngày UTC |
+| `totalInteractions` | long | Tổng số sự kiện trong ngày |
+| `uniqueVisitors` | long | Số `visitorId` duy nhất trong ngày |
+
+**Ví dụ:**
+
+```http
+GET /api/analytics/interactions/timeseries?from=2026-10-01T00:00:00Z&to=2026-10-04T00:00:00Z
+Authorization: Bearer <ADMIN_TOKEN>
+```
+
+```json
+{
+  "success": true,
+  "message": "Daily interaction time-series retrieved successfully",
+  "data": [
+    { "date": "2026-10-01", "totalInteractions": 2, "uniqueVisitors": 2 },
+    { "date": "2026-10-02", "totalInteractions": 0, "uniqueVisitors": 0 },
+    { "date": "2026-10-03", "totalInteractions": 1, "uniqueVisitors": 1 }
+  ],
+  "timestamp": "...",
+  "path": "/api/analytics/interactions/timeseries",
+  "errors": null
+}
+```
+
+#### 2.7.4 GET `/api/analytics/interactions/languages` — thống kê theo ngôn ngữ (ADMIN)
+
+| Tham số | Kiểu | Bắt buộc | Mô tả |
+|---------|------|----------|-------|
+| `from` | Instant (ISO-8601) | Có | Thời điểm bắt đầu khoảng lọc |
+| `to` | Instant (ISO-8601) | Có | Thời điểm kết thúc khoảng lọc |
+
+Yêu cầu header `Authorization: Bearer <accessToken>` và role `ADMIN`.
+
+**Quy tắc:**
+- `from` và `to` đều bắt buộc; `from < to`; khoảng tối đa **90 ngày**; lọc theo `[from, to)`.
+- `languageCode` được trim; giá trị null/rỗng được gom vào bucket `UNKNOWN`.
+- Kết quả sắp xếp giảm dần theo `interactionCount`, sau đó tăng dần theo `languageCode`.
+
+**Response:** `ApiResponse<List<LanguageCountResponse>>`
+
+| Trường | Kiểu | Mô tả |
+|--------|------|-------|
+| `languageCode` | String | Mã ngôn ngữ đã chuẩn hóa hoặc `UNKNOWN` |
+| `interactionCount` | long | Số sự kiện tương ứng |
+
+**Ví dụ:**
+
+```json
+{
+  "success": true,
+  "message": "Language analytics retrieved successfully",
+  "data": [
+    { "languageCode": "vi", "interactionCount": 3 },
+    { "languageCode": "en", "interactionCount": 2 },
+    { "languageCode": "UNKNOWN", "interactionCount": 1 }
+  ],
+  "timestamp": "...",
+  "path": "/api/analytics/interactions/languages",
+  "errors": null
+}
+```
+
 ---
 
 ### 2.8 Visitor Interaction / Analytics — trạng thái triển khai
 
-Backend đã có implementation đầy đủ cho hai endpoint trên. Mobile ghi sự kiện `VIEW` thật khi mở màn hình chi tiết hiện vật; sự kiện ẩn danh và đã đăng nhập đều được hỗ trợ. Admin Dashboard hiển thị dữ liệu analytics thật từ endpoint summary.
+Backend đã có implementation đầy đủ cho ba endpoint analytics: `summary`, `timeseries`, `languages`. Mobile ghi sự kiện `VIEW` thật khi mở màn hình chi tiết hiện vật; sự kiện ẩn danh và đã đăng nhập đều được hỗ trợ. Admin Dashboard hiển thị dữ liệu analytics thật từ endpoint summary; hai endpoint timeseries/languages sẵn sàng cho biểu đồ và thống kê ngôn ngữ ở frontend.
 
 ---
 
@@ -441,11 +525,19 @@ environment:
 | 22 | Xem analytics summary (không token) | `GET /api/analytics/interactions/summary` không có token | `401 Unauthorized` |
 | 23 | Analytics range không hợp lệ | `GET /api/analytics/interactions/summary?from=..&to=..` với `from > to` | `400 Bad Request` |
 | 24 | Analytics khoảng thời gian > 90 ngày | `GET /api/analytics/interactions/summary?from=..&to=..` > 90 ngày | `400 Bad Request` |
+| 25 | Timeseries theo ngày (ADMIN) | `GET /api/analytics/interactions/timeseries?from=..&to=..` + token ADMIN | `200 OK`, đủ mọi ngày UTC, ngày trống có giá trị `0` |
+| 26 | Timeseries thiếu tham số | `GET /api/analytics/interactions/timeseries` + token ADMIN | `400 Bad Request` |
+| 27 | Timeseries (VISITOR) | `GET /api/analytics/interactions/timeseries?from=..&to=..` + token VISITOR | `403 Forbidden` |
+| 28 | Timeseries (không token) | `GET /api/analytics/interactions/timeseries?from=..&to=..` | `401 Unauthorized` |
+| 29 | Language analytics (ADMIN) | `GET /api/analytics/interactions/languages?from=..&to=..` + token ADMIN | `200 OK`, sắp xếp count giảm dần |
+| 30 | Language analytics bucket UNKNOWN | Ghi sự kiện có `languageCode` null/rỗng rồi gọi languages | `200 OK`, có `UNKNOWN` |
+| 31 | Language analytics range sai | `GET /api/analytics/interactions/languages?from=..&to=..` với `from >= to` | `400 Bad Request` |
 
 ---
 
 ## 7. Ghi chú cho M3–M5
 
 - M3 (Mobile) tạo `eventId` UUID cho mỗi lượt xem, lưu `visitorId` UUID ổn định trong AsyncStorage, gửi Bearer token nếu có, và ghi `VIEW` khi màn hình chi tiết hiện vật tải thành công. Không ghi từ màn hình mock (yêu thích/lịch sử) và chưa ghi `SCAN`/`AUDIO_PLAY` khi tính năng thật chưa tồn tại.
-- M5 (Visitor Interaction / Analytics) đã có implementation backend: entity `VisitorInteraction`, repository, service, controller, DTO, exception handler, và tests. Các endpoint: `POST /api/interactions`, `GET /api/analytics/interactions/summary`.
+- M5 (Visitor Interaction / Analytics) đã có implementation backend: entity `VisitorInteraction`, repository, service, controller, DTO, exception handler, và tests. Các endpoint: `POST /api/interactions`, `GET /api/analytics/interactions/summary`, `GET /api/analytics/interactions/timeseries`, `GET /api/analytics/interactions/languages`.
+- Timeseries và languages dùng chung quy tắc range `[from, to)`, tối đa 90 ngày và yêu cầu role `ADMIN`. Unique visitors luôn tính theo `visitorId`, không theo `userId`.
 - Nếu M3/M5 cần thêm endpoint, hãy mở PR và cập nhật tài liệu này kèm theo.
