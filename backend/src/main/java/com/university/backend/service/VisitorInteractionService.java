@@ -14,6 +14,7 @@ import com.university.backend.repository.UserRepository;
 import com.university.backend.repository.VisitorInteractionRepository;
 import com.university.backend.dto.DailyInteractionResponse;
 import com.university.backend.repository.DailyInteractionProjection;
+import com.university.backend.dto.LanguageCountResponse;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -118,6 +119,14 @@ public class VisitorInteractionService {
                 }
 
                 return response;
+        }
+
+        @Transactional(readOnly = true)
+        public List<LanguageCountResponse> getLanguageAnalytics(
+                        Instant from,
+                        Instant to) {
+
+                return interactionRepository.countByLanguageInPeriod(from, to);
         }
 
         private InteractionCreationResult saveInteraction(

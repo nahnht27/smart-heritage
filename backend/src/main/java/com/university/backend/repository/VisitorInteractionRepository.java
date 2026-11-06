@@ -3,6 +3,7 @@ package com.university.backend.repository;
 import com.university.backend.dto.InteractionTypeCountResponse;
 import com.university.backend.dto.PopularArtifactResponse;
 import com.university.backend.entity.VisitorInteraction;
+import com.university.backend.dto.LanguageCountResponse;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -78,6 +79,19 @@ public interface VisitorInteractionRepository
                             CAST(i.interacted_at AT TIME ZONE 'UTC' AS DATE) ASC
                         """, nativeQuery = true)
         List<DailyInteractionProjection> findDailyInteractions(
+                        @Param("from") Instant from,
+                        @Param("to") Instant to);
+
+        @Query("""
+                        select new com.university.backend.dto.LanguageCountResponse(
+                            i.languageCode, count(i))
+                        from VisitorInteraction i
+                        where i.interactedAt >= :from
+                            and i.interactedAt < :to
+                        group by i.languageCode
+                        order by count(i) desc, i.languageCode asc
+                        """)
+        List<LanguageCountResponse> countByLanguageInPeriod(
                         @Param("from") Instant from,
                         @Param("to") Instant to);
 

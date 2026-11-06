@@ -8,6 +8,7 @@ import com.university.backend.dto.PopularArtifactResponse;
 import com.university.backend.service.VisitorInteractionService;
 import com.university.backend.dto.DailyInteractionResponse;
 import org.springframework.dao.DataIntegrityViolationException;
+import com.university.backend.dto.LanguageCountResponse;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +41,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -1815,7 +1815,6 @@ public class VisitorInteractionPostgresIT {
         assertEquals(3L, result.get(0).totalInteractions());
         assertEquals(2L, result.get(0).uniqueVisitors());
 
-      
         assertEquals(
                 LocalDate.parse("2025-06-02"),
                 result.get(1).date());
@@ -1823,7 +1822,6 @@ public class VisitorInteractionPostgresIT {
         assertEquals(0L, result.get(1).totalInteractions());
         assertEquals(0L, result.get(1).uniqueVisitors());
 
-      
         assertEquals(
                 LocalDate.parse("2025-06-03"),
                 result.get(2).date());
@@ -1832,4 +1830,207 @@ public class VisitorInteractionPostgresIT {
         assertEquals(1L, result.get(2).uniqueVisitors());
 
     }
+
+    @Test
+    void shouldAggregateLanguageAnalyticsCorrectly() {
+
+        Integer roleId = getVisitorRoleId();
+
+        String suffix = UUID.randomUUID()
+                .toString()
+                .substring(0, 8);
+
+        Integer userId = createTestUser(
+                roleId,
+                "language_user_" + suffix,
+                "TestPass123!");
+
+        Integer artifactId = createTestArtifact();
+
+        Instant from = Instant.parse("2025-07-01T00:00:00Z");
+        Instant to = Instant.parse("2025-07-02T00:00:00Z");
+
+        insertAnalyticsInteraction(
+                userId, artifactId, "VIEW", "vi",
+                from.plusSeconds(3600));
+
+        insertAnalyticsInteraction(
+                userId, artifactId, "SCAN", "vi",
+                from.plusSeconds(7200));
+
+        insertAnalyticsInteraction(
+                userId, artifactId, "AUDIO_PLAY", "en",
+                from.plusSeconds(10800));
+
+        insertAnalyticsInteraction(
+                userId, artifactId, "VIEW", "fr",
+                from.plusSeconds(14400));
+
+      
+        insertAnalyticsInteraction(
+                userId, artifactId, "VIEW", "vi",
+                from.minusSeconds(1));
+
+       
+        insertAnalyticsInteraction(
+                userId, artifactId, "VIEW", "en", to);
+
+        List<LanguageCountResponse> result = interactionService.getLanguageAnalytics(from, to);
+
+        assertEquals(3, result.size());
+
+        assertEquals("vi", result.get(0).languageCode());
+        assertEquals(2L, result.get(0).interactionCount());
+
+        assertEquals("en", result.get(1).languageCode());
+        assertEquals(1L, result.get(1).interactionCount());
+
+        assertEquals("fr", result.get(2).languageCode());
+        assertEquals(1L, result.get(2).interactionCount());
+    }
+
+    @Test
+    void shouldEnforceNewAnalyticsEndpointSecurity()
+            throws Exception {
+
+        String[] endpoints = {
+                "/api/analytics/interactions/timeseries",
+                "/api/analytics/interactions/languages"
+        };
+
+        String from = "2025-08-01T00:00:00Z";
+        String to = "2025-08-03T00:00:00Z";
+
+        String suffix = UUID.randomUUID()
+                .toString().substring(0, 8);
+
+        String password = "TestPass123!";
+
+       
+        Integer visitorRoleId = getVisitorRoleId();
+
+        String visitorUsername = "m5_sec_visitor_" + suffix;
+
+        createTestUser(visitorRoleId, visitorUsername, password);
+
+        String visitorToken = loginAndGetToken(
+                visitorUsername, password);
+
+       
+        Integer adminRoleId = jdbcTemplate.queryForObject(
+                """
+                        INSERT INTO role(name)
+                        VALUES ('ADMIN')
+                        ON CONFLICT (name)
+                        DO UPDATE SET name = EXCLUDED.name
+                        RETURNING role_id
+                        """,
+                Integer.class);
+
+        String adminUsername = "m5_sec_admin_" + suffix;
+
+        createTestUser(adminRoleId, adminUsername, password);
+
+        String adminToken = loginAndGetToken(
+                adminUsername, password);
+
+        for (String endpoint : endpoints) {
+
+           
+            mockMvc.perform(
+                    org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint)
+                            .param("from", from)
+                            .param("to", to))
+                    .andExpect(status().isUnauthorized());
+
+           
+            mockMvc.perform(
+                    org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint)
+                            .header("Authorization",
+                                    "Bearer " + visitorToken)
+                            .param("from", from)
+                            .param("to", to))
+                    .andExpect(status().isForbidden());
+
+           
+            mockMvc.perform(
+                    org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint)
+                            .header("Authorization",
+                                    "Bearer " + adminToken)
+                            .param("from", from)
+                            .param("to", to))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data").isArray());
+        }
+    }
+
+    @Test
+    void shouldValidateNewAnalyticsDateRanges()
+            throws Exception {
+
+        String[] endpoints = {
+                "/api/analytics/interactions/timeseries",
+                "/api/analytics/interactions/languages"
+        };
+
+        String suffix = UUID.randomUUID()
+                .toString().substring(0, 8);
+
+        Integer adminRoleId = jdbcTemplate.queryForObject(
+                """
+                        INSERT INTO role(name)
+                        VALUES ('ADMIN')
+                        ON CONFLICT (name)
+                        DO UPDATE SET name = EXCLUDED.name
+                        RETURNING role_id
+                        """,
+                Integer.class);
+
+        String username = "m5_date_admin_" + suffix;
+        String password = "TestPass123!";
+
+        createTestUser(adminRoleId, username, password);
+
+        String token = loginAndGetToken(username, password);
+
+        for (String endpoint : endpoints) {
+
+            
+            mockMvc.perform(
+                    org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint)
+                            .header("Authorization",
+                                    "Bearer " + token)
+                            .param("from", "2025-08-03T00:00:00Z")
+                            .param("to", "2025-08-01T00:00:00Z"))
+                    .andExpect(status().isBadRequest());
+
+            
+            mockMvc.perform(
+                    org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint)
+                            .header("Authorization",
+                                    "Bearer " + token)
+                            .param("from", "2025-01-01T00:00:00Z")
+                            .param("to", "2025-05-01T00:00:00Z"))
+                    .andExpect(status().isBadRequest());
+
+            
+            mockMvc.perform(
+                    org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint)
+                            .header("Authorization",
+                                    "Bearer " + token)
+                            .param("from", "2025-08-01T00:00:00Z"))
+                    .andExpect(status().isBadRequest());
+
+            
+            mockMvc.perform(
+                    org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(endpoint)
+                            .header("Authorization",
+                                    "Bearer " + token)
+                            .param("from", "2025-01-01T00:00:00Z")
+                            .param("to", "2025-04-01T00:00:00Z"))
+                    .andExpect(status().isOk());
+        }
+    }
+
 }

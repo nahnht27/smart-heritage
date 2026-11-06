@@ -293,11 +293,226 @@ Yêu cầu header `Authorization: Bearer <accessToken>` và role `ADMIN`.
 
 Nếu không có dữ liệu, các danh sách trả về rỗng và các số là 0.
 
+#### 2.7.3 GET `/api/analytics/interactions/timeseries` — Daily Interaction Time-Series (ADMIN)
+
+This endpoint provides daily interaction statistics, including total interactions and unique visitors, within a specified date range.
+
+**Authentication:** JWT Bearer token with `ADMIN` role.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `from` | Instant (ISO-8601) | Yes | Start timestamp (inclusive) |
+| `to` | Instant (ISO-8601) | Yes | End timestamp (exclusive) |
+
+**Validation Rules:**
+
+- Both `from` and `to` must be provided.
+- `from` must be earlier than `to`.
+- The date range must not exceed 90 days.
+- The filtering interval is `[from, to)`.
+- All daily aggregations use UTC.
+- Days without interactions are included with zero counts.
+- Results are returned in ascending chronological order.
+- Aggregation is performed directly in PostgreSQL.
+
+**Response:** `ApiResponse<List<DailyInteractionResponse>>`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `date` | LocalDate | Calendar date in UTC (`yyyy-MM-dd`) |
+| `totalInteractions` | long | Total number of interactions for the day |
+| `uniqueVisitors` | long | Number of distinct visitors for the day |
+
+**Example Request:**
+
+```http
+GET /api/analytics/interactions/timeseries?from=2025-06-01T00:00:00Z&to=2025-06-04T00:00:00Z
+Authorization: Bearer <accessToken>
+```
+
+**Example Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Daily interaction time-series retrieved successfully",
+  "data": [
+    {
+      "date": "2025-06-01",
+      "totalInteractions": 3,
+      "uniqueVisitors": 2
+    },
+    {
+      "date": "2025-06-02",
+      "totalInteractions": 0,
+      "uniqueVisitors": 0
+    },
+    {
+      "date": "2025-06-03",
+      "totalInteractions": 1,
+      "uniqueVisitors": 1
+    }
+  ],
+  "timestamp": "...",
+  "path": "/api/analytics/interactions/timeseries",
+  "errors": null
+}
+```
+
 ---
 
-### 2.8 Visitor Interaction / Analytics — trạng thái triển khai
+#### 2.7.4 GET `/api/analytics/interactions/languages` — Language Analytics (ADMIN)
 
-Backend đã có implementation đầy đủ cho hai endpoint trên. Mobile chỉ có service layer (`mobile/src/services/interactionApi.ts`) để gọi API, chưa có màn hình UI gọi thực sự.
+This endpoint provides interaction statistics grouped by language code within a specified date range.
+
+**Authentication:** JWT Bearer token with `ADMIN` role.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `from` | Instant (ISO-8601) | Yes | Start timestamp (inclusive) |
+| `to` | Instant (ISO-8601) | Yes | End timestamp (exclusive) |
+
+**Validation Rules:**
+
+- Both `from` and `to` must be provided.
+- `from` must be earlier than `to`.
+- The date range must not exceed 90 days.
+- The filtering interval is `[from, to)`.
+- Results are grouped by `languageCode`.
+- Language codes may include `vi`, `en`, `fr`, and other supported codes.
+- Results are ordered by interaction count descending.
+- Equal counts are ordered by language code ascending.
+- Aggregation is performed directly in the database.
+- An empty result set returns `[]`.
+
+**Response:** `ApiResponse<List<LanguageCountResponse>>`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `languageCode` | String | Language code associated with interactions |
+| `interactionCount` | long | Total number of interactions for the language |
+
+**Example Request:**
+
+```http
+GET /api/analytics/interactions/languages?from=2025-07-01T00:00:00Z&to=2025-07-02T00:00:00Z
+Authorization: Bearer <accessToken>
+```
+
+**Example Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Language analytics retrieved successfully",
+  "data": [
+    {
+      "languageCode": "vi",
+      "interactionCount": 2
+    },
+    {
+      "languageCode": "en",
+      "interactionCount": 1
+    },
+    {
+      "languageCode": "fr",
+      "interactionCount": 1
+    }
+  ],
+  "timestamp": "...",
+  "path": "/api/analytics/interactions/languages",
+  "errors": null
+}
+```
+
+---
+
+#### 2.7.5 Advanced Analytics — HTTP Status Codes
+
+The following HTTP status codes apply to both the Time-Series and Language Analytics endpoints.
+
+| HTTP Status | Description |
+|-------------|-------------|
+| `200 OK` | Analytics data retrieved successfully |
+| `400 Bad Request` | Missing parameters, invalid date range, or range exceeding 90 days |
+| `401 Unauthorized` | Missing or invalid authentication token |
+| `403 Forbidden` | Authenticated user does not have the `ADMIN` role |
+
+**Security Requirements:**
+
+- Both endpoints are protected by `@PreAuthorize("hasRole('ADMIN')")`.
+- Unauthenticated requests must return HTTP 401.
+- Requests from `VISITOR` accounts must return HTTP 403.
+- Only authenticated `ADMIN` accounts can retrieve analytics data.
+
+**Database and Performance Considerations:**
+
+- Data aggregation is executed directly in PostgreSQL.
+- Daily statistics use SQL `GROUP BY` and `COUNT(DISTINCT user_id)`.
+- Language statistics use JPQL aggregation with `GROUP BY`.
+- The backend does not load all interaction records into memory for aggregation.
+- The maximum date range is limited to 90 days to control query size.
+
+**Integration Testing Results:**
+
+The following PostgreSQL integration scenarios have been verified:
+
+- Daily interaction aggregation and unique visitor counting.
+- UTC-based date grouping.
+- Zero-filled dates without interaction records.
+- Chronological ordering of daily results.
+- Language grouping and interaction counting.
+- Date range boundary filtering.
+- Authentication and role-based authorization.
+- Invalid date range rejection.
+- Maximum 90-day range validation.
+
+**Full Regression Test Results — November 6, 2026:**
+
+```text
+Tests run: 23, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+All 23 tests in `VisitorInteractionPostgresIT` passed against PostgreSQL.
+
+---
+
+
+---
+
+
+### 2.8 Visitor Interaction / Analytics — Implementation Status
+
+The Smart Heritage backend currently implements four Visitor Interaction and Analytics endpoints.
+
+| Method | Endpoint | Description | Authorization |
+|--------|----------|-------------|---------------|
+| `POST` | `/api/interactions` | Record visitor interaction events | Authenticated user |
+| `GET` | `/api/analytics/interactions/summary` | Retrieve interaction summary statistics | ADMIN |
+| `GET` | `/api/analytics/interactions/timeseries` | Retrieve daily interaction and unique visitor statistics | ADMIN |
+| `GET` | `/api/analytics/interactions/languages` | Retrieve interaction statistics grouped by language | ADMIN |
+
+**Implementation Status:**
+
+- Backend controllers, services, repositories, and DTOs are implemented.
+- PostgreSQL aggregation queries are implemented and tested.
+- JWT authentication and ADMIN authorization are enforced.
+- Date filtering and maximum 90-day validation are implemented.
+- Existing API endpoints remain backward compatible.
+- PostgreSQL integration testing completed successfully with 23/23 tests passing.
+
+**Frontend Integration:**
+
+The Admin Web frontend can consume the analytics endpoints to display daily interaction trends and language distribution statistics.
+
+The Mobile application currently includes an interaction API service layer at `mobile/src/services/interactionApi.ts`. Actual UI integration must be verified separately.
+
+The API contract should be shared with the M1 and M4 teams before frontend integration.
 
 ---
 
@@ -437,10 +652,23 @@ environment:
 | 23 | Analytics range không hợp lệ | `GET /api/analytics/interactions/summary?from=..&to=..` với `from > to` | `400 Bad Request` |
 | 24 | Analytics khoảng thời gian > 90 ngày | `GET /api/analytics/interactions/summary?from=..&to=..` > 90 ngày | `400 Bad Request` |
 
+| 25 | Daily Time-Series (ADMIN) | `GET /api/analytics/interactions/timeseries?from=..&to=..` + ADMIN token | `200 OK`, daily statistics returned |
+| 26 | Language Analytics (ADMIN) | `GET /api/analytics/interactions/languages?from=..&to=..` + ADMIN token | `200 OK`, language statistics returned |
+| 27 | Daily Time-Series (VISITOR) | `GET /api/analytics/interactions/timeseries` + VISITOR token | `403 Forbidden` |
+| 28 | Language Analytics (VISITOR) | `GET /api/analytics/interactions/languages` + VISITOR token | `403 Forbidden` |
+| 29 | Advanced Analytics without authentication | GET either new analytics endpoint without token | `401 Unauthorized` |
+| 30 | Advanced Analytics invalid date range | GET either new analytics endpoint with date range > 90 days | `400 Bad Request` |
+| 31 | Advanced Analytics missing parameters | GET either new analytics endpoint without `from` or `to` | `400 Bad Request` |
+
 ---
 
 ## 7. Ghi chú cho M3–M5
 
 - M3 (Mobile) có service layer `mobile/src/services/interactionApi.ts` để gọi `POST /api/interactions` (tạo `eventId` UUID, gửi Bearer token từ `authStorage`). **Chưa có màn hình UI gọi thực sự** tại thời điểm viết tài liệu này. Không gọi API tương tác từ màn hình mobile cho đến khi có luồng quét/iBeacon/Xem thực tế.
-- M5 (Visitor Interaction / Analytics) đã có implementation backend: entity `VisitorInteraction`, repository, service, controller, DTO, exception handler, và tests. Các endpoint: `POST /api/interactions`, `GET /api/analytics/interactions/summary`.
+- M5 (Visitor Interaction / Analytics) has implemented the backend entity `VisitorInteraction`, repository, service, controller, DTOs, exception handling, and integration tests. The available endpoints are:
+  - `POST /api/interactions`
+  - `GET /api/analytics/interactions/summary`
+  - `GET /api/analytics/interactions/timeseries`
+  - `GET /api/analytics/interactions/languages`
+
 - Nếu M3/M5 cần thêm endpoint, hãy mở PR và cập nhật tài liệu này kèm theo.
