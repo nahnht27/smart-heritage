@@ -163,11 +163,6 @@ export default function LoginScreen() {
     );
   };
 
-  const clearErrors = () => {
-    setErrors({});
-    setGeneralError(null);
-  };
-
   return (
     <KeyboardAvoidingView
       style={styles.keyboardContainer}
