@@ -17,6 +17,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.dao.DataAccessException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -68,6 +71,11 @@ public class VisitorInteractionPostgresIT {
 
     @Autowired
     private VisitorInteractionRepository interactionRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+
 
     
 
@@ -1570,6 +1578,279 @@ mockMvc.perform(
             "=========================================="
         );
     }
+    
+   
+
+    @Test
+    void shouldRejectNonexistentArtifactWithoutPersisting()
+            throws Exception {
+
+        Integer roleId = getVisitorRoleId();
+
+        String suffix = UUID.randomUUID()
+            .toString()
+            .substring(0, 8);
+
+        String username = "m5_missing_artifact_" + suffix;
+        String password = "TestPass123!";
+
+        createTestUser(roleId, username, password);
+
+        String token = loginAndGetToken(
+            username, password
+        );
+
+        Integer nonexistentArtifactId = 999999999;
+
+        Integer existingCount = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM artifact WHERE artifact_id = ?",
+            Integer.class,
+            nonexistentArtifactId
+        );
+
+        assertEquals(
+            0,
+            existingCount,
+            "Artifact ID must not exist before the test"
+        );
+
+        UUID eventId = UUID.randomUUID();
+
+        Map<String, Object> request = createDurationRequest(
+            eventId,
+            nonexistentArtifactId,
+            "2026-11-01T10:00:00Z",
+            "2026-11-01T10:00:30Z"
+        );
+
+        mockMvc.perform(
+                post("/api/interactions")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+            )
+            .andExpect(status().isNotFound());
+
+        assertEquals(
+            0L,
+            countInteractions(eventId),
+            "Nonexistent artifact must not create interaction"
+        );
+    }
+
+    
+
+    @Test
+    void shouldRejectMalformedEventId()
+            throws Exception {
+
+        Integer roleId = getVisitorRoleId();
+
+        String suffix = UUID.randomUUID()
+            .toString()
+            .substring(0, 8);
+
+        String username = "m5_invalid_uuid_" + suffix;
+        String password = "TestPass123!";
+
+        createTestUser(roleId, username, password);
+
+        Integer artifactId = createTestArtifact();
+
+        String token = loginAndGetToken(
+            username, password
+        );
+
+        Map<String, Object> request = createDurationRequest(
+            UUID.randomUUID(),
+            artifactId,
+            "2026-11-01T10:00:00Z",
+            "2026-11-01T10:00:30Z"
+        );
+
+        request.put("eventId", "invalid-uuid");
+
+        Long countBefore = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM visitor_interaction",
+            Long.class
+        );
+
+        mockMvc.perform(
+                post("/api/interactions")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+            )
+            .andExpect(status().isBadRequest());
+
+        Long countAfter = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM visitor_interaction",
+            Long.class
+        );
+
+        assertEquals(
+            countBefore,
+            countAfter,
+            "Invalid UUID must not create interaction"
+        );
+    }
+
+  
+
+    @Test
+    void shouldRejectMissingRequiredTimestamps()
+            throws Exception {
+
+        Integer roleId = getVisitorRoleId();
+
+        String suffix = UUID.randomUUID()
+            .toString()
+            .substring(0, 8);
+
+        String username = "m5_missing_time_" + suffix;
+        String password = "TestPass123!";
+
+        createTestUser(roleId, username, password);
+
+        Integer artifactId = createTestArtifact();
+
+        String token = loginAndGetToken(
+            username, password
+        );
+
+        String[] requiredFields = {
+            "startedAt",
+            "interactedAt"
+        };
+
+        for (String missingField : requiredFields) {
+
+            UUID eventId = UUID.randomUUID();
+
+            Map<String, Object> request =
+                createDurationRequest(
+                    eventId,
+                    artifactId,
+                    "2026-11-01T10:00:00Z",
+                    "2026-11-01T10:00:30Z"
+                );
+
+            request.remove(missingField);
+
+            mockMvc.perform(
+                    post("/api/interactions")
+                        .header(
+                            "Authorization",
+                            "Bearer " + token
+                        )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            objectMapper.writeValueAsString(request)
+                        )
+                )
+                .andExpect(status().isBadRequest());
+
+            assertEquals(
+                0L,
+                countInteractions(eventId),
+                missingField + " is required"
+            );
+        }
+    }
+
+   
+
+    @Test
+    void shouldRollbackTransactionOnDuplicateEventId() {
+
+        Integer roleId = getVisitorRoleId();
+
+        String suffix = UUID.randomUUID()
+            .toString()
+            .substring(0, 8);
+
+        Integer userId = createTestUser(
+            roleId,
+            "m5_rollback_" + suffix,
+            "TestPass123!"
+        );
+
+        Integer artifactId = createTestArtifact();
+
+        UUID eventId = UUID.randomUUID();
+
+        Instant startedAt =
+            Instant.parse("2026-11-01T10:00:00Z");
+
+        String insertSql = """
+            INSERT INTO visitor_interaction
+                (event_id, user_id, artifact_id,
+                 interaction_type, language_code,
+                 started_at, ended_at,
+                 interacted_at, duration_seconds)
+            VALUES (
+                ?::uuid, ?, ?, 'VIEW', 'vi',
+                ?, ?, ?, 30
+            )
+            """;
+
+        assertEquals(
+            0L,
+            countInteractions(eventId)
+        );
+
+        TransactionTemplate transactionTemplate =
+            new TransactionTemplate(transactionManager);
+
+        
+
+        assertThrows(
+            DataAccessException.class,
+            () -> transactionTemplate.executeWithoutResult(
+                status -> {
+
+                    jdbcTemplate.update(
+                        insertSql,
+                        eventId.toString(),
+                        userId,
+                        artifactId,
+                        Timestamp.from(startedAt),
+                        Timestamp.from(
+                            startedAt.plusSeconds(30)
+                        ),
+                        Timestamp.from(startedAt)
+                    );
+
+                    assertEquals(
+                        1L,
+                        countInteractions(eventId),
+                        "First insert must be visible inside transaction"
+                    );
+
+                    
+                    jdbcTemplate.update(
+                        insertSql,
+                        eventId.toString(),
+                        userId,
+                        artifactId,
+                        Timestamp.from(startedAt),
+                        Timestamp.from(
+                            startedAt.plusSeconds(30)
+                        ),
+                        Timestamp.from(startedAt)
+                    );
+                }
+            )
+        );
+
+      
+        assertEquals(
+            0L,
+            countInteractions(eventId),
+            "Failed transaction must leave no partial records"
+        );
+    }
+
 
 
 }
