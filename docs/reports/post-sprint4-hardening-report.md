@@ -455,7 +455,7 @@ Giải pháp:
 | Full `verify` | **PASS** | `./mvnw -B -Ppostgres-integration verify` |
 | Performance baseline | **PASS** | 200 interactions, combined analytics 22 ms (local) |
 | `git diff --check` | **PASS** | Không lỗi whitespace |
-| CI PostgreSQL gate | **PENDING PR RUN** | Sẽ xác nhận sau khi push/tạo PR |
+| CI PostgreSQL gate | **PASS** | PR #24, run `42261630401`; job `postgres-integration` pass 1m20s |
 
 Chi tiết đầy đủ: [`docs/testing/postgresql-integration-report.md`](../testing/postgresql-integration-report.md) và [`docs/reports/m5-analytics-postgres-integration-report.md`](./m5-analytics-postgres-integration-report.md).
 
@@ -478,4 +478,5 @@ Chi tiết đầy đủ: [`docs/testing/postgresql-integration-report.md`](../te
   3. `feat(backend): add interaction language analytics`
   4. `ci(backend): enforce PostgreSQL integration tests`
   5. `docs: document M5 analytics and PostgreSQL verification`
-- Push branch và tạo PR về `main`; **không tự merge**.
+- PR: https://github.com/nahnht27/smart-heritage/pull/24
+- Không tự merge; chờ maintainer review/merge.

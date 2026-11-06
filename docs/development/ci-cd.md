@@ -232,4 +232,5 @@ cho tới khi config được đưa vào Git một cách chủ động.
 
 - Local: `./mvnw -B -Ppostgres-integration verify` → 95 unit tests + 22 PostgreSQL integration tests, BUILD SUCCESS.
 - CI: job `postgres-integration` được nâng từ chạy một test class bằng Surefire sang Failsafe + report gate.
-- Kết quả CI thực tế được xác nhận trên PR của branch `feat/m5-analytics-postgres-reliability`.
+- Kết quả CI thực tế: PR #24, run `42261630401` — `postgres-integration` PASS (1m20s); report gate thấy 22 test, 0 failure/error/skip.
+- Run: https://github.com/nahnht27/smart-heritage/actions/runs/42261630401

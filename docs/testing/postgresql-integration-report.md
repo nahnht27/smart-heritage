@@ -301,6 +301,10 @@ The `postgres-integration` CI job now:
 
 There is no `continue-on-error` or `|| true` on the PostgreSQL gate.
 
+**Verified on PR #24:** `postgres-integration` passed in 1m20s; the report gate observed 22 tests with 0 failures/errors/skipped.
+
+Run: https://github.com/nahnht27/smart-heritage/actions/runs/42261630401
+
 ## 7. Limitations and Future Improvements
 
 The following remain outside the verified scope:
@@ -311,7 +315,7 @@ The following remain outside the verified scope:
 - Analytics reads during concurrent writes.
 - Frontend chart integration for the new timeseries/languages endpoints.
 - Mobile runtime E2E verification with a real device/emulator.
-- CI execution evidence is added after the branch PR runs.
+- CI verification: PR #24, run `42261630401` — `postgres-integration` PASS. See https://github.com/nahnht27/smart-heritage/actions/runs/42261630401.
 
 ## 8. Conclusion
 

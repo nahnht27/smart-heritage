@@ -146,7 +146,9 @@ Job `postgres-integration` đã được cập nhật:
 - Upload cả Surefire và Failsafe reports.
 - Không dùng `continue-on-error`, không `|| true`.
 
-Kết quả CI thực tế sẽ được xác nhận trên PR sau khi push branch.
+Kết quả CI thực tế: **PASS** trên PR #24, run `42261630401`; job `postgres-integration` pass sau 1m20s, report gate thấy 22 test với 0 failure/error/skip.
+
+Run: https://github.com/nahnht27/smart-heritage/actions/runs/42261630401
 
 ---
 
@@ -204,4 +206,6 @@ Commit groups:
 4. `ci(backend): enforce PostgreSQL integration tests`
 5. `docs: document M5 analytics and PostgreSQL verification`
 
-Push branch và tạo PR về `main`; **không tự merge**.
+PR: https://github.com/nahnht27/smart-heritage/pull/24
+
+Không tự merge; chờ maintainer review/merge.
