@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.university.backend.dto.InteractionTypeCountResponse;
 import com.university.backend.dto.PopularArtifactResponse;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -1850,6 +1851,281 @@ mockMvc.perform(
             "Failed transaction must leave no partial records"
         );
     }
+    
+    
+
+    @Test
+    void shouldVerifyPostgreSQLSchemaConstraints() {
+
+        List<Map<String, Object>> constraints =
+            jdbcTemplate.queryForList("""
+                SELECT contype, pg_get_constraintdef(oid) AS definition
+                FROM pg_constraint
+                WHERE conrelid = 'visitor_interaction'::regclass
+                """);
+
+        assertTrue(
+            constraints.stream().anyMatch(c ->
+                "p".equals(c.get("contype").toString())
+            ),
+            "visitor_interaction must have a primary key"
+        );
+
+        assertTrue(
+            constraints.stream().anyMatch(c ->
+                "u".equals(c.get("contype").toString())
+                && c.get("definition").toString()
+                    .contains("event_id")
+            ),
+            "event_id must have a UNIQUE constraint"
+        );
+
+        assertTrue(
+            constraints.stream().anyMatch(c ->
+                "f".equals(c.get("contype").toString())
+                && c.get("definition").toString()
+                    .contains("user_id")
+            ),
+            "user_id must have a FOREIGN KEY"
+        );
+
+        assertTrue(
+            constraints.stream().anyMatch(c ->
+                "f".equals(c.get("contype").toString())
+                && c.get("definition").toString()
+                    .contains("artifact_id")
+            ),
+            "artifact_id must have a FOREIGN KEY"
+        );
+
+        Map<String, String> expectedTypes = Map.of(
+            "event_id", "uuid",
+            "started_at", "timestamp with time zone",
+            "ended_at", "timestamp with time zone",
+            "interacted_at", "timestamp with time zone",
+            "duration_seconds", "bigint"
+        );
+
+        Map<String, String> actualTypes = new HashMap<>();
+
+        jdbcTemplate.query("""
+            SELECT column_name, data_type
+            FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = 'visitor_interaction'
+            """, rs -> {
+                actualTypes.put(
+                    rs.getString("column_name"),
+                    rs.getString("data_type")
+                );
+            });
+
+        expectedTypes.forEach((column, type) ->
+            assertEquals(
+                type,
+                actualTypes.get(column),
+                "Unexpected PostgreSQL type for " + column
+            )
+        );
+    }
+
+   
+
+    @Test
+    void shouldRejectInvalidArtifactForeignKey() {
+
+        Integer roleId = getVisitorRoleId();
+
+        String suffix = UUID.randomUUID()
+            .toString()
+            .substring(0, 8);
+
+        Integer userId = createTestUser(
+            roleId,
+            "m5_fk_" + suffix,
+            "TestPass123!"
+        );
+
+        Integer invalidArtifactId = 999999999;
+
+        Long existingArtifacts = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM artifact WHERE artifact_id = ?",
+            Long.class,
+            invalidArtifactId
+        );
+
+        assertEquals(0L, existingArtifacts);
+
+        UUID eventId = UUID.randomUUID();
+
+        Instant timestamp =
+            Instant.parse("2026-11-01T10:00:00Z");
+
+        assertThrows(
+            DataIntegrityViolationException.class,
+            () -> jdbcTemplate.update("""
+                INSERT INTO visitor_interaction
+                    (event_id, user_id, artifact_id,
+                     interaction_type, language_code,
+                     started_at, ended_at,
+                     interacted_at, duration_seconds)
+                VALUES (?::uuid, ?, ?, 'VIEW', 'vi',
+                        ?, ?, ?, 30)
+                """,
+                eventId.toString(),
+                userId,
+                invalidArtifactId,
+                Timestamp.from(timestamp),
+                Timestamp.from(timestamp.plusSeconds(30)),
+                Timestamp.from(timestamp)
+            )
+        );
+
+        assertEquals(
+            0L,
+            countInteractions(eventId),
+            "FK violation must not persist interaction"
+        );
+    }
+
+   
+
+    @Test
+    void shouldPersistConcurrentDifferentEvents()
+            throws Exception {
+
+        Integer roleId = getVisitorRoleId();
+
+        String suffix = UUID.randomUUID()
+            .toString()
+            .substring(0, 8);
+
+        String username = "m5_parallel_" + suffix;
+        String password = "TestPass123!";
+
+        createTestUser(roleId, username, password);
+
+        Integer artifactId = createTestArtifact();
+
+        String token = loginAndGetToken(
+            username,
+            password
+        );
+
+        UUID firstEventId = UUID.randomUUID();
+        UUID secondEventId = UUID.randomUUID();
+
+        String firstBody = createInteractionRequest(
+            firstEventId,
+            artifactId
+        );
+
+        String secondBody = createInteractionRequest(
+            secondEventId,
+            artifactId
+        );
+
+        ExecutorService executor =
+            Executors.newFixedThreadPool(2);
+
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try {
+            Callable<Integer> firstTask = () -> {
+                ready.countDown();
+
+                if (!start.await(10, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Start timeout");
+                }
+
+                return mockMvc.perform(
+                        post("/api/interactions")
+                            .header(
+                                "Authorization",
+                                "Bearer " + token
+                            )
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(firstBody)
+                    )
+                    .andReturn()
+                    .getResponse()
+                    .getStatus();
+            };
+
+            Callable<Integer> secondTask = () -> {
+                ready.countDown();
+
+                if (!start.await(10, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Start timeout");
+                }
+
+                return mockMvc.perform(
+                        post("/api/interactions")
+                            .header(
+                                "Authorization",
+                                "Bearer " + token
+                            )
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(secondBody)
+                    )
+                    .andReturn()
+                    .getResponse()
+                    .getStatus();
+            };
+
+            Future<Integer> first =
+                executor.submit(firstTask);
+
+            Future<Integer> second =
+                executor.submit(secondTask);
+
+            assertTrue(
+                ready.await(10, TimeUnit.SECONDS)
+            );
+
+            start.countDown();
+
+            int firstStatus = first.get(
+                30, TimeUnit.SECONDS
+            );
+
+            int secondStatus = second.get(
+                30, TimeUnit.SECONDS
+            );
+
+            assertEquals(201, firstStatus);
+            assertEquals(201, secondStatus);
+
+            assertEquals(
+                1L,
+                countInteractions(firstEventId)
+            );
+
+            assertEquals(
+                1L,
+                countInteractions(secondEventId)
+            );
+
+            System.out.println(
+                "Concurrent requests: 2"
+            );
+            System.out.println(
+                "Successful inserts: 2"
+            );
+            System.out.println(
+                "Duplicate rows: 0"
+            );
+            System.out.println(
+                "HTTP status distribution: 201=2"
+            );
+
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+        }
+    }
+
 
 
 
