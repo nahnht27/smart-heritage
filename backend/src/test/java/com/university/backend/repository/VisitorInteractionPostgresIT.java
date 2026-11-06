@@ -980,4 +980,321 @@ public class VisitorInteractionPostgresIT {
             interactionRepository.countInPeriod(from, to)
         );
     }
+    
+    @Test
+    void shouldEnforceAnalyticsAuthenticationAndAuthorization()
+            throws Exception {
+
+        String endpoint = "/api/analytics/interactions/summary";
+
+        String from = "2025-03-01T00:00:00Z";
+        String to = "2025-03-02T00:00:00Z";
+
+        
+        mockMvc.perform(
+                org.springframework.test.web.servlet.request
+                    .MockMvcRequestBuilders.get(endpoint)
+                    .param("from", from)
+                    .param("to", to)
+            )
+            .andExpect(status().isUnauthorized());
+
+      
+        Integer visitorRoleId = getVisitorRoleId();
+
+        String suffix = UUID.randomUUID()
+            .toString()
+            .substring(0, 8);
+
+        String visitorUsername = "security_visitor_" + suffix;
+        String password = "TestPass123!";
+
+        createTestUser(
+            visitorRoleId,
+            visitorUsername,
+            password
+        );
+
+        String visitorToken = loginAndGetToken(
+            visitorUsername,
+            password
+        );
+
+        
+        mockMvc.perform(
+                org.springframework.test.web.servlet.request
+                    .MockMvcRequestBuilders.get(endpoint)
+                    .header(
+                        "Authorization",
+                        "Bearer " + visitorToken
+                    )
+                    .param("from", from)
+                    .param("to", to)
+            )
+            .andExpect(status().isForbidden());
+
+       
+        Integer adminRoleId = jdbcTemplate.queryForObject(
+            """
+            INSERT INTO role(name)
+            VALUES ('ADMIN')
+            ON CONFLICT (name)
+            DO UPDATE SET name = EXCLUDED.name
+            RETURNING role_id
+            """,
+            Integer.class
+        );
+
+     
+        String adminUsername = "security_admin_" + suffix;
+
+        createTestUser(
+            adminRoleId,
+            adminUsername,
+            password
+        );
+
+        String adminToken = loginAndGetToken(
+            adminUsername,
+            password
+        );
+
+    
+        mockMvc.perform(
+                org.springframework.test.web.servlet.request
+                    .MockMvcRequestBuilders.get(endpoint)
+                    .header(
+                        "Authorization",
+                        "Bearer " + adminToken
+                    )
+                    .param("from", from)
+                    .param("to", to)
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(
+                jsonPath("$.data.totalInteractions").exists()
+            )
+            .andExpect(
+                jsonPath("$.data.uniqueVisitors").exists()
+            );
+    }
+
+    
+   
+
+    @Test
+    void shouldRejectInvalidInteractionRequests()
+            throws Exception {
+
+        Integer roleId = getVisitorRoleId();
+
+        String suffix = UUID.randomUUID()
+            .toString()
+            .substring(0, 8);
+
+        String username = "m5_reliability_" + suffix;
+        String password = "TestPass123!";
+
+        createTestUser(roleId, username, password);
+
+        Integer artifactId = createTestArtifact();
+
+        String token = loginAndGetToken(
+            username,
+            password
+        );
+
+       
+        UUID missingEventId = UUID.randomUUID();
+
+        Map<String, Object> missingIdRequest =
+            createDurationRequest(
+                missingEventId,
+                artifactId,
+                "2026-11-01T10:00:00Z",
+                "2026-11-01T10:00:30Z"
+            );
+
+                        
+        missingIdRequest.remove("eventId");
+
+
+        Long countBefore = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM visitor_interaction",
+            Long.class
+        );
+
+
+mockMvc.perform(
+        post("/api/interactions")
+            .header("Authorization", "Bearer " + token)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(
+                missingIdRequest
+            ))
+    )
+    .andExpect(status().isBadRequest());
+
+
+        Long countAfter = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM visitor_interaction",
+            Long.class
+        );
+
+
+        assertEquals(
+            countBefore,
+            countAfter,
+            "Missing eventId must not create any interaction"
+         );
+
+
+        
+        UUID invalidTypeEventId = UUID.randomUUID();
+
+        Map<String, Object> invalidTypeRequest =
+            createDurationRequest(
+                invalidTypeEventId,
+                artifactId,
+                "2026-11-01T10:00:00Z",
+                "2026-11-01T10:00:30Z"
+            );
+
+        invalidTypeRequest.put(
+            "interactionType",
+            "INVALID_TYPE"
+        );
+
+        mockMvc.perform(
+                post("/api/interactions")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(
+                        invalidTypeRequest
+                    ))
+            )
+            .andExpect(status().isBadRequest());
+
+        assertEquals(
+            0L,
+            countInteractions(invalidTypeEventId)
+        );
+
+    
+        UUID invalidLanguageEventId = UUID.randomUUID();
+
+        Map<String, Object> invalidLanguageRequest =
+            createDurationRequest(
+                invalidLanguageEventId,
+                artifactId,
+                "2026-11-01T10:00:00Z",
+                "2026-11-01T10:00:30Z"
+            );
+
+        invalidLanguageRequest.put(
+            "languageCode",
+            "123_INVALID"
+        );
+
+        mockMvc.perform(
+                post("/api/interactions")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(
+                        invalidLanguageRequest
+                    ))
+            )
+            .andExpect(status().isBadRequest());
+
+        assertEquals(
+            0L,
+            countInteractions(invalidLanguageEventId)
+        );
+
+       
+        UUID invalidArtifactEventId = UUID.randomUUID();
+
+        Map<String, Object> invalidArtifactRequest =
+            createDurationRequest(
+                invalidArtifactEventId,
+                artifactId,
+                "2026-11-01T10:00:00Z",
+                "2026-11-01T10:00:30Z"
+            );
+
+        invalidArtifactRequest.put(
+            "artifactId",
+            -1
+        );
+
+        mockMvc.perform(
+                post("/api/interactions")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(
+                        invalidArtifactRequest
+                    ))
+            )
+            .andExpect(status().isBadRequest());
+
+        assertEquals(
+            0L,
+            countInteractions(invalidArtifactEventId)
+        );
+    }
+
+    
+
+    @Test
+    void shouldRejectInvalidTimeWithoutPersisting()
+            throws Exception {
+
+        Integer roleId = getVisitorRoleId();
+
+        String suffix = UUID.randomUUID()
+            .toString()
+            .substring(0, 8);
+
+        String username = "m5_invalid_time_" + suffix;
+        String password = "TestPass123!";
+
+        createTestUser(
+            roleId,
+            username,
+            password
+        );
+
+        Integer artifactId = createTestArtifact();
+
+        String token = loginAndGetToken(
+            username,
+            password
+        );
+
+        UUID eventId = UUID.randomUUID();
+
+        Map<String, Object> request =
+            createDurationRequest(
+                eventId,
+                artifactId,
+                "2026-11-01T10:05:00Z",
+                "2026-11-01T10:00:00Z"
+            );
+
+        mockMvc.perform(
+                post("/api/interactions")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+            )
+            .andExpect(status().isBadRequest());
+
+        assertEquals(
+            0L,
+            countInteractions(eventId),
+            "Invalid interaction must not be persisted"
+        );
+    }
+
 }
