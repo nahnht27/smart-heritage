@@ -275,6 +275,67 @@ class VisitorInteractionControllerTest {
                 .andExpect(jsonPath("$.success").value(false));
     }
 
+    @Test
+    void timeseries_shouldRequireAdminRole() throws Exception {
+        mockMvc.perform(get("/api/analytics/interactions/timeseries")
+                        .param("from", "2026-10-01T00:00:00Z")
+                        .param("to", "2026-10-02T00:00:00Z"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/analytics/interactions/timeseries")
+                        .header("Authorization", "Bearer " + visitorToken)
+                        .param("from", "2026-10-01T00:00:00Z")
+                        .param("to", "2026-10-02T00:00:00Z"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void languages_shouldRequireAdminRole() throws Exception {
+        mockMvc.perform(get("/api/analytics/interactions/languages")
+                        .param("from", "2026-10-01T00:00:00Z")
+                        .param("to", "2026-10-02T00:00:00Z"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/analytics/interactions/languages")
+                        .header("Authorization", "Bearer " + visitorToken)
+                        .param("from", "2026-10-01T00:00:00Z")
+                        .param("to", "2026-10-02T00:00:00Z"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void newAnalyticsEndpoints_shouldValidateRequiredAndBoundedRanges() throws Exception {
+        String[] endpoints = {
+                "/api/analytics/interactions/timeseries",
+                "/api/analytics/interactions/languages"
+        };
+
+        for (String endpoint : endpoints) {
+            mockMvc.perform(get(endpoint)
+                            .header("Authorization", "Bearer " + adminToken)
+                            .param("from", "2026-10-01T00:00:00Z"))
+                    .andExpect(status().isBadRequest());
+
+            mockMvc.perform(get(endpoint)
+                            .header("Authorization", "Bearer " + adminToken)
+                            .param("from", "2026-10-02T00:00:00Z")
+                            .param("to", "2026-10-01T00:00:00Z"))
+                    .andExpect(status().isBadRequest());
+
+            mockMvc.perform(get(endpoint)
+                            .header("Authorization", "Bearer " + adminToken)
+                            .param("from", "2026-01-01T00:00:00Z")
+                            .param("to", "2026-04-02T00:00:00Z"))
+                    .andExpect(status().isBadRequest());
+
+            mockMvc.perform(get(endpoint)
+                            .header("Authorization", "Bearer " + adminToken)
+                            .param("from", "not-an-instant")
+                            .param("to", "2026-10-02T00:00:00Z"))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
     private String createUserAndGetToken(String username, String roleName) throws Exception {
         Role role = roleRepository.findByName(roleName)
                 .orElseGet(() -> roleRepository.save(new Role(roleName)));

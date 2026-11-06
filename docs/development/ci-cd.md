@@ -10,6 +10,7 @@ pull_request (main) ─┐
 push (main, LTJ-*)  ─┼─> CI workflow
 workflow_dispatch   ─┘
                         ├── backend-test               (required)
+                        ├── postgres-integration       (required)
                         ├── frontend-checks            (required)
                         ├── mobile-tests               (required)
                         ├── mobile-static-analysis     (advisory)
@@ -41,6 +42,7 @@ Các job chạy song song trên `ubuntu-latest` và độc lập với nhau, tr�
 | Job | Gate | Lệnh chính | Ghi chú |
 |-----|------|------------|---------|
 | `backend-test` | **Required** | `cd backend && ./mvnw -B test` | Java 17 (Temurin), Maven Wrapper; upload Surefire reports |
+| `postgres-integration` | **Required** | `cd backend && ./mvnw -B -Ppostgres-integration verify` | PostgreSQL 16 service; Failsafe chạy `**/*IT.java`; report gate bắt buộc ≥22 test, 0 failure/error/skip |
 | `frontend-checks` | **Required** | `npm ci`, `npm run lint`, `npm run build` | `build` chạy `tsc -b && vite build` |
 | `mobile-tests` | **Required** | `npm ci`, `npm test -- --ci --coverage` | Upload coverage artifact |
 | `mobile-static-analysis` | **Advisory** | `npx tsc --noEmit`, `npm run lint` | `continue-on-error: true`; technical debt có sẵn |
@@ -52,6 +54,15 @@ Các job chạy song song trên `ubuntu-latest` và độc lập với nhau, tr�
 - Dùng Maven Wrapper (`./mvnw`) với wrapper 3.2.0; runner được setup JDK 17.
 - `mvn test` không bị skip. Test fail → job fail.
 - Report: artifact `backend-surefire-reports` (giữ 7 ngày).
+
+### PostgreSQL integration
+
+- Job dùng service `postgres:16-alpine` ephemeral, database `smart_heritage_ci`.
+- Chạy `./mvnw -B -Ppostgres-integration verify`; profile Failsafe chỉ chạy `**/*IT.java` và `failIfNoTests=true`.
+- Biến `POSTGRES_TEST_URL`, `POSTGRES_TEST_USERNAME`, `POSTGRES_TEST_PASSWORD` chỉ được map thành `SPRING_DATASOURCE_*` cho Failsafe fork, nên unit tests H2 không bị ảnh hưởng.
+- Step report gate parse `target/failsafe-reports/TEST-*VisitorInteractionPostgresIT.xml`; fail nếu không có report, test count `< 22`, hoặc có `failures`/`errors`/`skipped`.
+- Artifact: `postgres-integration-reports` (Surefire + Failsafe, giữ 7 ngày).
+- Không dùng `continue-on-error`, không `|| true`, không fallback H2 cho integration tests.
 
 ### Frontend Admin
 
@@ -95,6 +106,7 @@ Các job chạy song song trên `ubuntu-latest` và độc lập với nhau, tr�
 Required checks đề xuất cho `main`:
 
 - `backend-test`
+- `postgres-integration`
 - `frontend-checks`
 - `mobile-tests`
 - `docker-build`
@@ -144,8 +156,15 @@ Khi job fail:
 ## 5. Chạy lại local
 
 ```bash
-# Backend (cần Java 17 + Maven Wrapper; hoặc chạy trong Docker)
+# Backend unit tests (cần Java 17 + Maven Wrapper; hoặc chạy trong Docker)
 cd backend && ./mvnw -B test
+
+# PostgreSQL integration tests (cần PostgreSQL test DB riêng)
+cd backend
+POSTGRES_TEST_URL=jdbc:postgresql://localhost:55432/smart_heritage_test \
+POSTGRES_TEST_USERNAME=<test-user> \
+POSTGRES_TEST_PASSWORD=<test-password> \
+./mvnw -B -Ppostgres-integration verify
 
 # Frontend
 cd frontend && npm ci && npm run lint && npm run build
@@ -208,3 +227,10 @@ cho tới khi config được đưa vào Git một cách chủ động.
 - `mobile-static-analysis (advisory)`: FAIL như dự kiến — 2 lỗi TypeScript và
   1 lỗi ESLint có sẵn; không chặn PR.
 - Kết luận workflow: **success** (advisory job được phép fail).
+
+### M5 — PostgreSQL integration gate
+
+- Local: `./mvnw -B -Ppostgres-integration verify` → 95 unit tests + 22 PostgreSQL integration tests, BUILD SUCCESS.
+- CI: job `postgres-integration` được nâng từ chạy một test class bằng Surefire sang Failsafe + report gate.
+- Kết quả CI thực tế: PR #24, run `42261630401` — `postgres-integration` PASS (1m20s); report gate thấy 22 test, 0 failure/error/skip.
+- Run: https://github.com/nahnht27/smart-heritage/actions/runs/42261630401

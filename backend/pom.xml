@@ -97,4 +97,43 @@
         </plugins>
     </build>
 
+    <profiles>
+        <profile>
+            <id>postgres-integration</id>
+            <properties>
+                <postgres.it.url>${env.POSTGRES_TEST_URL}</postgres.it.url>
+                <postgres.it.username>${env.POSTGRES_TEST_USERNAME}</postgres.it.username>
+                <postgres.it.password>${env.POSTGRES_TEST_PASSWORD}</postgres.it.password>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <version>3.2.5</version>
+                        <configuration>
+                            <includes>
+                                <include>**/*IT.java</include>
+                            </includes>
+                            <failIfNoTests>true</failIfNoTests>
+                            <environmentVariables>
+                                <SPRING_DATASOURCE_URL>${postgres.it.url}</SPRING_DATASOURCE_URL>
+                                <SPRING_DATASOURCE_USERNAME>${postgres.it.username}</SPRING_DATASOURCE_USERNAME>
+                                <SPRING_DATASOURCE_PASSWORD>${postgres.it.password}</SPRING_DATASOURCE_PASSWORD>
+                            </environmentVariables>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
 </project>

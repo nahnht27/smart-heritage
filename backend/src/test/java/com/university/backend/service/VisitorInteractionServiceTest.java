@@ -1,9 +1,11 @@
 package com.university.backend.service;
 
 import com.university.backend.dto.CreateInteractionRequest;
+import com.university.backend.dto.DailyInteractionResponse;
 import com.university.backend.dto.InteractionCreationResult;
 import com.university.backend.dto.InteractionSummaryResponse;
 import com.university.backend.dto.InteractionTypeCountResponse;
+import com.university.backend.dto.LanguageCountResponse;
 import com.university.backend.entity.Artifact;
 import com.university.backend.entity.User;
 import com.university.backend.entity.VisitorInteraction;
@@ -11,6 +13,7 @@ import com.university.backend.exception.BadRequestException;
 import com.university.backend.exception.DuplicateResourceException;
 import com.university.backend.exception.ResourceNotFoundException;
 import com.university.backend.repository.ArtifactRepository;
+import com.university.backend.repository.DailyInteractionProjection;
 import com.university.backend.repository.UserRepository;
 import com.university.backend.repository.VisitorInteractionRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +25,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -216,6 +220,110 @@ class VisitorInteractionServiceTest {
         assertEquals(4L, result.uniqueVisitors());
         assertEquals(1, result.interactionTypes().size());
         assertEquals("VIEW", result.interactionTypes().get(0).interactionType());
+    }
+
+    @Test
+    void getDailyTimeSeries_shouldFillMissingDaysAcrossLeapDayInUtc() {
+        Instant from = Instant.parse("2028-02-28T00:00:00Z");
+        Instant to = Instant.parse("2028-03-02T00:00:00Z");
+        DailyInteractionProjection feb28 = dailyRow("2028-02-28", 2L, 1L);
+        DailyInteractionProjection mar01 = dailyRow("2028-03-01", 1L, 1L);
+        when(interactionRepository.findDailyInteractions(from, to))
+                .thenReturn(List.of(feb28, mar01));
+
+        List<DailyInteractionResponse> result =
+                interactionService.getDailyTimeSeries(from, to);
+
+        assertEquals(3, result.size());
+        assertEquals(LocalDate.parse("2028-02-28"), result.get(0).date());
+        assertEquals(2L, result.get(0).totalInteractions());
+        assertEquals(1L, result.get(0).uniqueVisitors());
+        assertEquals(LocalDate.parse("2028-02-29"), result.get(1).date());
+        assertEquals(0L, result.get(1).totalInteractions());
+        assertEquals(0L, result.get(1).uniqueVisitors());
+        assertEquals(LocalDate.parse("2028-03-01"), result.get(2).date());
+        assertEquals(1L, result.get(2).totalInteractions());
+    }
+
+    @Test
+    void getDailyTimeSeries_shouldUseUtcDateBucketsAndExcludeUpperBound() {
+        Instant from = Instant.parse("2026-12-31T23:00:00Z");
+        Instant to = Instant.parse("2027-01-01T01:00:00Z");
+        when(interactionRepository.findDailyInteractions(from, to))
+                .thenReturn(List.of());
+
+        List<DailyInteractionResponse> result =
+                interactionService.getDailyTimeSeries(from, to);
+
+        assertEquals(2, result.size());
+        assertEquals(LocalDate.parse("2026-12-31"), result.get(0).date());
+        assertEquals(LocalDate.parse("2027-01-01"), result.get(1).date());
+        assertEquals(0L, result.get(0).totalInteractions());
+        assertEquals(0L, result.get(1).totalInteractions());
+    }
+
+    @Test
+    void getDailyTimeSeries_shouldReturnOnlyZeroBucketsWhenThereIsNoData() {
+        Instant from = Instant.parse("2026-01-01T00:00:00Z");
+        Instant to = Instant.parse("2026-01-04T00:00:00Z");
+        when(interactionRepository.findDailyInteractions(from, to))
+                .thenReturn(List.of());
+
+        List<DailyInteractionResponse> result =
+                interactionService.getDailyTimeSeries(from, to);
+
+        assertEquals(3, result.size());
+        assertTrue(result.stream().allMatch(row ->
+                row.totalInteractions() == 0L && row.uniqueVisitors() == 0L));
+    }
+
+    @Test
+    void getLanguageAnalytics_shouldTrimMergeUnknownAndSortByCountThenCode() {
+        Instant from = Instant.parse("2026-01-01T00:00:00Z");
+        Instant to = Instant.parse("2026-01-02T00:00:00Z");
+        when(interactionRepository.countByLanguageInPeriod(from, to))
+                .thenReturn(List.of(
+                        new LanguageCountResponse("vi", 2L),
+                        new LanguageCountResponse("vi ", 1L),
+                        new LanguageCountResponse("en", 3L),
+                        new LanguageCountResponse("", 1L),
+                        new LanguageCountResponse(null, 1L)));
+
+        List<LanguageCountResponse> result =
+                interactionService.getLanguageAnalytics(from, to);
+
+        assertEquals(3, result.size());
+        assertEquals("en", result.get(0).languageCode());
+        assertEquals(3L, result.get(0).interactionCount());
+        assertEquals("vi", result.get(1).languageCode());
+        assertEquals(3L, result.get(1).interactionCount());
+        assertEquals("UNKNOWN", result.get(2).languageCode());
+        assertEquals(2L, result.get(2).interactionCount());
+        assertEquals(8L, result.stream()
+                .mapToLong(LanguageCountResponse::interactionCount)
+                .sum());
+    }
+
+    @Test
+    void getLanguageAnalytics_shouldReturnEmptyListWhenThereIsNoData() {
+        Instant from = Instant.parse("2026-01-01T00:00:00Z");
+        Instant to = Instant.parse("2026-01-02T00:00:00Z");
+        when(interactionRepository.countByLanguageInPeriod(from, to))
+                .thenReturn(List.of());
+
+        assertTrue(interactionService.getLanguageAnalytics(from, to).isEmpty());
+    }
+
+    private DailyInteractionProjection dailyRow(
+            String date,
+            long totalInteractions,
+            long uniqueVisitors) {
+        DailyInteractionProjection projection =
+                mock(DailyInteractionProjection.class);
+        when(projection.getInteractionDate()).thenReturn(LocalDate.parse(date));
+        when(projection.getTotalInteractions()).thenReturn(totalInteractions);
+        when(projection.getUniqueVisitors()).thenReturn(uniqueVisitors);
+        return projection;
     }
 
     @Test

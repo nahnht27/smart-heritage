@@ -350,3 +350,133 @@ Bộ test dùng Vitest 5 + React Testing Library + jsdom, chạy qua `npm test`.
   2. `fix(frontend): handle logout and unauthorized sessions`
   3. `test(frontend): cover admin authentication lifecycle`
 - Push branch và tạo PR về `main`; không tự merge.
+
+---
+
+# Wave 3 — M5 Analytics & PostgreSQL Reliability
+
+**Ngày:** 2026-11-07
+
+**Branch:** `feat/m5-analytics-postgres-reliability` (tạo từ `origin/main` @ `a1063b3`)
+
+**Phạm vi:** port có chọn lọc M5 từ `origin/LTJ-50`; thêm analytics timeseries/languages; đưa PostgreSQL integration suite vào Maven/CI; cập nhật tài liệu.
+
+**Nguyên tắc:** không merge/rebase raw `LTJ-50`, không sửa trực tiếp `main`, không reset/rebase/force-push, không đụng database dev, không commit secret hay artifact benchmark.
+
+## 15. Trạng thái hạng mục
+
+| Hạng mục | Trạng thái | Ghi chú |
+|---|---|---|
+| Port analytics timeseries từ `LTJ-50` | **DONE** | Adapt theo Wave 3; UTC date buckets, zero-fill, `[from, to)` |
+| Port language analytics từ `LTJ-50` | **DONE** | Trim + bucket `UNKNOWN`; sort count desc, code asc |
+| PostgreSQL integration suite | **DONE** | 22 tests, schema Wave 3 + Flyway V2 |
+| Maven Failsafe profile | **DONE** | Chỉ chạy `**/*IT.java`; env DB chỉ truyền cho Failsafe |
+| CI integration gate | **DONE** | Parse Failsafe XML; fail nếu `< 22` test hoặc có failure/error/skip |
+| API contract docs | **DONE** | Thêm 2 endpoint + checklist |
+| PostgreSQL test report | **DONE** | Cập nhật báo cáo 22 tests |
+| Frontend charts cho timeseries/languages | **DEFERRED** | Ngoài scope backend wave này |
+| Production-scale performance/EXPLAIN | **DEFERRED** | Chỉ có baseline local |
+
+## 16. Root cause và implementation chính
+
+### 16.1 Không merge raw `LTJ-50`
+
+`LTJ-50` được tạo từ base cũ `5b77c2d`, trước Wave 3. Merge raw sẽ ghi đè các thay đổi quan trọng:
+
+- `visitorId` UUID và `userId` nullable.
+- User identity lấy từ JWT principal, không tin `userId` client gửi.
+- Idempotency theo username + `eventId`, cho phép `visitorId` thay đổi sau reinstall.
+- Unique visitors tính theo `visitorId`.
+
+Vì vậy chỉ port/adapt phần M5 còn giá trị và viết lại test theo contract hiện tại.
+
+### 16.2 Analytics timeseries/languages
+
+- `VisitorInteractionRepository.findDailyInteractions` dùng native PostgreSQL query, nhóm theo `CAST(interacted_at AT TIME ZONE 'UTC' AS DATE)`.
+- `countByLanguageInPeriod` dùng JPQL aggregation.
+- Service zero-fill mọi ngày UTC trong range; ngày cuối là `to - 1ns`.
+- Language null/rỗng được chuẩn hóa thành `UNKNOWN`.
+
+### 16.3 Sửa lỗi projection native query
+
+Alias snake_case không map vào interface projection, làm count trả `0`. Đã đổi sang alias camelCase có quote:
+
+```sql
+AS "interactionDate",
+AS "totalInteractions",
+AS "uniqueVisitors"
+```
+
+Sau fix, toàn bộ 22 integration tests pass.
+
+### 16.4 Tách env PostgreSQL khỏi unit tests
+
+Lần chạy đầu đặt `SPRING_DATASOURCE_URL` ở cấp job, khiến Surefire unit tests H2 cũng thấy biến này và cố kết nối PostgreSQL, gây `ApplicationContext failure`.
+
+Giải pháp:
+
+- CI/local dùng `POSTGRES_TEST_URL`, `POSTGRES_TEST_USERNAME`, `POSTGRES_TEST_PASSWORD`.
+- Failsafe map các biến này thành `SPRING_DATASOURCE_*` **chỉ cho fork integration tests**.
+- Surefire H2 không còn bị ảnh hưởng.
+
+## 17. Files changed
+
+**Backend source**
+
+- `backend/src/main/java/com/university/backend/dto/DailyInteractionResponse.java` (new)
+- `backend/src/main/java/com/university/backend/dto/LanguageCountResponse.java` (new)
+- `backend/src/main/java/com/university/backend/repository/DailyInteractionProjection.java` (new)
+- `backend/src/main/java/com/university/backend/repository/VisitorInteractionRepository.java`
+- `backend/src/main/java/com/university/backend/service/VisitorInteractionService.java`
+- `backend/src/main/java/com/university/backend/controller/VisitorInteractionController.java`
+
+**Tests / build**
+
+- `backend/src/test/java/com/university/backend/service/VisitorInteractionServiceTest.java`
+- `backend/src/test/java/com/university/backend/controller/VisitorInteractionControllerTest.java`
+- `backend/src/test/java/com/university/backend/integration/VisitorInteractionPostgresIT.java`
+- `backend/pom.xml`
+
+**CI / docs**
+
+- `.github/workflows/ci.yml`
+- `docs/integration/api-contract.md`
+- `docs/testing/postgresql-integration-report.md`
+- `docs/reports/post-sprint4-hardening-report.md`
+- `docs/reports/m5-analytics-postgres-integration-report.md` (new)
+- `docs/development/ci-cd.md`
+
+## 18. Kết quả kiểm chứng
+
+| Check | Kết quả | Chi tiết |
+|---|---|---|
+| Backend unit tests | **PASS** | 95 tests |
+| PostgreSQL integration tests | **PASS** | 22 tests, 0 failures/errors/skipped |
+| Full `verify` | **PASS** | `./mvnw -B -Ppostgres-integration verify` |
+| Performance baseline | **PASS** | 200 interactions, combined analytics 22 ms (local) |
+| `git diff --check` | **PASS** | Không lỗi whitespace |
+| CI PostgreSQL gate | **PASS** | PR #24, run `42261630401`; job `postgres-integration` pass 1m20s |
+
+Chi tiết đầy đủ: [`docs/testing/postgresql-integration-report.md`](../testing/postgresql-integration-report.md) và [`docs/reports/m5-analytics-postgres-integration-report.md`](./m5-analytics-postgres-integration-report.md).
+
+## 19. Rủi ro còn lại
+
+1. Performance baseline chỉ là local, single-run; chưa có tải cao/`EXPLAIN ANALYZE`.
+2. Admin Dashboard chưa dùng hai endpoint mới; cần wave frontend riêng cho biểu đồ.
+3. Chưa chạy mobile runtime E2E trên thiết bị/emulator.
+4. CI phụ thuộc PostgreSQL ephemeral; không fallback H2 cho integration tests.
+5. Test-count gate hard-code 22; phải cập nhật khi thêm test.
+6. Branch protection cần maintainer bật required check `postgres-integration`.
+
+## 20. Git Delivery Wave 3
+
+- Branch: `feat/m5-analytics-postgres-reliability`
+- Base: `origin/main` @ `a1063b3`
+- Commit groups:
+  1. `test(backend): add PostgreSQL interaction integration coverage`
+  2. `feat(backend): add interaction timeseries analytics`
+  3. `feat(backend): add interaction language analytics`
+  4. `ci(backend): enforce PostgreSQL integration tests`
+  5. `docs: document M5 analytics and PostgreSQL verification`
+- PR: https://github.com/nahnht27/smart-heritage/pull/24
+- Không tự merge; chờ maintainer review/merge.
