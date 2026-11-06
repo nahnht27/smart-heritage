@@ -202,6 +202,7 @@ Trả về: `{"status":"UP","timestamp":"..."}` (dạng `Map`, không dùng enve
 | Trường | Kiểu | Ràng buộc | Mô tả |
 |--------|------|-----------|-------|
 | `eventId` | UUID | `@NotNull` | UUID định danh sự kiện, dùng để tránh ghi trùng (idempotency) |
+| `visitorId` | UUID | `@NotNull` | UUID ẩn danh, ổn định theo thiết bị; dùng cho `uniqueVisitors` |
 | `artifactId` | Integer | `@NotNull`, `@Positive` | ID hiện vật tương tác |
 | `interactionType` | String | `@NotBlank`, `@Pattern(VIEW\|AUDIO_PLAY\|SCAN)` | Loại tương tác |
 | `languageCode` | String | `@NotBlank`, `@Size(max=16)`, `@Pattern([A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*)` | Mã ngôn ngữ (ví dụ `vi`, `en`) |
@@ -209,7 +210,9 @@ Trả về: `{"status":"UP","timestamp":"..."}` (dạng `Map`, không dùng enve
 | `endedAt` | Instant | Tùy chọn | Thời điểm kết thúc tương tác |
 | `interactedAt` | Instant | `@NotNull` | Thời điểm sự kiện xảy ra |
 
-Request: `POST /api/interactions`, header `Authorization: Bearer <accessToken>`.
+Request: `POST /api/interactions`. Endpoint công khai: khách ẩn danh không cần token.
+Nếu có header `Authorization: Bearer <accessToken>` hợp lệ, backend gán `user_id` theo principal.
+Client **không** gửi `userId`; nếu body có `userId` thì backend bỏ qua, không tin giá trị client.
 
 **Response:**
 
@@ -218,11 +221,12 @@ Request: `POST /api/interactions`, header `Authorization: Bearer <accessToken>`.
 | `201 Created` | Tạo sự kiện tương tác mới thành công |
 | `200 OK` | Sự kiện đã tồn tại theo `eventId` (idempotency), trả về bản ghi hiện có |
 | `400 Bad Request` | Dữ liệu không hợp lệ (validation, `endedAt` trước `startedAt`, `interactionType` không hợp lệ, v.v.) |
-| `401 Unauthorized` | Chưa đăng nhập |
-| `404 Not Found` | `artifactId` không tồn tại hoặc user không tồn tại |
-| `409 Conflict` | `eventId` đã được dùng bởi user khác, hoặc vi phạm unique constraint `event_id` khi request đồng thời |
+| `404 Not Found` | `artifactId` không tồn tại (hoặc user trong token không tồn tại) |
+| `409 Conflict` | `eventId` đã được dùng bởi user/visitor khác, hoặc vi phạm unique constraint `event_id` khi request đồng thời |
 
-**Quy tắc idempotency:** Gửi cùng `eventId` nhiều lần chỉ tạo **một** bản ghi trong database. Lần đầu trả về `201 Created`, lần sau trả về `200 OK` với thông báo `"Interaction event was already recorded"`. Nếu `eventId` đã được dùng bởi user khác, trả về `409 Conflict`.
+**Quy tắc idempotency:** Gửi cùng `eventId` nhiều lần chỉ tạo **một** bản ghi trong database. Lần đầu trả về `201 Created`, lần sau trả về `200 OK` với thông báo `"Interaction event was already recorded"`.
+Retry hợp lệ khi cùng danh tính: user đã đăng nhập trùng username (không bắt buộc trùng `visitorId`), hoặc khách ẩn danh trùng `visitorId`.
+Nếu `eventId` đã được dùng bởi user/visitor khác, trả về `409 Conflict`.
 
 **Giới hạn race condition:** Nếu hai request cùng `eventId` đến gần cùng một lúc, cả hai có thể thấy `eventId` chưa tồn tại và cùng cố insert. Một trong hai sẽ vi phạm unique constraint `event_id` và nhận `409 Conflict` với thông báo `"The submitted eventId has already been recorded."`. Do đó, trong trường hợp race condition, client có thể nhận `201 Created` (lần đầu) hoặc `409 Conflict` (lần bị chặn bởi unique constraint). Client nên xem cả hai mã trạng thái là thành công (sự kiện đã được ghi).
 
@@ -231,6 +235,7 @@ Request: `POST /api/interactions`, header `Authorization: Bearer <accessToken>`.
 ```json
 {
   "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "visitorId": "11111111-1111-4111-8111-111111111111",
   "artifactId": 1,
   "interactionType": "VIEW",
   "languageCode": "vi",
@@ -287,7 +292,7 @@ Yêu cầu header `Authorization: Bearer <accessToken>` và role `ADMIN`.
 | `from` | Instant | Thời điểm bắt đầu lọc |
 | `to` | Instant | Thời điểm kết thúc lọc |
 | `totalInteractions` | long | Tổng số sự kiện trong khoảng |
-| `uniqueVisitors` | long | Số visitor duy nhất (distinct `userId`) |
+| `uniqueVisitors` | long | Số visitor duy nhất (distinct `visitorId`) |
 | `interactionTypes` | List | Danh sách `{interactionType, count}` |
 | `popularArtifacts` | List | Top 10 artifact phổ biến nhất `{artifactId, artifactName, count}` |
 
@@ -297,7 +302,7 @@ Nếu không có dữ liệu, các danh sách trả về rỗng và các số l�
 
 ### 2.8 Visitor Interaction / Analytics — trạng thái triển khai
 
-Backend đã có implementation đầy đủ cho hai endpoint trên. Mobile chỉ có service layer (`mobile/src/services/interactionApi.ts`) để gọi API, chưa có màn hình UI gọi thực sự.
+Backend đã có implementation đầy đủ cho hai endpoint trên. Mobile ghi sự kiện `VIEW` thật khi mở màn hình chi tiết hiện vật; sự kiện ẩn danh và đã đăng nhập đều được hỗ trợ. Admin Dashboard hiển thị dữ liệu analytics thật từ endpoint summary.
 
 ---
 
@@ -430,7 +435,7 @@ environment:
 | 16 | Ghi sự kiện tương tác (visitor) | `POST /api/interactions` + token visitor + `eventId` mới | `201 Created`, `success: true` |
 | 17 | Ghi sự kiện trùng `eventId` (visitor) | `POST /api/interactions` + cùng `eventId` lần 2 | `200 OK`, `"Interaction event was already recorded"` |
 | 18 | Ghi sự kiện trùng `eventId` (user khác) | `POST /api/interactions` + cùng `eventId`, token user khác | `409 Conflict` |
-| 19 | Ghi sự kiện không xác thực | `POST /api/interactions` không có token | `401 Unauthorized` |
+| 19 | Ghi sự kiện ẩn danh | `POST /api/interactions` không có token, có `visitorId` | `201 Created` |
 | 20 | Xem analytics summary (ADMIN) | `GET /api/analytics/interactions/summary?from=..&to=..` + token ADMIN | `200 OK`, `totalInteractions`, `uniqueVisitors`, ... |
 | 21 | Xem analytics summary (VISITOR) | `GET /api/analytics/interactions/summary` + token VISITOR | `403 Forbidden` |
 | 22 | Xem analytics summary (không token) | `GET /api/analytics/interactions/summary` không có token | `401 Unauthorized` |
@@ -441,6 +446,6 @@ environment:
 
 ## 7. Ghi chú cho M3–M5
 
-- M3 (Mobile) có service layer `mobile/src/services/interactionApi.ts` để gọi `POST /api/interactions` (tạo `eventId` UUID, gửi Bearer token từ `authStorage`). **Chưa có màn hình UI gọi thực sự** tại thời điểm viết tài liệu này. Không gọi API tương tác từ màn hình mobile cho đến khi có luồng quét/iBeacon/Xem thực tế.
+- M3 (Mobile) tạo `eventId` UUID cho mỗi lượt xem, lưu `visitorId` UUID ổn định trong AsyncStorage, gửi Bearer token nếu có, và ghi `VIEW` khi màn hình chi tiết hiện vật tải thành công. Không ghi từ màn hình mock (yêu thích/lịch sử) và chưa ghi `SCAN`/`AUDIO_PLAY` khi tính năng thật chưa tồn tại.
 - M5 (Visitor Interaction / Analytics) đã có implementation backend: entity `VisitorInteraction`, repository, service, controller, DTO, exception handler, và tests. Các endpoint: `POST /api/interactions`, `GET /api/analytics/interactions/summary`.
 - Nếu M3/M5 cần thêm endpoint, hãy mở PR và cập nhật tài liệu này kèm theo.

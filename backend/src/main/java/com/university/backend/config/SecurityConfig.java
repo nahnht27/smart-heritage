@@ -50,6 +50,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/heritage-sites/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/artifacts/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/multimedia/**").permitAll()
+                // Interaction recording works for anonymous visitors too. The
+                // authenticated owner is resolved from the JWT principal when
+                // one is present; analytics remains protected by @PreAuthorize.
+                .requestMatchers(HttpMethod.POST, "/api/interactions").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .anyRequest().authenticated())
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

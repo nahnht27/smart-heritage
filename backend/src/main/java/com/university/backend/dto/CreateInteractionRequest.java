@@ -14,6 +14,9 @@ public class CreateInteractionRequest {
     private UUID eventId;
 
     @NotNull
+    private UUID visitorId;
+
+    @NotNull
     @Positive
     private Integer artifactId;
 
@@ -40,6 +43,14 @@ public class CreateInteractionRequest {
 
     public void setEventId(UUID eventId) {
         this.eventId = eventId;
+    }
+
+    public UUID getVisitorId() {
+        return visitorId;
+    }
+
+    public void setVisitorId(UUID visitorId) {
+        this.visitorId = visitorId;
     }
 
     public Integer getArtifactId() {

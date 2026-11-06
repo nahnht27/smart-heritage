@@ -32,8 +32,9 @@ public class VisitorInteractionController {
     public ResponseEntity<ApiResponse<InteractionRecordResponse>> createInteraction(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody CreateInteractionRequest request) {
+        String username = userDetails != null ? userDetails.getUsername() : null;
         InteractionCreationResult result =
-                interactionService.createInteraction(userDetails.getUsername(), request);
+                interactionService.createInteraction(username, request);
         InteractionRecordResponse response =
                 InteractionRecordResponse.fromEntity(result.interaction());
         if (!result.created()) {

@@ -27,7 +27,7 @@ public interface VisitorInteractionRepository
     long countInPeriod(@Param("from") Instant from, @Param("to") Instant to);
 
     @Query("""
-            select count(distinct i.user.userId)
+            select count(distinct i.visitorId)
             from VisitorInteraction i
             where i.interactedAt >= :from
                 and i.interactedAt < :to
