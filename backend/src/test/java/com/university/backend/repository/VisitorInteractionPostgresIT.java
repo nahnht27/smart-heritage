@@ -1296,5 +1296,280 @@ mockMvc.perform(
             "Invalid interaction must not be persisted"
         );
     }
+    
+   
+
+    @Test
+    void shouldMeasurePostgreSQLPerformanceBaseline() {
+
+        final int recordCount = 200;
+        final int warmupRuns = 5;
+        final int measuredRuns = 30;
+
+        Integer roleId = getVisitorRoleId();
+
+        String suffix = UUID.randomUUID()
+            .toString()
+            .substring(0, 8);
+
+        Integer userId = createTestUser(
+            roleId,
+            "m5_performance_" + suffix,
+            "TestPass123!"
+        );
+
+        Integer artifactId = createTestArtifact();
+
+        Instant from = Instant.parse("2025-04-01T00:00:00Z");
+        Instant to = Instant.parse("2025-04-02T00:00:00Z");
+
+       
+
+        long insertStart = System.nanoTime();
+
+        for (int i = 0; i < recordCount; i++) {
+
+            insertAnalyticsInteraction(
+                userId,
+                artifactId,
+                "VIEW",
+                "vi",
+                from.plusSeconds(i)
+            );
+        }
+
+        long insertEnd = System.nanoTime();
+
+        double insertMs =
+            (insertEnd - insertStart) / 1_000_000.0;
+
+        double averageInsertMs =
+            insertMs / recordCount;
+
+        double insertThroughput =
+            recordCount / (insertMs / 1000.0);
+
+       
+
+        long totalInteractions =
+            interactionRepository.countInPeriod(from, to);
+
+        long uniqueVisitors =
+            interactionRepository.countUniqueVisitorsInPeriod(
+                from, to
+            );
+
+        assertEquals(
+            recordCount,
+            totalInteractions,
+            "PostgreSQL must contain all inserted records"
+        );
+
+        assertEquals(
+            1L,
+            uniqueVisitors,
+            "All interactions belong to one visitor"
+        );
+
+        List<InteractionTypeCountResponse> types =
+            interactionRepository.countByTypeInPeriod(
+                from, to
+            );
+
+        assertEquals(1, types.size());
+        assertEquals("VIEW", types.get(0).interactionType());
+        assertEquals(recordCount, types.get(0).count());
+
+        List<PopularArtifactResponse> popular =
+            interactionRepository.findPopularArtifactsInPeriod(
+                from,
+                to,
+                PageRequest.of(0, 10)
+            );
+
+        assertEquals(1, popular.size());
+        assertEquals(artifactId, popular.get(0).artifactId());
+
+        assertEquals(
+            recordCount,
+            popular.get(0).interactionCount()
+        );
+
+       
+
+        for (int i = 0; i < warmupRuns; i++) {
+
+            interactionRepository.countInPeriod(from, to);
+
+            interactionRepository.countUniqueVisitorsInPeriod(
+                from, to
+            );
+
+            interactionRepository.countByTypeInPeriod(
+                from, to
+            );
+
+            interactionRepository.findPopularArtifactsInPeriod(
+                from,
+                to,
+                PageRequest.of(0, 10)
+            );
+        }
+
+        
+
+        List<Long> queryLatencyNanos =
+            new ArrayList<>();
+
+        for (int i = 0; i < measuredRuns; i++) {
+
+            long queryStart = System.nanoTime();
+
+            interactionRepository.countInPeriod(from, to);
+
+            interactionRepository.countUniqueVisitorsInPeriod(
+                from, to
+            );
+
+            interactionRepository.countByTypeInPeriod(
+                from, to
+            );
+
+            interactionRepository.findPopularArtifactsInPeriod(
+                from,
+                to,
+                PageRequest.of(0, 10)
+            );
+
+            long queryEnd = System.nanoTime();
+
+            queryLatencyNanos.add(
+                queryEnd - queryStart
+            );
+        }
+
+
+        queryLatencyNanos.sort(Long::compareTo);
+
+        double totalQueryNanos = 0;
+
+        for (Long latency : queryLatencyNanos) {
+            totalQueryNanos += latency;
+        }
+
+        double averageQueryMs =
+            totalQueryNanos / measuredRuns / 1_000_000.0;
+
+        int p95Index =
+            (int) Math.ceil(measuredRuns * 0.95) - 1;
+
+        double p95QueryMs =
+            queryLatencyNanos.get(p95Index) / 1_000_000.0;
+
+        double minQueryMs =
+            queryLatencyNanos.get(0) / 1_000_000.0;
+
+        double maxQueryMs =
+            queryLatencyNanos.get(measuredRuns - 1)
+                / 1_000_000.0;
+
+        
+
+        System.out.println();
+        System.out.println(
+            "=========================================="
+        );
+        System.out.println(
+            "M5 - POSTGRESQL PERFORMANCE BASELINE"
+        );
+        System.out.println(
+            "=========================================="
+        );
+
+        System.out.println(
+            "Database: smart_heritage_test"
+        );
+
+        System.out.println(
+            "Inserted records: " + recordCount
+        );
+
+        System.out.printf(
+            java.util.Locale.US,
+            "Total insert time: %.2f ms%n",
+            insertMs
+        );
+
+        System.out.printf(
+            java.util.Locale.US,
+            "Average insert latency: %.3f ms%n",
+            averageInsertMs
+        );
+
+        System.out.printf(
+            java.util.Locale.US,
+            "Insert throughput: %.2f records/sec%n",
+            insertThroughput
+        );
+
+        System.out.println(
+            "------------------------------------------"
+        );
+
+        System.out.println(
+            "Analytics warmup runs: " + warmupRuns
+        );
+
+        System.out.println(
+            "Analytics measured runs: " + measuredRuns
+        );
+
+        System.out.printf(
+            java.util.Locale.US,
+            "Average analytics latency: %.3f ms%n",
+            averageQueryMs
+        );
+
+        System.out.printf(
+            java.util.Locale.US,
+            "P95 analytics latency: %.3f ms%n",
+            p95QueryMs
+        );
+
+        System.out.printf(
+            java.util.Locale.US,
+            "Min analytics latency: %.3f ms%n",
+            minQueryMs
+        );
+
+        System.out.printf(
+            java.util.Locale.US,
+            "Max analytics latency: %.3f ms%n",
+            maxQueryMs
+        );
+
+        System.out.println(
+            "------------------------------------------"
+        );
+
+        System.out.println(
+            "Total interactions verified: "
+                + totalInteractions
+        );
+
+        System.out.println(
+            "Unique visitors verified: "
+                + uniqueVisitors
+        );
+
+        System.out.println(
+            "Database integrity: PASS"
+        );
+
+        System.out.println(
+            "=========================================="
+        );
+    }
+
 
 }
