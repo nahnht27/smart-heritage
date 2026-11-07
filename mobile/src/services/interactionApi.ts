@@ -6,12 +6,12 @@
  * Tuân theo contract docs/requirements/visitor-interaction-data-contract.md.
  *
  * - POST /api/interactions is public; the Bearer token is optional.
- * - Payload: { eventId, visitorId, artifactId, interactionType, languageCode,
- *   startedAt, interactedAt, endedAt? }
- * - interactionType: VIEW | AUDIO_PLAY | SCAN
+ * - Payload: { eventId, visitorId, artifactId, beaconId?, interactionType,
+ *   languageCode, startedAt, interactedAt, endedAt? }
+ * - interactionType: VIEW | AUDIO_PLAY | SCAN | BEACON_TRIGGER
  * - eventId is a unique UUID and must be reused when retrying one logical event.
  * - visitorId is the persistent pseudonymous installation UUID.
- * - userId, beaconId and durationSeconds are never sent by the client.
+ * - userId and durationSeconds are never sent by the client.
  * - API/network failures return a result instead of crashing or blocking content.
  */
 
@@ -19,11 +19,12 @@ import { apiClient } from './api';
 import { authStorage } from './authStorage';
 import { visitorStorage } from './visitorStorage';
 
-export type InteractionType = 'VIEW' | 'AUDIO_PLAY' | 'SCAN';
+export type InteractionType = 'VIEW' | 'AUDIO_PLAY' | 'SCAN' | 'BEACON_TRIGGER';
 
 export interface CreateInteractionEvent {
   eventId: string;
   artifactId: number;
+  beaconId?: number | null;
   interactionType: InteractionType;
   languageCode: string;
   startedAt: string;
@@ -72,6 +73,7 @@ export const interactionApi = {
         eventId: event.eventId,
         visitorId,
         artifactId: event.artifactId,
+        beaconId: event.beaconId ?? null,
         interactionType: event.interactionType,
         languageCode: event.languageCode ?? 'vi',
         startedAt: event.startedAt,

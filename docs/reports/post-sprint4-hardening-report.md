@@ -480,3 +480,75 @@ Chi tiết đầy đủ: [`docs/testing/postgresql-integration-report.md`](../te
   5. `docs: document M5 analytics and PostgreSQL verification`
 - PR: https://github.com/nahnht27/smart-heritage/pull/24
 - Không tự merge; chờ maintainer review/merge.
+
+---
+
+# Wave 4 — iBeacon Mobile Integration
+
+## 21. Phạm vi
+
+Wave 4 triển khai luồng iBeacon foreground:
+
+- Backend lưu beacon identity `(proximity_uuid, major, minor)`, ánh xạ tới artifact.
+- Public API resolve beacon cho visitor.
+- Admin API CRUD beacon.
+- Interaction `BEACON_TRIGGER` có `beaconId`.
+- Mobile foreground scanner, trigger state machine, resolve API, banner và ghi interaction.
+
+Background scanning, foreground service, native build và kiểm chứng phần cứng **không nằm trong kết quả đã xác minh** của wave này.
+
+## 22. Thay đổi chính
+
+### Backend
+
+- Thêm `Beacon` entity, repository, service, DTO, public controller và admin controller.
+- Thêm migration `V3__beacon_management.sql`.
+- Thêm `beacon_id` nullable vào `visitor_interaction` với FK `ON DELETE SET NULL`.
+- Mở public `GET /api/beacons/**`; admin endpoints dùng `@PreAuthorize("hasRole('ADMIN')")`.
+- Mở rộng interaction type với `BEACON_TRIGGER` và validate beacon/artifact.
+- Response interaction trả thêm `beaconId`.
+- Duplicate beacon identity trả `409 Conflict`.
+
+### Mobile
+
+- Thêm `react-native-beacon-kit@0.12.0` và `react-native-permissions@5.6.3`.
+- Thêm local Expo plugin `plugins/with-beacon-permissions.js`.
+- Thêm beacon parsing/validation, trigger state machine, native wrapper, resolve API.
+- Thêm hook `use-beacon-discovery` và component `BeaconDiscoveryPanel`.
+- Home có toggle quét beacon, trạng thái lỗi/quyền, banner “Xem chi tiết”.
+- Interaction API gửi `beaconId` và hỗ trợ `BEACON_TRIGGER`.
+
+## 23. Kiểm chứng
+
+| Check | Kết quả | Chi tiết |
+|---|---|---|
+| Backend compile | PASS | Docker Maven |
+| Backend unit tests | PASS | 120 tests |
+| PostgreSQL integration tests | PASS | 22 tests, gồm Flyway V3 |
+| Mobile TypeScript | PASS | `npx tsc --noEmit` |
+| Mobile lint | PASS | `npm run lint` |
+| Mobile Jest | PASS | 9 suites, 81 tests |
+| Expo config introspection | PASS | Android permissions + iOS Info.plist |
+| `npx expo-doctor` | 18/21 checks | 2 cảnh báo dependency/version có sẵn, không do Wave 4 |
+| Native Android build | **CHƯA CHẠY** | Không có kết quả |
+| Native iOS build | **CHƯA CHẠY** | Không có macOS |
+| Thiết bị/beacon thật | **CHƯA CHẠY** | Không có kết quả phần cứng |
+
+## 24. Rủi ro còn lại
+
+1. `react-native-beacon-kit@0.12.0` ít phổ biến và chưa được xác minh native trên RN 0.86/Expo 57.
+2. Chưa có native build; lỗi Gradle/Pod/native linking có thể còn tồn tại.
+3. Chưa hiệu chỉnh RSSI threshold bằng beacon thật.
+4. Chưa có background scanning/foreground service.
+5. Chưa có cache beacon → artifact; resolve cần mạng.
+6. iOS permission/background behavior chưa được kiểm chứng.
+7. `npm install` cần `--legacy-peer-deps` do xung đột Babel có sẵn.
+
+## 25. Git delivery Wave 4
+
+- Branch: `feat/mobile-ibeacon-discovery`
+- Base: `origin/main` @ `e0ef5388f4e41d4e64d2764780185d524a30224d`
+- PR: cập nhật sau khi push.
+- Không tự merge; chờ maintainer review.
+
+Chi tiết: [`docs/features/ibeacon-mobile-integration.md`](../features/ibeacon-mobile-integration.md).

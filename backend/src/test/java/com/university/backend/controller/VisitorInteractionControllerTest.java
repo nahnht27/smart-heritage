@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.university.backend.entity.Role;
 import com.university.backend.entity.User;
 import com.university.backend.repository.ArtifactRepository;
+import com.university.backend.repository.BeaconRepository;
 import com.university.backend.repository.HeritageSiteRepository;
 import com.university.backend.repository.RoleRepository;
 import com.university.backend.repository.UserRepository;
@@ -48,6 +49,9 @@ class VisitorInteractionControllerTest {
     private ArtifactRepository artifactRepository;
 
     @Autowired
+    private BeaconRepository beaconRepository;
+
+    @Autowired
     private HeritageSiteRepository heritageSiteRepository;
 
     @Autowired
@@ -64,23 +68,26 @@ class VisitorInteractionControllerTest {
 
     private String adminToken;
     private String visitorToken;
+    private int siteId;
     private int artifactId;
 
     @BeforeEach
     void setUpInteractionFixtures() throws Exception {
         interactionRepository.deleteAll();
+        beaconRepository.deleteAll();
         artifactRepository.deleteAll();
         heritageSiteRepository.deleteAll();
         userRepository.deleteAll();
         adminToken = createUserAndGetToken("interaction_admin", "ADMIN");
         visitorToken = createUserAndGetToken("interaction_visitor", "VISITOR");
-        int siteId = createSite(adminToken);
+        siteId = createSite(adminToken);
         artifactId = createArtifact(adminToken, siteId);
     }
 
     @AfterEach
     void cleanInteractionFixtures() {
         interactionRepository.deleteAll();
+        beaconRepository.deleteAll();
         artifactRepository.deleteAll();
         heritageSiteRepository.deleteAll();
         userRepository.deleteAll();
@@ -166,7 +173,7 @@ class VisitorInteractionControllerTest {
                                   "eventId": "%s",
                                   "visitorId": "%s",
                                   "artifactId": %d,
-                                  "interactionType": "BEACON_TRIGGER",
+                                  "interactionType": "INVALID_TYPE",
                                   "languageCode": "vi",
                                   "startedAt": "2026-10-20T10:00:00Z",
                                   "interactedAt": "2026-10-20T10:00:00Z"
@@ -217,6 +224,91 @@ class VisitorInteractionControllerTest {
                 .andExpect(jsonPath("$.success").value(false));
 
         org.junit.jupiter.api.Assertions.assertEquals(1, interactionRepository.count());
+    }
+
+    @Test
+    void postInteraction_shouldRecordBeaconTrigger() throws Exception {
+        UUID beaconUuid = UUID.fromString("e2c56db5-dffb-48d2-b060-d0f5a71096e0");
+        int beaconId = createBeacon(beaconUuid, 1, 101, artifactId, true);
+        UUID eventId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/interactions")
+                        .header("Authorization", "Bearer " + visitorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(beaconInteractionPayload(
+                                eventId, artifactId, beaconId, "BEACON_TRIGGER")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.beaconId").value(beaconId))
+                .andExpect(jsonPath("$.data.interactionType").value("BEACON_TRIGGER"));
+
+        var stored = interactionRepository.findByEventId(eventId).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(
+                beaconId, stored.getBeacon().getBeaconId());
+    }
+
+    @Test
+    void postInteraction_shouldRejectBeaconTriggerWithoutBeaconId() throws Exception {
+        mockMvc.perform(post("/api/interactions")
+                        .header("Authorization", "Bearer " + visitorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(beaconInteractionPayload(
+                                UUID.randomUUID(), artifactId, null, "BEACON_TRIGGER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        org.junit.jupiter.api.Assertions.assertEquals(0, interactionRepository.count());
+    }
+
+    @Test
+    void postInteraction_shouldRejectDisabledBeacon() throws Exception {
+        int beaconId = createBeacon(
+                UUID.fromString("e2c56db5-dffb-48d2-b060-d0f5a71096e0"),
+                1, 101, artifactId, false);
+
+        mockMvc.perform(post("/api/interactions")
+                        .header("Authorization", "Bearer " + visitorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(beaconInteractionPayload(
+                                UUID.randomUUID(), artifactId, beaconId, "BEACON_TRIGGER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        org.junit.jupiter.api.Assertions.assertEquals(0, interactionRepository.count());
+    }
+
+    @Test
+    void postInteraction_shouldRejectBeaconAssignedToAnotherArtifact() throws Exception {
+        int otherArtifactId = createArtifact(adminToken, siteId);
+        int beaconId = createBeacon(
+                UUID.fromString("e2c56db5-dffb-48d2-b060-d0f5a71096e0"),
+                1, 101, otherArtifactId, true);
+
+        mockMvc.perform(post("/api/interactions")
+                        .header("Authorization", "Bearer " + visitorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(beaconInteractionPayload(
+                                UUID.randomUUID(), artifactId, beaconId, "BEACON_TRIGGER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        org.junit.jupiter.api.Assertions.assertEquals(0, interactionRepository.count());
+    }
+
+    @Test
+    void postInteraction_shouldRejectBeaconIdForNonBeaconType() throws Exception {
+        int beaconId = createBeacon(
+                UUID.fromString("e2c56db5-dffb-48d2-b060-d0f5a71096e0"),
+                1, 101, artifactId, true);
+
+        mockMvc.perform(post("/api/interactions")
+                        .header("Authorization", "Bearer " + visitorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(beaconInteractionPayload(
+                                UUID.randomUUID(), artifactId, beaconId, "VIEW")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        org.junit.jupiter.api.Assertions.assertEquals(0, interactionRepository.count());
     }
 
     @Test
@@ -397,6 +489,64 @@ class VisitorInteractionControllerTest {
                 .getResponse()
                 .getContentAsString();
         return objectMapper.readTree(response).path("data").path("artifactId").asInt();
+    }
+
+    private int createBeacon(
+            UUID uuid,
+            int major,
+            int minor,
+            int targetArtifactId,
+            boolean enabled) throws Exception {
+        String body = """
+                {
+                  "name": "Test Beacon",
+                  "uuid": "%s",
+                  "major": %d,
+                  "minor": %d,
+                  "enabled": %s,
+                  "artifactId": %d
+                }
+                """.formatted(uuid, major, minor, enabled, targetArtifactId);
+        String response = mockMvc.perform(post("/api/admin/beacons")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readTree(response).path("data").path("beaconId").asInt();
+    }
+
+    private String beaconInteractionPayload(
+            UUID eventId,
+            int targetArtifactId,
+            Integer beaconId,
+            String interactionType) {
+        String interactedAt = "2026-10-20T10:00:00Z";
+        String end = Instant.parse(interactedAt).plusSeconds(30).toString();
+        String beaconField = beaconId == null ? "" : "\"beaconId\": " + beaconId + ",";
+        return """
+                {
+                  "eventId": "%s",
+                  "visitorId": "%s",
+                  "artifactId": %d,
+                  %s
+                  "interactionType": "%s",
+                  "languageCode": "vi",
+                  "startedAt": "%s",
+                  "endedAt": "%s",
+                  "interactedAt": "%s"
+                }
+                """.formatted(
+                eventId,
+                DEFAULT_VISITOR_ID,
+                targetArtifactId,
+                beaconField,
+                interactionType,
+                interactedAt,
+                end,
+                interactedAt);
     }
 
     private String interactionPayload(

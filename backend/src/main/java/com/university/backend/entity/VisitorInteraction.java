@@ -32,6 +32,10 @@ public class VisitorInteraction {
     @JoinColumn(name = "artifact_id", nullable = false)
     private Artifact artifact;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "beacon_id")
+    private Beacon beacon;
+
     @Column(name = "interaction_type", nullable = false, length = 50)
     private String interactionType;
 
@@ -91,6 +95,14 @@ public class VisitorInteraction {
 
     public void setArtifact(Artifact artifact) {
         this.artifact = artifact;
+    }
+
+    public Beacon getBeacon() {
+        return beacon;
+    }
+
+    public void setBeacon(Beacon beacon) {
+        this.beacon = beacon;
     }
 
     public String getInteractionType() {

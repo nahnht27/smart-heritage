@@ -12,6 +12,7 @@ import { heritageApi, type HeritageSite, type Artifact } from '../services/herit
 import { apiClient } from '../services/api';
 import { authStorage } from '../services/authStorage';
 import { RemoteImage } from '../components/remote-image';
+import { BeaconDiscoveryPanel } from '../components/beacon-discovery-panel';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -178,18 +179,14 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* 2. iBeacon BLE Status Indicator — Not integrated in Sprint 2 */}
-      <View style={styles.beaconBanner}>
-        <View style={styles.beaconPulseDot}>
-          <Text style={styles.beaconIcon}>📡</Text>
-        </View>
-        <View style={styles.beaconTextContainer}>
-          <Text style={styles.beaconTitle}>iBeacon / BLE: Chưa tích hợp</Text>
-          <Text style={styles.beaconSubtitle}>
-            Tính năng quét beacon thực tế chưa có sẵn trong bản Sprint 2.
-          </Text>
-        </View>
-      </View>
+          <BeaconDiscoveryPanel
+            onOpenArtifact={(artifactId) =>
+              router.push({
+                pathname: '/artifact_detail',
+                params: { id: String(artifactId) },
+              })
+            }
+          />
 
       {/* 3. Quick Navigation Features Grid */}
       <View style={styles.sectionHeader}>
@@ -407,43 +404,6 @@ const styles = StyleSheet.create({
   siteInfoItem: {
     fontSize: 11,
     color: '#CBD5E1',
-  },
-  beaconBanner: {
-    margin: 16,
-    marginBottom: 8,
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#FCD34D',
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  beaconPulseDot: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FDE68A',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  beaconIcon: {
-    fontSize: 20,
-  },
-  beaconTextContainer: {
-    flex: 1,
-  },
-  beaconTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  beaconSubtitle: {
-    fontSize: 11,
-    color: '#78350F',
-    marginTop: 2,
-    lineHeight: 15,
   },
   sectionHeader: {
     paddingHorizontal: 16,
