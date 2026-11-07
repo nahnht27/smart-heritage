@@ -315,5 +315,6 @@ Background scanning được giữ ở trạng thái **DEFERRED** vì:
 
 - Branch: `feat/mobile-ibeacon-discovery`
 - Base: `origin/main` @ `e0ef5388f4e41d4e64d2764780185d524a30224d`
-- PR: cập nhật sau khi push.
+- Commit: `8f3b244` (`feat: add iBeacon visitor discovery flow`)
+- PR: https://github.com/nahnht27/smart-heritage/pull/25
 - Không tự merge; chờ maintainer review.
