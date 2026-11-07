@@ -1,11 +1,14 @@
+
 package com.university.backend.controller;
 
 import com.university.backend.dto.ApiResponse;
 import com.university.backend.dto.ArtifactRequest;
 import com.university.backend.dto.ArtifactResponse;
+import com.university.backend.dto.PageResponse;
 import com.university.backend.entity.Artifact;
 import com.university.backend.service.ArtifactService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,17 +27,49 @@ public class ArtifactController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<ArtifactResponse>>> getAllArtifacts(
-            @RequestParam(required = false) Integer siteId) {
+    public ResponseEntity<ApiResponse<?>> getAllArtifacts(
+            @RequestParam(required = false) Integer siteId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(defaultValue = "asc") String direction) {
 
-        List<ArtifactResponse> artifacts = artifactService
-                .getAllArtifacts(siteId)
-                .stream()
-                .map(ArtifactResponse::fromEntity)
-                .toList();
+        if (page == null && size == null) {
+            List<ArtifactResponse> artifacts = artifactService
+                    .searchArtifacts(siteId, keyword, sortBy, direction)
+                    .stream()
+                    .map(ArtifactResponse::fromEntity)
+                    .toList();
+
+            return ResponseEntity.ok(
+                    ApiResponse.success(
+                            "Artifacts retrieved successfully",
+                            artifacts
+                    )
+            );
+        }
+
+        int pageNumber = page == null ? 0 : page;
+        int pageSize = size == null ? 10 : size;
+
+        Page<ArtifactResponse> artifacts = artifactService
+                .searchArtifacts(
+                        siteId,
+                        keyword,
+                        pageNumber,
+                        pageSize,
+                        sortBy,
+                        direction
+                )
+                .map(ArtifactResponse::fromEntity);
 
         return ResponseEntity.ok(
-                ApiResponse.success("Artifacts retrieved successfully", artifacts));
+                ApiResponse.success(
+                        "Artifacts retrieved successfully",
+                        PageResponse.from(artifacts)
+                )
+        );
     }
 
     @GetMapping("/{artifactId}")

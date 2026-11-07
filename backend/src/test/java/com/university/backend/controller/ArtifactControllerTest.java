@@ -265,4 +265,83 @@ class ArtifactControllerTest extends ContentApiTestSupport {
                         .header("Authorization", "Bearer " + visitorToken))
                 .andExpect(status().isForbidden());
     }
+
+        @Test
+    void searchArtifactsByKeywordShouldReturnMatchingArtifacts() throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Search Site");
+
+        createArtifact(token, siteId, "Ancient Bronze Drum");
+        createArtifact(token, siteId, "Ceramic Vase");
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("keyword", "  bronze  ")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].name").value("Ancient Bronze Drum"));
+    }
+
+    @Test
+    void searchArtifactsShouldSupportPagination() throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Pagination Site");
+
+        createArtifact(token, siteId, "Artifact A");
+        createArtifact(token, siteId, "Artifact B");
+        createArtifact(token, siteId, "Artifact C");
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("page", "0")
+                        .param("size", "2")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(2)))
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(2))
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.totalPages").value(2));
+    }
+
+    @Test
+    void searchArtifactsShouldSupportDescendingSort() throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Sorting Site");
+
+        createArtifact(token, siteId, "Artifact A");
+        createArtifact(token, siteId, "Artifact C");
+        createArtifact(token, siteId, "Artifact B");
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("sortBy", "name")
+                        .param("direction", "desc")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].name").value("Artifact C"))
+                .andExpect(jsonPath("$.data[1].name").value("Artifact B"))
+                .andExpect(jsonPath("$.data[2].name").value("Artifact A"));
+    }
+
+    @Test
+    void searchArtifactsShouldRejectInvalidPageSize() throws Exception {
+        String token = createAdminToken();
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("page", "0")
+                        .param("size", "101")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchArtifactsShouldRejectInvalidSortField() throws Exception {
+        String token = createAdminToken();
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("page", "0")
+                        .param("size", "10")
+                        .param("sortBy", "unknownField")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
 }
