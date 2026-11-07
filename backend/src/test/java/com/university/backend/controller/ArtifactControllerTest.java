@@ -1,4 +1,4 @@
-﻿package com.university.backend.controller;
+package com.university.backend.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.university.backend.repository.ArtifactRepository;
