@@ -4,9 +4,11 @@ package com.university.backend.controller;
 import com.university.backend.dto.ApiResponse;
 import com.university.backend.dto.HeritageSiteRequest;
 import com.university.backend.dto.HeritageSiteResponse;
+import com.university.backend.dto.PageResponse;
 import com.university.backend.entity.HeritageSite;
 import com.university.backend.service.HeritageSiteService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,15 +27,49 @@ public class HeritageSiteController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<HeritageSiteResponse>>> getAllHeritageSites() {
-        List<HeritageSiteResponse> sites = heritageSiteService
-                .getAllHeritageSites()
-                .stream()
-                .map(HeritageSiteResponse::fromEntity)
-                .toList();
+    public ResponseEntity<ApiResponse<?>> getAllHeritageSites(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(defaultValue = "asc") String direction) {
+
+        // Giữ response List cũ nếu không yêu cầu phân trang.
+        if (page == null && size == null) {
+            List<HeritageSiteResponse> sites = heritageSiteService
+                    .searchHeritageSites(keyword, sortBy, direction)
+                    .stream()
+                    .map(HeritageSiteResponse::fromEntity)
+                    .toList();
+
+            return ResponseEntity.ok(
+                    ApiResponse.success(
+                            "Heritage sites retrieved successfully",
+                            sites
+                    )
+            );
+        }
+
+        // Có yêu cầu phân trang.
+        int pageNumber = page == null ? 0 : page;
+        int pageSize = size == null ? 10 : size;
+
+        Page<HeritageSiteResponse> sites = heritageSiteService
+                .searchHeritageSites(
+                        keyword,
+                        pageNumber,
+                        pageSize,
+                        sortBy,
+                        direction
+                )
+                .map(HeritageSiteResponse::fromEntity);
 
         return ResponseEntity.ok(
-                ApiResponse.success("Heritage sites retrieved successfully", sites));
+                ApiResponse.success(
+                        "Heritage sites retrieved successfully",
+                        PageResponse.from(sites)
+                )
+        );
     }
 
     @GetMapping("/{siteId}")
