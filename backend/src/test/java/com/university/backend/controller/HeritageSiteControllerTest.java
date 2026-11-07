@@ -64,6 +64,31 @@ class HeritageSiteControllerTest extends ContentApiTestSupport {
         return data.path("siteId").asInt();
     }
 
+    private int createArtifact(String token, int siteId, String name)
+        throws Exception {
+        String request = """
+                {
+                    "siteId": %d,
+                    "name": "%s",
+                    "description": "Test artifact description"
+                }
+                """.formatted(siteId, name);
+
+        String response = mockMvc.perform(post("/api/artifacts")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        return objectMapper.readTree(response)
+                .path("data")
+                .path("artifactId")
+                .asInt();
+    }
+
     @Test
     void getAllHeritageSitesShouldReturnOk() throws Exception {
         String token = createAdminToken();
@@ -126,6 +151,26 @@ class HeritageSiteControllerTest extends ContentApiTestSupport {
 
         org.junit.jupiter.api.Assertions.assertFalse(
                 heritageSiteRepository.existsById(siteId));
+    }
+
+    @Test
+    void adminShouldNotDeleteHeritageSiteWithAssociatedArtifacts()
+            throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Site With Artifacts");
+        int artifactId = createArtifact(
+                token, siteId, "Associated Artifact");
+
+        mockMvc.perform(delete("/api/heritage-sites/{siteId}", siteId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                heritageSiteRepository.existsById(siteId));
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                artifactRepository.existsById(artifactId));
     }
 
     @Test

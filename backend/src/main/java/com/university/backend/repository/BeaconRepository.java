@@ -16,4 +16,6 @@ public interface BeaconRepository extends JpaRepository<Beacon, Integer> {
 
 
     List<Beacon> findAllByOrderByNameAsc();
+
+    boolean existsByArtifact_ArtifactId(Integer artifactId);
 }

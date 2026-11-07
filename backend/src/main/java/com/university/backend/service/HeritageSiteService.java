@@ -1,10 +1,14 @@
+
 package com.university.backend.service;
 
 import com.university.backend.entity.HeritageSite;
 import com.university.backend.exception.BadRequestException;
+import com.university.backend.exception.ResourceConflictException;
 import com.university.backend.exception.ResourceNotFoundException;
+import com.university.backend.repository.ArtifactRepository;
 import com.university.backend.repository.HeritageSiteRepository;
 import com.university.backend.specification.HeritageSiteSpecification;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,10 +26,13 @@ public class HeritageSiteService {
             List.of("name", "siteId");
 
     private final HeritageSiteRepository heritageSiteRepository;
+    private final ArtifactRepository artifactRepository;
 
     public HeritageSiteService(
-            HeritageSiteRepository heritageSiteRepository) {
+            HeritageSiteRepository heritageSiteRepository,
+            ArtifactRepository artifactRepository) {
         this.heritageSiteRepository = heritageSiteRepository;
+        this.artifactRepository = artifactRepository;
     }
 
     @Transactional(readOnly = true)
@@ -108,6 +115,12 @@ public class HeritageSiteService {
     @Transactional
     public void deleteHeritageSite(Integer siteId) {
         HeritageSite existingSite = getHeritageSiteById(siteId);
+
+        if (artifactRepository.existsByHeritageSite_SiteId(siteId)) {
+            throw new ResourceConflictException(
+                    "Cannot delete heritage site because it has associated artifacts.");
+        }
+
         heritageSiteRepository.delete(existingSite);
     }
 
@@ -120,7 +133,8 @@ public class HeritageSiteService {
 
     private void validatePagination(int page, int size) {
         if (page < 0) {
-            throw new BadRequestException("page must be greater than or equal to 0");
+            throw new BadRequestException(
+                    "page must be greater than or equal to 0");
         }
 
         if (size < 1 || size > MAX_PAGE_SIZE) {

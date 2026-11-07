@@ -1,6 +1,7 @@
 package com.university.backend.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.university.backend.repository.ArtifactRepository;
 import com.university.backend.repository.HeritageSiteRepository;
 import com.university.backend.repository.MultimediaRepository;
@@ -20,6 +21,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class ArtifactControllerTest extends ContentApiTestSupport {
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Autowired
     private HeritageSiteRepository heritageSiteRepository;
@@ -84,6 +88,34 @@ class ArtifactControllerTest extends ContentApiTestSupport {
                 .getContentAsString();
 
         return objectMapper.readTree(response).path("data").path("artifactId").asInt();
+    }
+
+    private String validMultimediaRequest(int artifactId, String title) {
+        return """
+                {
+                    "artifactId": %d,
+                    "type": "IMAGE",
+                    "title": "%s",
+                    "url": "https://example.com/test-image.jpg"
+                }
+                """.formatted(artifactId, title);
+    }
+
+    private int createMultimedia(String token, int artifactId, String title)
+            throws Exception {
+        String response = mockMvc.perform(post("/api/multimedia")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validMultimediaRequest(artifactId, title)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        return objectMapper.readTree(response)
+                .path("data")
+                .path("multimediaId")
+                .asInt();
     }
 
     @Test
@@ -183,6 +215,26 @@ class ArtifactControllerTest extends ContentApiTestSupport {
     }
 
     @Test
+    void adminShouldNotDeleteArtifactWithMultimedia() throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Artifact Conflict Site");
+        int artifactId = createArtifact(token, siteId, "Artifact With Multimedia");
+        int multimediaId = createMultimedia(
+                token, artifactId, "Related Image");
+
+        mockMvc.perform(delete("/api/artifacts/{artifactId}", artifactId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                artifactRepository.existsById(artifactId));
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                multimediaRepository.existsById(multimediaId));
+    }
+
+    @Test
     void createArtifactShouldRejectBlankName() throws Exception {
         String token = createAdminToken();
         int siteId = createSite(token, "Validation Site");
@@ -266,7 +318,7 @@ class ArtifactControllerTest extends ContentApiTestSupport {
                 .andExpect(status().isForbidden());
     }
 
-        @Test
+    @Test
     void searchArtifactsByKeywordShouldReturnMatchingArtifacts() throws Exception {
         String token = createAdminToken();
         int siteId = createSite(token, "Search Site");
