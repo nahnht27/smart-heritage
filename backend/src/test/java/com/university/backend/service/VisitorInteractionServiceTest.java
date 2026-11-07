@@ -7,12 +7,14 @@ import com.university.backend.dto.InteractionSummaryResponse;
 import com.university.backend.dto.InteractionTypeCountResponse;
 import com.university.backend.dto.LanguageCountResponse;
 import com.university.backend.entity.Artifact;
+import com.university.backend.entity.Beacon;
 import com.university.backend.entity.User;
 import com.university.backend.entity.VisitorInteraction;
 import com.university.backend.exception.BadRequestException;
 import com.university.backend.exception.DuplicateResourceException;
 import com.university.backend.exception.ResourceNotFoundException;
 import com.university.backend.repository.ArtifactRepository;
+import com.university.backend.repository.BeaconRepository;
 import com.university.backend.repository.DailyInteractionProjection;
 import com.university.backend.repository.UserRepository;
 import com.university.backend.repository.VisitorInteractionRepository;
@@ -47,6 +49,9 @@ class VisitorInteractionServiceTest {
 
     @Mock
     private ArtifactRepository artifactRepository;
+
+    @Mock
+    private BeaconRepository beaconRepository;
 
     @Mock
     private UserRepository userRepository;
@@ -197,6 +202,88 @@ class VisitorInteractionServiceTest {
 
         assertThrows(
                 DuplicateResourceException.class,
+                () -> interactionService.createInteraction(null, request));
+
+        verify(interactionRepository, never()).save(any());
+    }
+
+    @Test
+    void createInteraction_shouldPersistBeaconTriggerForMatchingArtifact() {
+        Artifact artifact = mock(Artifact.class);
+        when(artifact.getArtifactId()).thenReturn(1);
+        Beacon beacon = mock(Beacon.class);
+        when(beacon.isEnabled()).thenReturn(true);
+        when(beacon.getArtifact()).thenReturn(artifact);
+
+        request.setInteractionType("BEACON_TRIGGER");
+        request.setBeaconId(9);
+        when(interactionRepository.findByEventId(EVENT_ID)).thenReturn(Optional.empty());
+        when(artifactRepository.findById(1)).thenReturn(Optional.of(artifact));
+        when(beaconRepository.findById(9)).thenReturn(Optional.of(beacon));
+        when(interactionRepository.save(any(VisitorInteraction.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        InteractionCreationResult result =
+                interactionService.createInteraction(null, request);
+
+        assertTrue(result.created());
+        assertEquals("BEACON_TRIGGER", result.interaction().getInteractionType());
+        assertSame(beacon, result.interaction().getBeacon());
+    }
+
+    @Test
+    void createInteraction_shouldRequireBeaconIdForBeaconTrigger() {
+        Artifact artifact = mock(Artifact.class);
+        request.setInteractionType("BEACON_TRIGGER");
+        when(interactionRepository.findByEventId(EVENT_ID)).thenReturn(Optional.empty());
+        when(artifactRepository.findById(1)).thenReturn(Optional.of(artifact));
+
+        assertThrows(
+                BadRequestException.class,
+                () -> interactionService.createInteraction(null, request));
+
+        verify(interactionRepository, never()).save(any());
+    }
+
+    @Test
+    void createInteraction_shouldRejectBeaconIdForNonBeaconType() {
+        Artifact artifact = mock(Artifact.class);
+        request.setBeaconId(9);
+        when(interactionRepository.findByEventId(EVENT_ID)).thenReturn(Optional.empty());
+        when(artifactRepository.findById(1)).thenReturn(Optional.of(artifact));
+
+        assertThrows(
+                BadRequestException.class,
+                () -> interactionService.createInteraction(null, request));
+
+        verify(interactionRepository, never()).save(any());
+    }
+
+    @Test
+    void createInteraction_shouldRejectDisabledOrMismatchedBeacon() {
+        Artifact artifact = mock(Artifact.class);
+        when(artifact.getArtifactId()).thenReturn(1);
+        Beacon disabled = mock(Beacon.class);
+        when(disabled.isEnabled()).thenReturn(false);
+        request.setInteractionType("BEACON_TRIGGER");
+        request.setBeaconId(9);
+        when(interactionRepository.findByEventId(EVENT_ID)).thenReturn(Optional.empty());
+        when(artifactRepository.findById(1)).thenReturn(Optional.of(artifact));
+        when(beaconRepository.findById(9)).thenReturn(Optional.of(disabled));
+
+        assertThrows(
+                BadRequestException.class,
+                () -> interactionService.createInteraction(null, request));
+
+        Beacon otherArtifactBeacon = mock(Beacon.class);
+        when(otherArtifactBeacon.isEnabled()).thenReturn(true);
+        Artifact otherArtifact = mock(Artifact.class);
+        when(otherArtifact.getArtifactId()).thenReturn(2);
+        when(otherArtifactBeacon.getArtifact()).thenReturn(otherArtifact);
+        when(beaconRepository.findById(9)).thenReturn(Optional.of(otherArtifactBeacon));
+
+        assertThrows(
+                BadRequestException.class,
                 () -> interactionService.createInteraction(null, request));
 
         verify(interactionRepository, never()).save(any());

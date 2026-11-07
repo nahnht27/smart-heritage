@@ -6,12 +6,14 @@ import com.university.backend.dto.InteractionCreationResult;
 import com.university.backend.dto.InteractionSummaryResponse;
 import com.university.backend.dto.LanguageCountResponse;
 import com.university.backend.entity.Artifact;
+import com.university.backend.entity.Beacon;
 import com.university.backend.entity.User;
 import com.university.backend.entity.VisitorInteraction;
 import com.university.backend.exception.BadRequestException;
 import com.university.backend.exception.DuplicateResourceException;
 import com.university.backend.exception.ResourceNotFoundException;
 import com.university.backend.repository.ArtifactRepository;
+import com.university.backend.repository.BeaconRepository;
 import com.university.backend.repository.DailyInteractionProjection;
 import com.university.backend.repository.UserRepository;
 import com.university.backend.repository.VisitorInteractionRepository;
@@ -35,6 +37,7 @@ import java.util.UUID;
 public class VisitorInteractionService {
     private static final int POPULAR_ARTIFACTS_LIMIT = 10;
     private static final String UNKNOWN_LANGUAGE = "UNKNOWN";
+    private static final String BEACON_TRIGGER = "BEACON_TRIGGER";
 
     // PostgreSQL cannot infer the type of a NULL JDBC parameter used in
     // `(:param is null or ...)`. Use concrete, wide bounds for the "no filter"
@@ -46,14 +49,17 @@ public class VisitorInteractionService {
 
     private final VisitorInteractionRepository interactionRepository;
     private final ArtifactRepository artifactRepository;
+    private final BeaconRepository beaconRepository;
     private final UserRepository userRepository;
 
     public VisitorInteractionService(
             VisitorInteractionRepository interactionRepository,
             ArtifactRepository artifactRepository,
+            BeaconRepository beaconRepository,
             UserRepository userRepository) {
         this.interactionRepository = interactionRepository;
         this.artifactRepository = artifactRepository;
+        this.beaconRepository = beaconRepository;
         this.userRepository = userRepository;
     }
 
@@ -171,20 +177,57 @@ public class VisitorInteractionService {
         Artifact artifact = artifactRepository.findById(request.getArtifactId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Artifact not found with ID: " + request.getArtifactId()));
+        String interactionType =
+                request.getInteractionType().trim().toUpperCase(Locale.ROOT);
+        Beacon beacon = resolveBeacon(request, interactionType, artifact);
 
         VisitorInteraction interaction = new VisitorInteraction();
         interaction.setEventId(request.getEventId());
         interaction.setVisitorId(request.getVisitorId());
         interaction.setUser(user);
         interaction.setArtifact(artifact);
-        interaction.setInteractionType(
-                request.getInteractionType().trim().toUpperCase(Locale.ROOT));
+        interaction.setBeacon(beacon);
+        interaction.setInteractionType(interactionType);
         interaction.setLanguageCode(request.getLanguageCode().trim());
         interaction.setStartedAt(request.getStartedAt());
         interaction.setEndedAt(request.getEndedAt());
         interaction.setInteractedAt(request.getInteractedAt());
 
         return new InteractionCreationResult(interactionRepository.save(interaction), true);
+    }
+
+    private Beacon resolveBeacon(
+            CreateInteractionRequest request,
+            String interactionType,
+            Artifact artifact) {
+        if (!BEACON_TRIGGER.equals(interactionType)) {
+            if (request.getBeaconId() != null) {
+                throw new BadRequestException(
+                        "beaconId is only allowed for BEACON_TRIGGER interactions");
+            }
+            return null;
+        }
+
+        if (request.getBeaconId() == null) {
+            throw new BadRequestException(
+                    "beaconId is required for BEACON_TRIGGER interactions");
+        }
+
+        Beacon beacon = beaconRepository.findById(request.getBeaconId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Beacon not found with ID: " + request.getBeaconId()));
+        if (!beacon.isEnabled()) {
+            throw new BadRequestException("Beacon is disabled");
+        }
+        if (beacon.getArtifact() == null) {
+            throw new BadRequestException(
+                    "Beacon is not assigned to an artifact");
+        }
+        if (!beacon.getArtifact().getArtifactId().equals(artifact.getArtifactId())) {
+            throw new BadRequestException(
+                    "Beacon is assigned to a different artifact");
+        }
+        return beacon;
     }
 
     private void validateTimes(CreateInteractionRequest request) {

@@ -121,8 +121,24 @@ describe('interactionApi', () => {
     expect(body.interactedAt).toBe('2026-10-24T10:00:00Z');
     expect(body.visitorId).toBe(VISITOR_ID);
     expect(body.userId).toBeUndefined();
-    expect(body.beaconId).toBeUndefined();
+    expect(body.beaconId).toBeNull();
     expect(body.durationSeconds).toBeUndefined();
+  });
+
+
+  it('gửi sự kiện BEACON_TRIGGER kèm beaconId', async () => {
+    mockPost.mockResolvedValue({ data: { interactionId: 9 }, error: null, status: 201, ok: true });
+
+    const result = await interactionApi.recordInteraction({
+      ...baseEvent,
+      interactionType: 'BEACON_TRIGGER',
+      beaconId: 7,
+    });
+
+    const body = mockPost.mock.calls[0][1];
+    expect(body.interactionType).toBe('BEACON_TRIGGER');
+    expect(body.beaconId).toBe(7);
+    expect(result.ok).toBe(true);
   });
 
   it('giữ nguyên eventId khi retry cùng một event', async () => {

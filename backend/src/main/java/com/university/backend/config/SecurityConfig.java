@@ -50,6 +50,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/heritage-sites/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/artifacts/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/multimedia/**").permitAll()
+                // Beacon resolution is part of the public visitor flow; admin
+                // management remains protected by @PreAuthorize.
+                .requestMatchers(HttpMethod.GET, "/api/beacons/**").permitAll()
                 // Interaction recording works for anonymous visitors too. The
                 // authenticated owner is resolved from the JWT principal when
                 // one is present; analytics remains protected by @PreAuthorize.

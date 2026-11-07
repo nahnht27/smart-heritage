@@ -32,7 +32,8 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "./plugins/with-beacon-permissions"
     ],
     "experiments": {
       "typedRoutes": true,

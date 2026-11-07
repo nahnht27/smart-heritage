@@ -20,8 +20,11 @@ public class CreateInteractionRequest {
     @Positive
     private Integer artifactId;
 
+    @Positive
+    private Integer beaconId;
+
     @NotBlank
-    @Pattern(regexp = "(?i:VIEW|AUDIO_PLAY|SCAN)")
+    @Pattern(regexp = "(?i:VIEW|AUDIO_PLAY|SCAN|BEACON_TRIGGER)")
     private String interactionType;
 
     @NotBlank
@@ -59,6 +62,14 @@ public class CreateInteractionRequest {
 
     public void setArtifactId(Integer artifactId) {
         this.artifactId = artifactId;
+    }
+
+    public Integer getBeaconId() {
+        return beaconId;
+    }
+
+    public void setBeaconId(Integer beaconId) {
+        this.beaconId = beaconId;
     }
 
     public String getInteractionType() {

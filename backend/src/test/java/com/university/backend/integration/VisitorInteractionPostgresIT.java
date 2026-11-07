@@ -143,6 +143,30 @@ class VisitorInteractionPostgresIT {
                 """, Integer.class);
         assertEquals(1, uniqueEventConstraint);
 
+        Integer appliedV3 = jdbcTemplate.queryForObject("""
+                select count(*)
+                from flyway_schema_history
+                where version = '3' and success = true
+                """, Integer.class);
+        assertEquals(1, appliedV3);
+
+        Integer beaconIdentityConstraint = jdbcTemplate.queryForObject("""
+                select count(*)
+                from pg_constraint
+                where conname = 'uk_beacon_identity'
+                  and contype = 'u'
+                """, Integer.class);
+        assertEquals(1, beaconIdentityConstraint);
+
+        String beaconIdType = jdbcTemplate.queryForObject("""
+                select data_type
+                from information_schema.columns
+                where table_schema = 'public'
+                  and table_name = 'visitor_interaction'
+                  and column_name = 'beacon_id'
+                """, String.class);
+        assertEquals("integer", beaconIdType);
+
         Integer analyticsIndexes = jdbcTemplate.queryForObject("""
                 select count(*)
                 from pg_indexes
@@ -660,6 +684,7 @@ class VisitorInteractionPostgresIT {
 
     private void resetDatabase() {
         jdbcTemplate.update("delete from visitor_interaction");
+        jdbcTemplate.update("delete from beacon");
         jdbcTemplate.update("delete from multimedia");
         jdbcTemplate.update("delete from artifact");
         jdbcTemplate.update("delete from heritage_site");
