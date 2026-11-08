@@ -273,6 +273,14 @@
   white-space: nowrap;
 }
 
+.multimedia-resource > div > a {
+  max-width: 220px;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .multimedia-type {
   display: inline-flex;
   align-items: center;
