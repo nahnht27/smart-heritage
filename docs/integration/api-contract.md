@@ -120,6 +120,37 @@ Header yêu cầu: `Authorization: Bearer <accessToken>`.
 | `PUT` | `/api/heritage-sites/{siteId}` | `HeritageSiteRequest` | `ApiResponse<HeritageSiteResponse>` (200) | Cập nhật di sản (ADMIN) |
 | `DELETE` | `/api/heritage-sites/{siteId}` | — | `ApiResponse<Void>` (200) | Xóa di sản (ADMIN) |
 
+#### Content Discovery – Heritage Site
+
+Endpoint: `GET /api/heritage-sites`
+
+Query parameters:
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `keyword` | String | No | Tìm kiếm theo tên di sản, không phân biệt chữ hoa/thường; tự động trim khoảng trắng |
+| `page` | Integer | No | Số trang, bắt đầu từ 0 |
+| `size` | Integer | No | Số phần tử mỗi trang, mặc định 10, tối đa 100 |
+| `sortBy` | String | No | Trường sắp xếp: `name`, `siteId` |
+| `direction` | String | No | Chiều sắp xếp: `asc`, `desc`; mặc định `asc` khi có phân trang |
+
+Backward compatibility:
+- Không truyền `page` và `size`: trả về `ApiResponse<List<HeritageSiteResponse>>` như contract cũ.
+- Có truyền `page` hoặc `size`: trả về `ApiResponse<PageResponse<HeritageSiteResponse>>`.
+- Nếu chỉ truyền một trong hai tham số phân trang, tham số còn thiếu sử dụng giá trị mặc định.
+
+#### Pagination response
+
+`data` có cấu trúc:
+
+| Field | Type | Description |
+|---|---|---|
+| `content` | List | Danh sách kết quả |
+| `page` | Integer | Trang hiện tại, bắt đầu từ 0 |
+| `size` | Integer | Kích thước trang |
+| `totalElements` | Long | Tổng số kết quả |
+| `totalPages` | Integer | Tổng số trang |
+
 **HeritageSiteRequest:**
 
 | Trường | Kiểu | Ràng buộc |
@@ -134,6 +165,11 @@ Header yêu cầu: `Authorization: Bearer <accessToken>`.
 
 Phân quyền: POST/PUT/DELETE yêu cầu `hasRole('ADMIN')`. GET công khai.
 
+**Ràng buộc khi xóa:**
+- Không thể xóa HeritageSite khi còn Artifact liên quan.
+- Nếu vi phạm ràng buộc dữ liệu, trả về `409 Conflict`.
+- Các bản ghi Artifact liên quan được giữ nguyên.
+
 ---
 
 ### 2.4 Artifact (M2) — GET công khai, ghi/xóa yêu cầu `ADMIN`
@@ -146,6 +182,29 @@ Phân quyền: POST/PUT/DELETE yêu cầu `hasRole('ADMIN')`. GET công khai.
 | `PUT` | `/api/artifacts/{artifactId}` | `ArtifactRequest` | `ApiResponse<ArtifactResponse>` (200) | Cập nhật hiện vật (ADMIN) |
 | `DELETE` | `/api/artifacts/{artifactId}` | — | `ApiResponse<Void>` (200) | Xóa hiện vật (ADMIN) |
 
+#### Content Discovery – Artifact
+
+Endpoint: `GET /api/artifacts`
+
+Query parameters:
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `siteId` | Integer | No | Lọc hiện vật theo di sản |
+| `keyword` | String | No | Tìm kiếm theo tên hiện vật, không phân biệt chữ hoa/thường; tự động trim khoảng trắng |
+| `page` | Integer | No | Số trang, bắt đầu từ 0 |
+| `size` | Integer | No | Số phần tử mỗi trang, mặc định 10, tối đa 100 |
+| `sortBy` | String | No | Trường sắp xếp: `name`, `artifactId` |
+| `direction` | String | No | Chiều sắp xếp: `asc`, `desc` |
+
+Backward compatibility:
+- Không truyền `page` và `size`: trả về `ApiResponse<List<ArtifactResponse>>` như contract cũ.
+- Có truyền `page` hoặc `size`: trả về `ApiResponse<PageResponse<ArtifactResponse>>`.
+- Có thể kết hợp `siteId`, `keyword`, phân trang và sắp xếp.
+- Nếu chỉ truyền một trong hai tham số phân trang, tham số còn thiếu sử dụng giá trị mặc định.
+
+Pagination response sử dụng cùng cấu trúc `PageResponse` được mô tả tại mục 2.3.
+
 **ArtifactRequest:**
 
 | Trường | Kiểu | Ràng buộc |
@@ -157,6 +216,11 @@ Phân quyền: POST/PUT/DELETE yêu cầu `hasRole('ADMIN')`. GET công khai.
 **ArtifactResponse:** `artifactId`, `siteId`, `siteName`, `name`, `description`.
 
 Phân quyền: POST/PUT/DELETE yêu cầu `hasRole('ADMIN')`. GET công khai.
+
+**Ràng buộc khi xóa:**
+- Không thể xóa Artifact khi còn Multimedia, VisitorInteraction hoặc Beacon liên quan.
+- Nếu vi phạm ràng buộc dữ liệu, trả về `409 Conflict`.
+- Các bản ghi liên quan được giữ nguyên, không thực hiện cascade delete.
 
 ---
 
@@ -182,6 +246,11 @@ Phân quyền: POST/PUT/DELETE yêu cầu `hasRole('ADMIN')`. GET công khai.
 **MultimediaResponse:** `multimediaId`, `artifactId`, `artifactName`, `type`, `title`, `url`.
 
 Phân quyền: POST/PUT/DELETE yêu cầu `hasRole('ADMIN')`. GET công khai.
+
+**Validation và quan hệ dữ liệu:**
+- `artifactId` phải tham chiếu đến Artifact đang tồn tại.
+- Nếu Artifact không tồn tại, trả về `404 Not Found`.
+- Dữ liệu request không hợp lệ trả về `400 Bad Request`.
 
 ---
 
@@ -451,6 +520,7 @@ Backend đã có implementation cho `POST /api/interactions`, ba endpoint analyt
 | `403 Forbidden` | Đã xác thực nhưng không có quyền `ADMIN` |
 | `404 Not Found` | Resource không tồn tại |
 | `500 Internal Server Error` | Lỗi không mong đợi |
+| `409 Conflict` | Vi phạm ràng buộc dữ liệu hoặc xung đột khi thực hiện thao tác |
 
 ---
 
