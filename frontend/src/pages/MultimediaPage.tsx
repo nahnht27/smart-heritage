@@ -582,15 +582,18 @@ function MultimediaPage() {
 
                 <label>
                   <span>Type *</span>
-                  <input
+                  <select
                     required
-                    maxLength={20}
                     value={form.type}
+                    disabled={saving}
                     onChange={(event) =>
                       updateField('type', event.target.value)
                     }
-                    placeholder="e.g. IMAGE, VIDEO, AUDIO"
-                  />
+                  >
+                    <option value="IMAGE">IMAGE</option>
+                    <option value="VIDEO">VIDEO</option>
+                    <option value="AUDIO">AUDIO</option>
+                  </select>
                 </label>
 
                 <label>
