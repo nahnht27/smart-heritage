@@ -73,12 +73,10 @@ public class ArtifactService {
                 normalizeKeyword(keyword)
         );
 
-        if (sortBy == null || sortBy.isBlank()) {
-            return artifactRepository.findAll(specification);
-        }
-
-        Sort sort = createSort(sortBy, direction);
-        return artifactRepository.findAll(specification, sort);
+        return artifactRepository.findAll(
+                specification,
+                createSort(sortBy, direction)
+        );
     }
 
     @Transactional(readOnly = true)
@@ -210,7 +208,12 @@ public class ArtifactService {
                     Sort.Direction.fromString(
                             direction == null ? "asc" : direction.trim());
 
-            return Sort.by(sortDirection, field);
+            String tieBreaker = "name".equals(field)
+                    ? "artifactId"
+                    : "name";
+
+            return Sort.by(sortDirection, field)
+                    .and(Sort.by(sortDirection, tieBreaker));
         } catch (IllegalArgumentException exception) {
             throw new BadRequestException(
                     "direction must be either 'asc' or 'desc'");

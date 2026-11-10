@@ -49,10 +49,6 @@ public class HeritageSiteService {
                 normalizeKeyword(keyword)
         );
 
-        if (sortBy == null || sortBy.isBlank()) {
-            return heritageSiteRepository.findAll(specification);
-        }
-
         return heritageSiteRepository.findAll(
                 specification,
                 createSort(sortBy, direction)
@@ -158,7 +154,12 @@ public class HeritageSiteService {
                     Sort.Direction.fromString(
                             direction == null ? "asc" : direction.trim());
 
-            return Sort.by(sortDirection, field);
+            String tieBreaker = "name".equals(field)
+                    ? "siteId"
+                    : "name";
+
+            return Sort.by(sortDirection, field)
+                    .and(Sort.by(sortDirection, tieBreaker));
         } catch (IllegalArgumentException exception) {
             throw new BadRequestException(
                     "direction must be either 'asc' or 'desc'");
