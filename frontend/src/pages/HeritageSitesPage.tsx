@@ -85,11 +85,8 @@ function HeritageSitesPage() {
             // Dual compatibility: client-side fallback if backend returns unpaginated List<T>
             const keywordLower = trimmedKeyword.toLowerCase()
             const filtered = keywordLower
-              ? resData.filter(
-                  (site) =>
-                    site.name.toLowerCase().includes(keywordLower) ||
-                    (site.address ?? '').toLowerCase().includes(keywordLower) ||
-                    (site.description ?? '').toLowerCase().includes(keywordLower),
+              ? resData.filter((site) =>
+                  site.name.toLowerCase().includes(keywordLower),
                 )
               : resData
 
@@ -364,7 +361,7 @@ function HeritageSitesPage() {
         <input
           type="search"
           aria-label="Search heritage sites"
-          placeholder="Search by name, address, or description..."
+          placeholder="Search by name..."
           value={search}
           onChange={(event) => {
             setSearch(event.target.value)
@@ -388,7 +385,7 @@ function HeritageSitesPage() {
           search.trim() ? (
             <div className="heritage-state">
               <h3>No matching heritage sites</h3>
-              <p>Try a different name, address, or description.</p>
+              <p>Try a different name.</p>
 
               <button
                 type="button"

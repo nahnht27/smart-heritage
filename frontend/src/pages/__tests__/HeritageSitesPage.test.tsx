@@ -47,7 +47,7 @@ describe('HeritageSitesPage — search & pagination', () => {
     } as never)
   })
 
-  it('filters by name, address and description (case-insensitive)', async () => {
+  it('filters by name only, matching the backend contract', async () => {
     const user = userEvent.setup()
     render(<HeritageSitesPage />)
 
@@ -60,13 +60,12 @@ describe('HeritageSitesPage — search & pagination', () => {
     expect(screen.getByText('1 matching site')).toBeInTheDocument()
 
     await user.clear(input)
-    await user.type(input, 'ho chi minh')
-    expect(screen.getByText('Cu Chi Tunnels')).toBeInTheDocument()
+    await user.type(input, 'Hue')
+    expect(screen.getByText('No matching heritage sites')).toBeInTheDocument()
 
     await user.clear(input)
     await user.type(input, 'nguyen')
-    expect(screen.getByText('Imperial Citadel')).toBeInTheDocument()
-    expect(screen.queryByText('Cu Chi Tunnels')).not.toBeInTheDocument()
+    expect(screen.getByText('No matching heritage sites')).toBeInTheDocument()
   })
 
   it('shows a no-match state and clears the search', async () => {

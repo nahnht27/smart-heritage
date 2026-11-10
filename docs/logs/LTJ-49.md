@@ -19,7 +19,7 @@
   - `PUT /api/heritage-sites/{siteId}` — cập nhật (ADMIN)
   - `DELETE /api/heritage-sites/{siteId}` — xóa (ADMIN)
 - **Tìm kiếm & Phân trang:**
-  - Ô tìm kiếm theo tên, địa chỉ hoặc mô tả (`keyword`).
+  - Ô tìm kiếm theo tên (`keyword`), khớp với backend M2 hiện tại.
   - Phân trang server-side (`PageResponse<T>`) hiển thị `Showing page X of Y (N sites)` cùng nút `Previous` / `Next`.
   - Cơ chế **Dual Compatibility**: tự động tương thích và hỗ trợ cả `PageResponse<HeritageSite>` (từ backend M2 mới) lẫn fallback client-side phân trang/lọc nếu backend trả về `HeritageSite[]` cũ.
 - Validation đầy đủ: tên bắt buộc, latitude trong [-90, 90], longitude trong [-180, 180].
@@ -78,10 +78,10 @@
 
 ### 5. Kiểm thử & Đảm bảo chất lượng
 
-- Unit tests cho `HeritageSitesPage`: tìm kiếm đa trường, trạng thái không tìm thấy, phân trang và M2 `PageResponse` (3 tests).
+- Unit tests cho `HeritageSitesPage`: tìm kiếm theo tên, trạng thái không tìm thấy, phân trang và M2 `PageResponse` (3 tests).
 - Unit tests cho `ArtifactsPage`: dropdown filter di sản, lọc theo siteId, tìm kiếm và phân trang M2 `PageResponse` (3 tests).
 - Unit tests cho `MultimediaPage`: URL an toàn, từ chối scheme `javascript:`, từ chối `ftp:`, chấp nhận `https:` (4 tests).
-- Toàn bộ test suite đạt **56/56 tests passed**.
+- Toàn bộ test suite đạt **48/48 tests passed** sau khi đồng bộ `main`.
 - `npx tsc --noEmit`, `npm run lint`, `npm run build` đạt 0 errors.
 
 ## Kết quả đạt được
