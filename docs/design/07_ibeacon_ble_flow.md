@@ -1,208 +1,224 @@
 # iBeacon / BLE Flow — LTJ-42
 
-Tài liệu này mô tả thiết kế kỹ thuật cho luồng **iBeacon/BLE** trong ứng dụng React Native (Visitor App), bao gồm:
-cách phát hiện beacon, ánh xạ beacon → hiện vật, cơ chế trigger thông tin, và cách tránh thông báo trùng lặp.
+Tài liệu mô tả thiết kế và implementation hiện tại của luồng **iBeacon/BLE** trong Visitor App.
+
+> Trạng thái Wave 4: foreground discovery đã được implement ở mobile và backend. Background scanning, native build trên thiết bị và kiểm chứng phần cứng **chưa được thực hiện**. Xem báo cáo chi tiết tại [`docs/features/ibeacon-mobile-integration.md`](../features/ibeacon-mobile-integration.md).
 
 ---
 
-## 1. Cách Mobile Phát Hiện Beacon
+## 1. Công nghệ và thư viện
 
-### Công nghệ sử dụng
-- **iBeacon** (Apple BLE standard): Beacon phát quảng bá (advertise) tín hiệu BLE liên tục bao gồm 3 giá trị định danh:
-  - `UUID`: Định danh nhóm beacon của hệ thống Smart Heritage.
-  - `Major`: Định danh khu di sản (Heritage Site ID).
-  - `Minor`: Định danh phòng trưng bày / khu vực cụ thể.
+- **iBeacon**: định danh beacon bằng `proximity UUID + major + minor`.
+- **Mobile library**: `react-native-beacon-kit@0.12.0`.
+- **Permissions**: `react-native-permissions@5.6.3`.
+- **Native build**: bắt buộc. Expo Go không thể kiểm chứng native BLE/iBeacon.
 
-### Thư viện React Native đề xuất
+`react-native-beacon-kit` được chọn vì có API ranging iBeacon trực tiếp (`startRanging`, `onBeaconsRanged`, `onRangingFailed`, `getEnvironmentState`) và type definitions. Thư viện có mức độ phổ biến thấp và chưa được xác minh trên thiết bị thật trong wave này; implementation native được cô lập sau `beaconService.ts` để có thể thay thế nếu cần.
 
-> ⚠️ **Lưu ý về `react-native-ble-plx`**: README chính thức của thư viện nêu rõ **không hỗ trợ iBeacon như một chức năng chuyên biệt**. Thư viện này chỉ cung cấp raw BLE scanning; để đọc advertisement packet theo định dạng iBeacon (UUID + Major + Minor), cần tự parse manufacturer data ở tầng native — chưa được xác minh trên thiết bị thật. Không nên coi đây là lựa chọn mặc định.
+---
 
-| Thư viện | Platform | Hỗ trợ iBeacon | Ghi chú |
-|---|---|---|---|
-| [`react-native-ibeacon`](https://github.com/lg-labs-pentagon/react-native-ibeacon) | iOS | ✅ Native (CoreLocation) | Chỉ iOS; cần xác minh Android |
-| [`react-native-beacons-manager`](https://github.com/MacKentoch/react-native-beacons-manager) | iOS + Android | ✅ | Hỗ trợ AltBeacon/iBeacon, **cần native build** (không chạy trên Expo Go) |
-| [`react-native-ble-plx`](https://github.com/dotintent/react-native-ble-plx) | iOS + Android | ⚠️ Không trực tiếp | Raw BLE scan; cần tự parse iBeacon advertisement; **chưa xác minh trên thiết bị thật** |
-| Expo `expo-location` | iOS + Android | ❌ | Chỉ GPS/geofence; không scan BLE beacon |
-
-**Khuyến nghị Sprint 2**: Ưu tiên `react-native-beacons-manager` (đã xác nhận hỗ trợ iBeacon trên cả hai platform). Bắt buộc dùng **Expo Development Build** (không dùng Expo Go) vì các thư viện này yêu cầu native module.
-
-### Luồng phát hiện
+## 2. Luồng phát hiện
 
 ```mermaid
 sequenceDiagram
     participant App as Mobile App
-    participant BLE as BLE Scanner
+    participant Perm as Permissions
     participant OS as iOS/Android OS
-
-    App->>OS: Xin quyền Bluetooth + Location
-    OS-->>App: Granted
-    App->>BLE: startScanning(UUID = "SMART_HERITAGE_UUID")
-    loop Quét liên tục
-        BLE-->>App: BeaconDetected(uuid, major, minor, rssi)
-        App->>App: Kiểm tra RSSI ngưỡng (vd: rssi > -75 dBm)
-        alt RSSI đủ mạnh (người dùng đủ gần)
-            App->>App: Trigger artifact lookup
-        else RSSI yếu (quá xa)
-            App->>App: Bỏ qua
-        end
-    end
-```
-
-### Ngưỡng RSSI (Received Signal Strength Indicator)
-| Khoảng cách ước tính | RSSI (dBm) | Hành động |
-|---|---|---|
-| < 1m | > -55 | Trigger ngay lập tức |
-| 1m – 3m | -55 đến -75 | Trigger sau 2 giây dừng ổn định |
-| > 3m | < -75 | Bỏ qua |
-
----
-
-## 2. Beacon → Artifact Mapping
-
-### Cấu trúc định danh Beacon
-
-```
-UUID   = "E2C56DB5-DFFB-48D2-B060-D0F5A71096E0"  (toàn hệ thống)
-Major  = <heritage_site_id>                         (khu di sản)
-Minor  = <artifact_id>                              (hiện vật cụ thể)
-```
-
-### Sơ đồ ánh xạ
-
-```mermaid
-graph LR
-    B1[Beacon<br/>UUID + Major=1 + Minor=101] -->|Lookup| API[Backend API<br/>GET /artifacts/beacon]
-    API --> A1[Artifact: Trống Đồng<br/>ID=101]
-    B2[Beacon<br/>UUID + Major=1 + Minor=102] -->|Lookup| API
-    API --> A2[Artifact: Kiếm Cổ<br/>ID=102]
-```
-
-### API Backend
-
-```
-GET /api/v1/artifacts/by-beacon?major={major}&minor={minor}
-```
-
-**Response:**
-```json
-{
-  "artifactId": 101,
-  "name": "Trống Đồng Đông Sơn",
-  "shortDescription": "...",
-  "thumbnailUrl": "...",
-  "heritageId": 1
-}
-```
-
-> **Lưu ý thiết kế**: Mobile có thể **cache bảng beacon → artifact** khi khởi động app (offline-first), tránh phụ thuộc mạng trong khu vực bảo tàng có sóng yếu.
-
----
-
-## 3. Cơ chế Trigger Thông Tin Hiện Vật
-
-### Luồng tổng quát
-
-```mermaid
-sequenceDiagram
     participant Beacon as iBeacon
-    participant App as Mobile App
-    participant Cache as Local Cache
-    participant API as Backend API
-    participant UI as UI / Notification
+    participant API as Backend
 
-    Beacon-->>App: Phát hiện beacon (major=1, minor=101)
-    App->>Cache: Kiểm tra beacon 101 đã được hiển thị?
-    alt Chưa hiển thị hoặc đã qua cooldown
-        Cache-->>App: OK
-        App->>Cache: Tìm artifact trong cache local
-        alt Có trong cache
-            Cache-->>App: ArtifactInfo
-        else Không có trong cache
-            App->>API: GET /artifacts/by-beacon?major=1&minor=101
-            API-->>App: ArtifactInfo
+    App->>Perm: request Bluetooth + location
+    Perm-->>App: granted/denied
+    App->>OS: getEnvironmentState()
+    OS-->>App: Bluetooth/location/canScanInForeground
+    App->>OS: startRanging(region UUID)
+    loop Foreground
+        Beacon-->>OS: advertisement (uuid, major, minor, rssi)
+        OS-->>App: onBeaconsRanged
+        App->>App: BeaconTriggerController.observe
+        alt RSSI >= -75 dBm for 2s
+            App->>API: GET /api/beacons/resolve
+            API-->>App: BeaconResponse
+            App->>App: show in-app banner
+            App->>API: POST /api/interactions (BEACON_TRIGGER)
         end
-        App->>UI: Hiển thị In-App Notification
-        UI-->>App: User bấm vào
-        App->>UI: Mở màn hình Artifact Detail
-        App->>Cache: Ghi log vào Visit History
-        App->>API: POST /visitor-interactions (type=BEACON_TRIGGER)
-    else Đã hiển thị trong cooldown
-        App->>App: Bỏ qua (tránh duplicate)
     end
 ```
 
-### Dạng thông báo trong App
-- Sử dụng **In-App Banner/Notification** (không phải Push Notification của OS) để xuất hiện tức thì.
-- Nội dung: Thumbnail ảnh nhỏ + Tên hiện vật + nút **"Xem chi tiết"**.
-- Tự động biến mất sau **8 giây** nếu người dùng không tương tác.
+Mobile chỉ quét khi:
+
+- Người dùng bật toggle trên Home.
+- App đang ở foreground (`AppState === 'active'`).
+- Runtime permissions đã được cấp.
+- Bluetooth và location services đang bật.
+- `canScanInForeground === true`.
+
+Khi app vào background, scanning dừng và trạng thái chuyển sang `paused`. Khi active lại, app xin lại trạng thái môi trường và bắt đầu quét nếu toggle vẫn bật.
 
 ---
 
-## 4. Cách Tránh Duplicate Notification
+## 3. Beacon identity
 
-### Vấn đề
-Beacon phát tín hiệu liên tục (mỗi 100ms – 1 giây), nếu không có cơ chế lọc, app sẽ hiển thị thông báo lặp đi lặp lại liên tục khi người dùng đứng yên.
+```text
+UUID   = E2C56DB5-DFFB-48D2-B060-D0F5A71096E0 (mặc định, cấu hình qua EXPO_PUBLIC_BEACON_UUID)
+Major  = 0..65535
+Minor  = 0..65535
+```
 
-### Giải pháp: Cooldown Timer + Entry/Exit Detection
+- Key nội bộ: `uuid:major:minor`, UUID được lowercase và trim.
+- Không dùng MAC address làm định danh vì có thể bị randomize trên Android và không có trên iOS.
+- Mobile validate UUID/major/minor trước khi gọi API.
+- Backend lưu unique constraint trên `(proximity_uuid, major, minor)`.
+
+---
+
+## 4. Beacon → Artifact mapping
+
+Backend dùng bảng `beacon`:
+
+- `beacon_id` PK
+- `name`
+- `proximity_uuid`
+- `major`
+- `minor`
+- `enabled`
+- `artifact_id` nullable FK
+
+Public endpoint:
+
+```http
+GET /api/beacons/resolve?uuid={uuid}&major={major}&minor={minor}
+```
+
+- Không cần JWT.
+- Trả `404` nếu beacon không tồn tại hoặc `enabled = false`.
+- Response chứa `beaconId`, `artifactId`, `artifactName`, `siteId`, `siteName`.
+- Nếu beacon chưa gán artifact, `artifactId` là `null`; mobile hiển thị thông báo thay vì mở chi tiết.
+
+Admin quản lý beacon qua `/api/admin/beacons` với role `ADMIN`.
+
+---
+
+## 5. Trigger và chống lặp
 
 ```mermaid
 stateDiagram-v2
-    [*] --> OutOfRange: Khởi động
-    OutOfRange --> Entering: RSSI vượt ngưỡng lần đầu
-    Entering --> InRange: Ổn định 2 giây liên tiếp
-    Entering --> OutOfRange: Tín hiệu mất ổn định
-    InRange --> Notified: Hiển thị thông báo + ghi log
-    Notified --> OutOfRange: RSSI dưới ngưỡng liên tiếp 3 giây
-    InRange --> OutOfRange: RSSI dưới ngưỡng liên tiếp 3 giây
-    OutOfRange --> Entering: RSSI vượt ngưỡng trở lại → reset hoàn toàn → trigger lại
+    [*] --> Outside
+    Outside --> Entering: RSSI >= -75
+    Entering --> Outside: RSSI < -75 trước 2s
+    Entering --> Inside: giữ RSSI >= -75 đủ 2s
+    Inside --> Inside: vẫn ở trong vùng
+    Inside --> Outside: RSSI < -75 liên tục 3s
+    Inside --> Outside: mất tín hiệu 3s
+    Outside --> Entering: vào vùng lại
 ```
 
-> **Quyết định thiết kế**: Trigger lại **chỉ khi người dùng rời vùng rồi đi vào lại** (OutOfRange → Entering → InRange → Notified). **Không** trigger lại dựa trên thời gian cooldown khi vẫn đứng yên trong vùng beacon. Điều này đảm bảo thông báo luôn gắn với hành động di chuyển thực tế của người dùng.
-
-### Chi tiết cơ chế
-
-| Cơ chế | Mô tả |
+| Tham số | Giá trị |
 |---|---|
-| **Debounce Entry** | Phải nhận RSSI ≥ ngưỡng liên tiếp trong **2 giây** mới tính là "Vào vùng". Tránh trigger nhầm do tín hiệu dao động. |
-| **Exit Detection** | Phải nhận RSSI < ngưỡng liên tiếp trong **3 giây** mới tính là "Ra khỏi vùng". Khi ra khỏi vùng, state reset hoàn toàn — lần vào vùng tiếp theo sẽ trigger lại bình thường. |
-| **Trigger chỉ khi vào lại** | Không trigger lại nếu người dùng vẫn đứng yên trong vùng beacon. Phải **rời khỏi vùng rồi vào lại** mới trigger thêm một lần. Loại bỏ cơ chế cooldown timer độc lập. |
-| **Composite State Key** | Dùng `Map<"UUID:major:minor", { state, notifiedAt }>` — khóa là tổ hợp `UUID + major + minor` để tránh xung đột giữa các beacon từ hệ thống khác nhau hoặc cùng minor ở các khu di sản khác nhau. |
+| RSSI threshold | `-75 dBm` |
+| Entry confirmation | `2000 ms` |
+| Exit confirmation | `3000 ms` |
+| Stale reset | `3000 ms` |
+| Banner auto-dismiss | `8000 ms` |
 
-### Ví dụ code logic (pseudo-code)
+Quy tắc:
 
-```typescript
-const RSSI_THRESHOLD = -75;
-const DEBOUNCE_ENTRY_MS = 2000;  // 2 giây ổn định → vào vùng
-const DEBOUNCE_EXIT_MS = 3000;   // 3 giây dưới ngưỡng → ra khỏi vùng
+- Chỉ trigger một lần cho mỗi lần vào vùng đã xác nhận.
+- Không trigger lặp khi người dùng đứng yên.
+- Phải rời vùng đủ lâu rồi vào lại mới trigger tiếp.
+- Mỗi beacon được track độc lập.
+- Mỗi trigger tạo `eventId` mới; retry cùng một lần ghi dùng lại `eventId`.
 
-// Khóa trạng thái: UUID + major + minor (tránh xung đột giữa các beacon)
-type BeaconKey = `${string}:${number}:${number}`;
+Implementation: `mobile/src/services/beacon/trigger.ts`.
 
-function makeKey(beacon: Beacon): BeaconKey {
-  return `${beacon.uuid}:${beacon.major}:${beacon.minor}`;
-}
+---
 
-function onBeaconDetected(beacon: Beacon) {
-  const { uuid, major, minor, rssi } = beacon;
-  const key = makeKey(beacon); // "UUID:major:minor"
-  const state = beaconStateMap.get(key);
+## 6. UI
 
-  if (rssi >= RSSI_THRESHOLD) {
-    // Người dùng đang đến gần
-    // Chỉ trigger nếu state là FRESH (chưa từng notify hoặc đã reset sau khi exit)
-    if (state?.status === 'NOTIFIED') {
-      // Vẫn đứng trong vùng sau khi đã notify → bỏ qua, không trigger lại
-      return;
-    }
-    debounceEntry(key, () => triggerNotification(key, { uuid, major, minor }));
-  } else {
-    // Người dùng đang đi xa → reset state để lần vào tiếp theo trigger lại
-    debounceExit(key, () => resetBeaconState(key));
-  }
-}
+`BeaconDiscoveryPanel` trên Home cung cấp:
 
-function resetBeaconState(key: BeaconKey) {
-  // Xóa hoàn toàn state → beacon này sẽ trigger lại khi người dùng vào vùng lần tiếp theo
-  beaconStateMap.delete(key);
+- Toggle bật/tắt quét.
+- Trạng thái: idle, requesting permission, permission denied, Bluetooth off, location off, paused, scanning, error.
+- Banner khi phát hiện hiện vật:
+  - Tên hiện vật.
+  - Tên site hoặc tên beacon.
+  - Nút **“Xem chi tiết”**.
+  - Nút **“Đóng”**.
+- Banner tự đóng sau 8 giây.
+
+Không tự động điều hướng; người dùng chủ động bấm “Xem chi tiết”.
+
+---
+
+## 7. Interaction
+
+Khi resolve thành công và beacon có artifact:
+
+```json
+{
+  "eventId": "<uuid>",
+  "visitorId": "<installation uuid>",
+  "artifactId": 42,
+  "beaconId": 7,
+  "interactionType": "BEACON_TRIGGER",
+  "languageCode": "vi",
+  "startedAt": "2026-11-07T10:00:00Z",
+  "interactedAt": "2026-11-07T10:00:00Z"
 }
 ```
+
+Backend validate:
+
+- `beaconId` bắt buộc với `BEACON_TRIGGER`.
+- Beacon phải enabled.
+- Beacon phải được gán artifact.
+- Artifact của beacon phải khớp `artifactId`.
+- Interaction type khác không được gửi `beaconId`.
+- Duplicate `eventId` trả interaction hiện có trước khi validate beacon.
+
+---
+
+## 8. Permission và native config
+
+Local Expo config plugin: `mobile/plugins/with-beacon-permissions.js`.
+
+Android:
+
+- `ACCESS_FINE_LOCATION`
+- `BLUETOOTH_SCAN`
+- `BLUETOOTH_CONNECT`
+- `android.hardware.bluetooth_le` (`required=false`)
+- Remove các quyền không dùng: background location, Bluetooth advertise, foreground service, foreground service location, notification.
+
+iOS:
+
+- `NSBluetoothAlwaysUsageDescription`
+- `NSBluetoothPeripheralUsageDescription`
+- `NSLocationWhenInUseUsageDescription`
+- `NSLocationAlwaysAndWhenInUseUsageDescription`
+
+Không bật background location hoặc foreground service.
+
+---
+
+## 9. Background scanning
+
+**DEFERRED**:
+
+- Cần foreground service trên Android và background capability/review trên iOS.
+- Tăng pin và độ phức tạp vận hành.
+- Chưa có acceptance criteria và chưa thể kiểm chứng thiết bị.
+- MVP foreground đáp ứng luồng “mở app khi đứng gần hiện vật”.
+
+---
+
+## 10. Kiểm chứng
+
+- Backend unit tests: 120 pass.
+- PostgreSQL integration tests: 22 pass, bao gồm Flyway V3.
+- Mobile Jest: 81 pass.
+- Mobile TypeScript và lint: pass.
+- Expo config introspection: permission Android/iOS được áp dụng.
+- Native build/device/hardware: **chưa chạy**.
+
+Chi tiết và hướng dẫn test thiết bị: [`docs/features/ibeacon-mobile-integration.md`](../features/ibeacon-mobile-integration.md).

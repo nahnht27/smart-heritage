@@ -14,6 +14,11 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.H2Dialect
 
+  flyway:
+    # Unit tests use H2 with Hibernate create-drop. Flyway migration behaviour
+    # is verified against a real PostgreSQL instance instead.
+    enabled: false
+
   h2:
     console:
       enabled: false

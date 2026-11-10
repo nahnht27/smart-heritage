@@ -61,6 +61,41 @@ describe('heritageApi', () => {
     });
   });
 
+  describe('getArtifacts', () => {
+    it('trả về toàn bộ artifacts khi không truyền siteId', async () => {
+      mockGet.mockResolvedValue({
+        data: [
+          { artifactId: 1, siteId: 1, siteName: 'Site A', name: 'Artifact A', description: 'desc' },
+          { artifactId: 2, siteId: 2, siteName: 'Site B', name: 'Artifact B', description: 'desc' },
+        ],
+        error: null,
+        status: 200,
+        ok: true,
+      });
+
+      const result = await heritageApi.getArtifacts();
+
+      expect(mockGet).toHaveBeenCalledWith('artifacts');
+      expect(result.ok).toBe(true);
+      expect(result.data).toHaveLength(2);
+      expect(result.data?.[1].siteId).toBe(2);
+    });
+
+    it('trả về null khi API lỗi', async () => {
+      mockGet.mockResolvedValue({
+        data: null,
+        error: 'Network error',
+        status: 500,
+        ok: false,
+      });
+
+      const result = await heritageApi.getArtifacts();
+
+      expect(result.ok).toBe(false);
+      expect(result.data).toBeNull();
+    });
+  });
+
   describe('getArtifactsBySite', () => {
     it('trả về danh sách artifacts theo siteId', async () => {
       mockGet.mockResolvedValue({
@@ -174,6 +209,48 @@ describe('heritageApi', () => {
 
       expect(result.ok).toBe(true);
       expect(result.data).toEqual([]);
+    });
+  });
+
+  describe('getArtifactsWithThumbnails', () => {
+    it('gắn thumbnail cho toàn bộ artifacts', async () => {
+      mockGet
+        .mockResolvedValueOnce({
+          data: [
+            { artifactId: 1, siteId: 1, siteName: 'Site A', name: 'Artifact A', description: 'desc' },
+            { artifactId: 2, siteId: 2, siteName: 'Site B', name: 'Artifact B', description: 'desc' },
+          ],
+          error: null,
+          status: 200,
+          ok: true,
+        })
+        .mockResolvedValueOnce({
+          data: [
+            {
+              multimediaId: 10,
+              artifactId: 1,
+              artifactName: 'Artifact A',
+              type: 'IMAGE',
+              title: 'Image A',
+              url: 'https://example.com/a.jpg',
+            },
+          ],
+          error: null,
+          status: 200,
+          ok: true,
+        })
+        .mockResolvedValueOnce({
+          data: [],
+          error: null,
+          status: 200,
+          ok: true,
+        });
+
+      const result = await heritageApi.getArtifactsWithThumbnails();
+
+      expect(result.ok).toBe(true);
+      expect(result.data?.[0].imageUrl).toBe('https://example.com/a.jpg');
+      expect(result.data?.[1].imageUrl).toBeNull();
     });
   });
 

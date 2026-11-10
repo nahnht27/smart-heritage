@@ -2,9 +2,11 @@ package com.university.backend.controller;
 
 import com.university.backend.dto.ApiResponse;
 import com.university.backend.dto.CreateInteractionRequest;
+import com.university.backend.dto.DailyInteractionResponse;
 import com.university.backend.dto.InteractionCreationResult;
 import com.university.backend.dto.InteractionRecordResponse;
 import com.university.backend.dto.InteractionSummaryResponse;
+import com.university.backend.dto.LanguageCountResponse;
 import com.university.backend.exception.BadRequestException;
 import com.university.backend.service.VisitorInteractionService;
 import jakarta.validation.Valid;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 @RestController
 public class VisitorInteractionController {
@@ -32,8 +35,9 @@ public class VisitorInteractionController {
     public ResponseEntity<ApiResponse<InteractionRecordResponse>> createInteraction(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody CreateInteractionRequest request) {
+        String username = userDetails != null ? userDetails.getUsername() : null;
         InteractionCreationResult result =
-                interactionService.createInteraction(userDetails.getUsername(), request);
+                interactionService.createInteraction(username, request);
         InteractionRecordResponse response =
                 InteractionRecordResponse.fromEntity(result.interaction());
         if (!result.created()) {
@@ -53,6 +57,36 @@ public class VisitorInteractionController {
         return ResponseEntity.ok(ApiResponse.success(
                 "Interaction summary retrieved successfully",
                 interactionService.getSummary(from, to)));
+    }
+
+    @GetMapping("/api/analytics/interactions/timeseries")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<DailyInteractionResponse>>> getTimeSeries(
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to) {
+        validateRequiredRange(from, to);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Daily interaction time-series retrieved successfully",
+                interactionService.getDailyTimeSeries(from, to)));
+    }
+
+    @GetMapping("/api/analytics/interactions/languages")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<LanguageCountResponse>>> getLanguageAnalytics(
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to) {
+        validateRequiredRange(from, to);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Language analytics retrieved successfully",
+                interactionService.getLanguageAnalytics(from, to)));
+    }
+
+    private void validateRequiredRange(Instant from, Instant to) {
+        if (from == null || to == null) {
+            throw new BadRequestException(
+                    "Both from and to must be provided together");
+        }
+        validateRange(from, to);
     }
 
     private void validateRange(Instant from, Instant to) {

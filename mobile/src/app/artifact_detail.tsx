@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import {
@@ -8,6 +8,9 @@ import {
   type Multimedia,
 } from '../services/heritageApi';
 import { RemoteImage } from '../components/remote-image';
+import { MultimediaPlayer } from '../components/multimedia-player';
+import { interactionApi } from '../services/interactionApi';
+import * as Crypto from 'expo-crypto';
 
 export default function ArtifactDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -17,6 +20,7 @@ export default function ArtifactDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const recordedArtifactId = useRef<string | null>(null);
 
   const artifactId = Array.isArray(id) ? id[0] : id;
 
@@ -62,6 +66,44 @@ export default function ArtifactDetailScreen() {
     };
   }, [artifactId, refreshKey]);
 
+  useEffect(() => {
+    if (!artifact) {
+      return;
+    }
+
+    const currentArtifactId = String(artifact.id);
+    if (recordedArtifactId.current === currentArtifactId) {
+      return;
+    }
+    recordedArtifactId.current = currentArtifactId;
+
+    const now = new Date().toISOString();
+    void interactionApi.recordInteraction({
+      eventId: Crypto.randomUUID(),
+      artifactId: artifact.id,
+      interactionType: 'VIEW',
+      languageCode: 'vi',
+      startedAt: now,
+      interactedAt: now,
+    });
+  }, [artifact]);
+
+  const handleAudioPlay = useCallback(() => {
+    if (!artifact) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    void interactionApi.recordInteraction({
+      eventId: Crypto.randomUUID(),
+      artifactId: artifact.id,
+      interactionType: 'AUDIO_PLAY',
+      languageCode: 'vi',
+      startedAt: now,
+      interactedAt: now,
+    });
+  }, [artifact]);
+
   const handleRetry = () => {
     setError(null);
     setIsLoading(true);
@@ -90,6 +132,12 @@ export default function ArtifactDetailScreen() {
   const multimediaImages = multimedia.filter(
     (m) => m.type === 'IMAGE' && isUsableMediaUrl(m.url),
   );
+  const multimediaAudio = multimedia.filter(
+    (m) => m.type === 'AUDIO' && isUsableMediaUrl(m.url),
+  );
+  const multimediaVideo = multimedia.filter(
+    (m) => m.type === 'VIDEO' && isUsableMediaUrl(m.url),
+  );
   const heroImageUrl = multimediaImages.length > 0 ? multimediaImages[0].url : null;
 
   return (
@@ -116,6 +164,32 @@ export default function ArtifactDetailScreen() {
                   accessibilityLabel={m.title ?? artifact.name}
                 />
               </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {multimediaAudio.length > 0 && (
+        <View style={styles.multimediaSection}>
+          <Text style={styles.multimediaTitle}>Thuyết minh</Text>
+          <View style={styles.mediaList}>
+            {multimediaAudio.map((m) => (
+              <MultimediaPlayer
+                key={m.id}
+                item={m}
+                onAudioPlay={handleAudioPlay}
+              />
+            ))}
+          </View>
+        </View>
+      )}
+
+      {multimediaVideo.length > 0 && (
+        <View style={styles.multimediaSection}>
+          <Text style={styles.multimediaTitle}>Video tư liệu</Text>
+          <View style={styles.mediaList}>
+            {multimediaVideo.map((m) => (
+              <MultimediaPlayer key={m.id} item={m} />
             ))}
           </View>
         </View>
@@ -165,6 +239,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginBottom: 12,
+  },
+  mediaList: {
+    gap: 10,
   },
   multimediaItem: {
     width: 110,

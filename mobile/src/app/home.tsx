@@ -12,6 +12,7 @@ import { heritageApi, type HeritageSite, type Artifact } from '../services/herit
 import { apiClient } from '../services/api';
 import { authStorage } from '../services/authStorage';
 import { RemoteImage } from '../components/remote-image';
+import { BeaconDiscoveryPanel } from '../components/beacon-discovery-panel';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -29,8 +30,9 @@ export default function HomeScreen() {
   // Content data states (real API)
   const [sites, setSites] = useState<HeritageSite[]>([]);
   const [featuredArtifacts, setFeaturedArtifacts] = useState<Artifact[]>([]);
-  const [, setIsLoadingData] = useState(true);
-  const [, setDataError] = useState<string | null>(null);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [contentRefreshKey, setContentRefreshKey] = useState(0);
 
   const site = sites[0] ?? null;
 
@@ -76,7 +78,7 @@ export default function HomeScreen() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [contentRefreshKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -125,6 +127,10 @@ export default function HomeScreen() {
     };
   }, []);
 
+  const handleRetryContent = () => {
+    setContentRefreshKey((prev) => prev + 1);
+  };
+
   const handleLogout = async () => {
     await authStorage.clearToken();
     setUser(null);
@@ -135,7 +141,23 @@ export default function HomeScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       {/* 1. Heritage Site Landing Banner */}
       <View style={styles.heroCard}>
-        {!site ? (
+        {isLoadingData ? (
+          <View style={styles.emptyBanner} testID="loading-container">
+            <ActivityIndicator size="large" color="#D97706" />
+            <Text style={styles.emptyText}>Đang tải nội dung...</Text>
+          </View>
+        ) : dataError ? (
+          <View style={styles.emptyBanner}>
+            <Text style={styles.heroErrorText}>{dataError}</Text>
+            <TouchableOpacity
+              style={styles.heroRetryButton}
+              onPress={handleRetryContent}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.heroRetryButtonText}>Thử lại</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !site ? (
           <View style={styles.emptyBanner}>
             <Text style={styles.emptyText}>Chưa có dữ liệu di sản</Text>
           </View>
@@ -157,18 +179,14 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* 2. iBeacon BLE Status Indicator — Not integrated in Sprint 2 */}
-      <View style={styles.beaconBanner}>
-        <View style={styles.beaconPulseDot}>
-          <Text style={styles.beaconIcon}>📡</Text>
-        </View>
-        <View style={styles.beaconTextContainer}>
-          <Text style={styles.beaconTitle}>iBeacon / BLE: Chưa tích hợp</Text>
-          <Text style={styles.beaconSubtitle}>
-            Tính năng quét beacon thực tế chưa có sẵn trong bản Sprint 2.
-          </Text>
-        </View>
-      </View>
+          <BeaconDiscoveryPanel
+            onOpenArtifact={(artifactId) =>
+              router.push({
+                pathname: '/artifact_detail',
+                params: { id: String(artifactId) },
+              })
+            }
+          />
 
       {/* 3. Quick Navigation Features Grid */}
       <View style={styles.sectionHeader}>
@@ -321,6 +339,26 @@ const styles = StyleSheet.create({
     color: '#CBD5E1',
     fontSize: 16,
     fontWeight: '600',
+    marginTop: 10,
+  },
+  heroErrorText: {
+    color: '#FCA5A5',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 12,
+    paddingHorizontal: 24,
+    textAlign: 'center',
+  },
+  heroRetryButton: {
+    backgroundColor: '#D97706',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  heroRetryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   heroImage: {
     width: '100%',
@@ -366,43 +404,6 @@ const styles = StyleSheet.create({
   siteInfoItem: {
     fontSize: 11,
     color: '#CBD5E1',
-  },
-  beaconBanner: {
-    margin: 16,
-    marginBottom: 8,
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#FCD34D',
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  beaconPulseDot: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FDE68A',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  beaconIcon: {
-    fontSize: 20,
-  },
-  beaconTextContainer: {
-    flex: 1,
-  },
-  beaconTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  beaconSubtitle: {
-    fontSize: 11,
-    color: '#78350F',
-    marginTop: 2,
-    lineHeight: 15,
   },
   sectionHeader: {
     paddingHorizontal: 16,

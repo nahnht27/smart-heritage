@@ -21,13 +21,20 @@ public class VisitorInteraction {
     @Column(name = "event_id", nullable = false, updatable = false)
     private UUID eventId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @Column(name = "visitor_id", nullable = false, updatable = false)
+    private UUID visitorId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "artifact_id", nullable = false)
     private Artifact artifact;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "beacon_id")
+    private Beacon beacon;
 
     @Column(name = "interaction_type", nullable = false, length = 50)
     private String interactionType;
@@ -66,6 +73,14 @@ public class VisitorInteraction {
         this.eventId = eventId;
     }
 
+    public UUID getVisitorId() {
+        return visitorId;
+    }
+
+    public void setVisitorId(UUID visitorId) {
+        this.visitorId = visitorId;
+    }
+
     public User getUser() {
         return user;
     }
@@ -80,6 +95,14 @@ public class VisitorInteraction {
 
     public void setArtifact(Artifact artifact) {
         this.artifact = artifact;
+    }
+
+    public Beacon getBeacon() {
+        return beacon;
+    }
+
+    public void setBeacon(Beacon beacon) {
+        this.beacon = beacon;
     }
 
     public String getInteractionType() {

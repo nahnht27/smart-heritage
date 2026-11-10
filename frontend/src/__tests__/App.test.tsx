@@ -7,6 +7,17 @@ import type { AuthContextType } from '../context/AuthContext'
 import { useAuth } from '../context/useAuth'
 import type { AuthUser } from '../types/auth'
 
+vi.mock('../services/analyticsService', () => ({
+  getInteractionSummary: vi.fn().mockResolvedValue({
+    from: null,
+    to: null,
+    totalInteractions: 0,
+    uniqueVisitors: 0,
+    interactionTypes: [],
+    popularArtifacts: [],
+  }),
+}))
+
 vi.mock('../context/useAuth', () => ({
   useAuth: vi.fn(),
 }))

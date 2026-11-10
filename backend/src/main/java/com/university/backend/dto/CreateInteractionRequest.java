@@ -14,11 +14,17 @@ public class CreateInteractionRequest {
     private UUID eventId;
 
     @NotNull
+    private UUID visitorId;
+
+    @NotNull
     @Positive
     private Integer artifactId;
 
+    @Positive
+    private Integer beaconId;
+
     @NotBlank
-    @Pattern(regexp = "(?i:VIEW|AUDIO_PLAY|SCAN)")
+    @Pattern(regexp = "(?i:VIEW|AUDIO_PLAY|SCAN|BEACON_TRIGGER)")
     private String interactionType;
 
     @NotBlank
@@ -42,12 +48,28 @@ public class CreateInteractionRequest {
         this.eventId = eventId;
     }
 
+    public UUID getVisitorId() {
+        return visitorId;
+    }
+
+    public void setVisitorId(UUID visitorId) {
+        this.visitorId = visitorId;
+    }
+
     public Integer getArtifactId() {
         return artifactId;
     }
 
     public void setArtifactId(Integer artifactId) {
         this.artifactId = artifactId;
+    }
+
+    public Integer getBeaconId() {
+        return beaconId;
+    }
+
+    public void setBeaconId(Integer beaconId) {
+        this.beaconId = beaconId;
     }
 
     public String getInteractionType() {
