@@ -37,7 +37,7 @@ Bổ sung chức năng tìm kiếm, lọc, phân trang và sắp xếp cho Herit
 
 ## 5. Kiểm thử
 Đã chạy bộ kiểm thử backend bằng Docker Maven với test profile:
-- Toàn bộ backend: 133 tests, 0 failures, 0 errors, 0 skipped.
+- Toàn bộ backend: 130 tests, 0 failures, 0 errors, 0 skipped.
 - Bao gồm Artifact và Heritage Site controller tests.
 
 Các kiểm thử bổ sung bao gồm tìm kiếm keyword, phân trang, sắp xếp, thứ tự ổn định khi trùng khóa sắp xếp, `direction` không hợp lệ và giới hạn kích thước trang.
