@@ -23,6 +23,8 @@ Bổ sung chức năng tìm kiếm, lọc, phân trang và sắp xếp cho Herit
 - Sử dụng `Pageable`, `PageRequest` và `Page` cho phân trang.
 - Chuẩn hóa từ khóa tìm kiếm bằng cách trim khoảng trắng và tìm kiếm không phân biệt chữ hoa, chữ thường.
 - Kiểm tra tham số phân trang, giới hạn `size` tối đa 100 và whitelist trường sắp xếp.
+- Validate `direction` cả khi không truyền `sortBy`.
+- Dùng tie-breaker (`artifactId`/`siteId`) để thứ tự ổn định khi các bản ghi có cùng giá trị sắp xếp.
 - Bổ sung DTO `PageResponse` để trả dữ liệu phân trang.
 
 ## 4. Tương thích ngược
@@ -35,13 +37,10 @@ Bổ sung chức năng tìm kiếm, lọc, phân trang và sắp xếp cho Herit
 
 ## 5. Kiểm thử
 Đã chạy bộ kiểm thử backend bằng Docker Maven với test profile:
-- Artifact: 122 tests, 0 failures, 0 errors, 0 skipped.
-- Heritage Site: 126 tests, 0 failures, 0 errors, 0 skipped.
+- Toàn bộ backend: 133 tests, 0 failures, 0 errors, 0 skipped.
+- Bao gồm Artifact và Heritage Site controller tests.
 
-Các kiểm thử bổ sung bao gồm tìm kiếm keyword, phân trang, sắp xếp và kiểm tra giới hạn kích thước trang.
+Các kiểm thử bổ sung bao gồm tìm kiếm keyword, phân trang, sắp xếp, thứ tự ổn định khi trùng khóa sắp xếp, `direction` không hợp lệ và giới hạn kích thước trang.
 
 ## 6. Tài liệu
-Cập nhật `docs/integration/api-contract.md` tại:
-- Mục 2.3 — Heritage Site.
-- Mục 2.4 — Artifact.
-Bổ sung query parameters, cấu trúc phân trang và quy tắc tương thích ngược.
+API contract cho Content Discovery được cập nhật trong PR phụ thuộc LTJ-45 (`docs/integration/api-contract.md`), vì branch LTJ-45 đang stack trên LTJ-44. Branch LTJ-44 chỉ thêm implementation log này.

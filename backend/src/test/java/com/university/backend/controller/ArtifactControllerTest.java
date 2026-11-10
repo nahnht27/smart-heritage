@@ -266,7 +266,7 @@ class ArtifactControllerTest extends ContentApiTestSupport {
                 .andExpect(status().isForbidden());
     }
 
-        @Test
+    @Test
     void searchArtifactsByKeywordShouldReturnMatchingArtifacts() throws Exception {
         String token = createAdminToken();
         int siteId = createSite(token, "Search Site");
@@ -343,5 +343,42 @@ class ArtifactControllerTest extends ContentApiTestSupport {
                         .param("sortBy", "unknownField")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchArtifactsShouldRejectInvalidDirectionWithoutSortField()
+            throws Exception {
+        String token = createAdminToken();
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("direction", "sideways")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchArtifactsShouldUseStableTieBreakerAcrossPages() throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Stable Ordering Site");
+        int firstId = createArtifact(token, siteId, "Duplicate Name");
+        int secondId = createArtifact(token, siteId, "Duplicate Name");
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("page", "0")
+                        .param("size", "1")
+                        .param("sortBy", "name")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].artifactId")
+                        .value(firstId));
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("page", "1")
+                        .param("size", "1")
+                        .param("sortBy", "name")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].artifactId")
+                        .value(secondId));
     }
 }

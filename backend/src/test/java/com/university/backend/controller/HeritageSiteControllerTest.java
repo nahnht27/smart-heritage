@@ -184,7 +184,7 @@ class HeritageSiteControllerTest extends ContentApiTestSupport {
                 .andExpect(status().isBadRequest());
     }
 
-        @Test
+    @Test
     void searchHeritageSitesByKeywordShouldReturnMatchingSites() throws Exception {
         String token = createAdminToken();
 
@@ -246,5 +246,42 @@ class HeritageSiteControllerTest extends ContentApiTestSupport {
                         .param("size", "101")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchHeritageSitesShouldRejectInvalidDirectionWithoutSortField()
+            throws Exception {
+        String token = createAdminToken();
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("direction", "sideways")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchHeritageSitesShouldUseStableTieBreakerAcrossPages()
+            throws Exception {
+        String token = createAdminToken();
+        int firstId = createSite(token, "Duplicate Site");
+        int secondId = createSite(token, "Duplicate Site");
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("page", "0")
+                        .param("size", "1")
+                        .param("sortBy", "name")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].siteId")
+                        .value(firstId));
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("page", "1")
+                        .param("size", "1")
+                        .param("sortBy", "name")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].siteId")
+                        .value(secondId));
     }
 }
