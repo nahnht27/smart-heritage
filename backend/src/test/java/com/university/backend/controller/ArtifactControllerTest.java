@@ -1,10 +1,13 @@
 package com.university.backend.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.university.backend.entity.Beacon;
+import com.university.backend.entity.VisitorInteraction;
 import com.university.backend.repository.ArtifactRepository;
+import com.university.backend.repository.BeaconRepository;
 import com.university.backend.repository.HeritageSiteRepository;
 import com.university.backend.repository.MultimediaRepository;
+import com.university.backend.repository.VisitorInteractionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +15,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+
+import java.time.Instant;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -23,9 +29,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ArtifactControllerTest extends ContentApiTestSupport {
 
     @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
     private HeritageSiteRepository heritageSiteRepository;
 
     @Autowired
@@ -34,8 +37,16 @@ class ArtifactControllerTest extends ContentApiTestSupport {
     @Autowired
     private MultimediaRepository multimediaRepository;
 
+    @Autowired
+    private VisitorInteractionRepository visitorInteractionRepository;
+
+    @Autowired
+    private BeaconRepository beaconRepository;
+
     @BeforeEach
     void cleanArtifactTestData() {
+        visitorInteractionRepository.deleteAll();
+        beaconRepository.deleteAll();
         multimediaRepository.deleteAll();
         artifactRepository.deleteAll();
         heritageSiteRepository.deleteAll();
@@ -232,6 +243,63 @@ class ArtifactControllerTest extends ContentApiTestSupport {
 
         org.junit.jupiter.api.Assertions.assertTrue(
                 multimediaRepository.existsById(multimediaId));
+    }
+
+    @Test
+    void adminShouldNotDeleteArtifactWithVisitorInteractions() throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Interaction Conflict Site");
+        int artifactId = createArtifact(
+                token, siteId, "Artifact With Interactions");
+
+        var artifact = artifactRepository.findById(artifactId).orElseThrow();
+        VisitorInteraction interaction = new VisitorInteraction();
+        interaction.setEventId(UUID.randomUUID());
+        interaction.setVisitorId(UUID.randomUUID());
+        interaction.setArtifact(artifact);
+        interaction.setInteractionType("VIEW");
+        interaction.setLanguageCode("en");
+        interaction.setStartedAt(Instant.now());
+        interaction.setInteractedAt(Instant.now());
+        visitorInteractionRepository.save(interaction);
+
+        mockMvc.perform(delete("/api/artifacts/{artifactId}", artifactId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                artifactRepository.existsById(artifactId));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                visitorInteractionRepository.existsById(
+                        interaction.getInteractionId()));
+    }
+
+    @Test
+    void adminShouldNotDeleteArtifactWithBeacons() throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Beacon Conflict Site");
+        int artifactId = createArtifact(token, siteId, "Artifact With Beacon");
+
+        Beacon beacon = new Beacon();
+        beacon.setName("Related Beacon");
+        beacon.setProximityUuid(UUID.randomUUID());
+        beacon.setMajor(1);
+        beacon.setMinor(1);
+        beacon.setEnabled(true);
+        beacon.setArtifact(
+                artifactRepository.findById(artifactId).orElseThrow());
+        beaconRepository.save(beacon);
+
+        mockMvc.perform(delete("/api/artifacts/{artifactId}", artifactId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                artifactRepository.existsById(artifactId));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                beaconRepository.existsById(beacon.getBeaconId()));
     }
 
     @Test
