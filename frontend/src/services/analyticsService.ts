@@ -1,47 +1,32 @@
 import { apiRequest } from './apiClient'
+import type {
+  AnalyticsFilterParams,
+  InteractionSummary,
+} from '../types/analytics'
 
-export interface InteractionTypeCount {
-  interactionType: string
-  count: number
-}
+const SUMMARY_ENDPOINT = '/api/analytics/interactions/summary'
 
-export interface PopularArtifact {
-  artifactId: number
-  artifactName: string
-  interactionCount: number
-}
-
-export interface InteractionSummary {
-  from: string | null
-  to: string | null
-  totalInteractions: number
-  uniqueVisitors: number
-  interactionTypes: InteractionTypeCount[]
-  popularArtifacts: PopularArtifact[]
-}
-
-export type AnalyticsRange = 'all' | '7d' | '30d' | '90d'
-
-export function getInteractionSummary(
-  range: AnalyticsRange,
+export async function getInteractionSummary(
+  params?: AnalyticsFilterParams,
 ): Promise<InteractionSummary> {
-  const params = new URLSearchParams()
+  let url = SUMMARY_ENDPOINT
 
-  if (range !== 'all') {
-    const days = Number(range.slice(0, -1))
-    const to = new Date()
-    const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000)
-    params.set('from', from.toISOString())
-    params.set('to', to.toISOString())
+  if (params?.from && params?.to) {
+    const searchParams = new URLSearchParams({
+      from: params.from,
+      to: params.to,
+    })
+    url = `${SUMMARY_ENDPOINT}?${searchParams.toString()}`
   }
 
-  const query = params.toString()
-  const path = `/api/analytics/interactions/summary${query ? `?${query}` : ''}`
+  const response = await apiRequest<InteractionSummary>(url)
 
-  return apiRequest<InteractionSummary>(path).then((response) => {
-    if (!response.data) {
-      throw new Error('The analytics response did not include data.')
-    }
-    return response.data
-  })
+  return {
+    from: response.data?.from ?? null,
+    to: response.data?.to ?? null,
+    totalInteractions: Number(response.data?.totalInteractions ?? 0),
+    uniqueVisitors: Number(response.data?.uniqueVisitors ?? 0),
+    interactionTypes: response.data?.interactionTypes ?? [],
+    popularArtifacts: response.data?.popularArtifacts ?? [],
+  }
 }
