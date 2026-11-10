@@ -4,7 +4,7 @@
 - **Task:** LTJ-45
 - **Branch:** `LTJ-45-multimedia-integrity`
 - **PR:** #27
-- **Status:** Implementation completed, tests passed.
+- **Status:** Implementation completed, tests passed; đã đồng bộ LTJ-44.
 
 ## 2. Mục tiêu
 Hoàn thiện validation dữ liệu Multimedia và đảm bảo tính toàn vẹn dữ liệu giữa Multimedia, Artifact và HeritageSite.
@@ -49,7 +49,7 @@ Bổ sung kiểm thử cho các trường hợp:
 ## 4. Kết quả kiểm thử
 Chạy backend test suite bằng Docker Maven với Java 17:
 
-Tests run: 130
+Tests run: 134
 Failures: 0
 Errors: 0
 Skipped: 0
