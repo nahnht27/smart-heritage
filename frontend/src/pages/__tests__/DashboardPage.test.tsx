@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -350,5 +351,34 @@ describe('DashboardPage — Admin Analytics', () => {
     await user.click(refreshBtn)
 
     expect(analyticsService.getInteractionSummary).toHaveBeenCalledTimes(2)
+  })
+
+  it('renders BEACON_TRIGGER interactions with a readable label', async () => {
+    vi.mocked(analyticsService.getInteractionSummary).mockResolvedValueOnce({
+      ...mockAnalyticsData,
+      interactionTypes: [{ interactionType: 'BEACON_TRIGGER', count: 17 }],
+    })
+
+    render(<DashboardPage />)
+
+    expect(await screen.findByText('Beacon Triggers')).toBeInTheDocument()
+    expect(screen.getByText('17')).toBeInTheDocument()
+  })
+
+  it('does not duplicate the initial request in StrictMode', async () => {
+    vi.mocked(analyticsService.getInteractionSummary).mockResolvedValue(
+      mockAnalyticsData,
+    )
+
+    render(
+      <StrictMode>
+        <DashboardPage />
+      </StrictMode>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('1,420')).toBeInTheDocument()
+    })
+    expect(analyticsService.getInteractionSummary).toHaveBeenCalledTimes(1)
   })
 })

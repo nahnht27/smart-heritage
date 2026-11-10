@@ -70,11 +70,19 @@ public class GlobalExceptionHandler {
             DataIntegrityViolationException ex,
             HttpServletRequest request) {
         String message = ex.getMessage() == null ? "" : ex.getMessage();
-        boolean isDuplicateEvent = message.toLowerCase().contains(
+        String normalizedMessage = message.toLowerCase();
+        boolean isDuplicateEvent = normalizedMessage.contains(
                 "uk_visitor_interaction_event_id");
-        String userMessage = isDuplicateEvent
-                ? "The submitted eventId has already been recorded."
-                : "Lỗi toàn vẹn dữ liệu. Vui lòng kiểm tra lại dữ liệu gửi lên.";
+        boolean isDuplicateBeacon = normalizedMessage.contains(
+                "uk_beacon_identity");
+        String userMessage;
+        if (isDuplicateEvent) {
+            userMessage = "The submitted eventId has already been recorded.";
+        } else if (isDuplicateBeacon) {
+            userMessage = "A beacon with the same UUID, major and minor already exists.";
+        } else {
+            userMessage = "Lỗi toàn vẹn dữ liệu. Vui lòng kiểm tra lại dữ liệu gửi lên.";
+        }
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(
                 userMessage, request.getRequestURI()));
     }

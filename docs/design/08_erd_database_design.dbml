@@ -63,14 +63,19 @@ Table BeaconDeploymentLocation {
   longitude decimal(9,6)
 }
 
-Table iBeacon {
+Table Beacon {
   beacon_id int [pk, increment]
-  location_id int [not null]
-  artifact_id int
-  uuid varchar(100) [not null]
+  name varchar(255) [not null]
+  proximity_uuid uuid [not null]
   major int [not null]
   minor int [not null]
-  status varchar(30) [not null]
+  enabled boolean [not null, default: true]
+  artifact_id int
+
+  indexes {
+    (proximity_uuid, major, minor) [unique, name: 'uk_beacon_identity']
+    artifact_id [name: 'idx_beacon_artifact_id']
+  }
 }
 
 Table Favorite {
@@ -86,11 +91,23 @@ Table Favorite {
 
 Table VisitorInteraction {
   interaction_id int [pk, increment]
-  user_id int [not null]
+  event_id uuid [not null, unique, name: 'uk_visitor_interaction_event_id']
+  visitor_id uuid [not null]
+  user_id int
   artifact_id int [not null]
   beacon_id int
   interaction_type varchar(50) [not null]
+  language_code varchar(16) [not null]
+  started_at timestamp [not null]
+  ended_at timestamp
+  duration_seconds bigint
   interacted_at timestamp [not null]
+
+  indexes {
+    interacted_at [name: 'idx_visitor_interaction_interacted_at']
+    visitor_id [name: 'idx_visitor_interaction_visitor_id']
+    beacon_id [name: 'idx_visitor_interaction_beacon_id']
+  }
 }
 
 Table Feedback {
@@ -110,12 +127,11 @@ Ref: Artifact.artifact_id < Multimedia.artifact_id
 Ref: Artifact.artifact_id < ArtifactTranslation.artifact_id
 Ref: Language.language_id < ArtifactTranslation.language_id
 Ref: HeritageSite.site_id < BeaconDeploymentLocation.site_id
-Ref: BeaconDeploymentLocation.location_id < iBeacon.location_id
-Ref: Artifact.artifact_id < iBeacon.artifact_id
+Ref: Artifact.artifact_id < Beacon.artifact_id
 Ref: User.user_id < Favorite.user_id
 Ref: Artifact.artifact_id < Favorite.artifact_id
 Ref: User.user_id < VisitorInteraction.user_id
 Ref: Artifact.artifact_id < VisitorInteraction.artifact_id
-Ref: iBeacon.beacon_id < VisitorInteraction.beacon_id
+Ref: Beacon.beacon_id < VisitorInteraction.beacon_id
 Ref: User.user_id < Feedback.user_id
 Ref: Artifact.artifact_id < Feedback.artifact_id

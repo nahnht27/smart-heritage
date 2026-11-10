@@ -20,16 +20,16 @@
 
 - **4 thẻ chỉ số KPI chính:**
   - **Total Interactions:** Tổng số sự kiện tương tác của khách tham quan trong kỳ.
-  - **Unique Visitors:** Số lượng khách tham quan duy nhất (`distinct user_id`).
+  - **Unique Visitors:** Số lượng khách tham quan duy nhất (`distinct visitor_id`).
   - **Avg. Engagement:** Tỉ lệ tương tác trung bình trên mỗi du khách.
   - **Top Interaction Type:** Loại tương tác phổ biến nhất kèm tỉ lệ phần trăm `%`.
 - **Bộ lọc thời gian (Date Range Filter):**
   - Cung cấp các nút preset chọn nhanh: `Last 7 Days`, `Last 30 Days` (mặc định), `Last 90 Days`, `All Time`.
   - Hỗ trợ chọn ngày tùy chỉnh (`From` - `To`) với các nút `Apply` và `Reset`.
-  - Validate ràng buộc nghiêm ngặt theo backend contract: chặn chọn ngày bắt đầu lớn hơn hoặc bằng ngày kết thúc (`from >= to`), chặn khoảng thời gian vượt quá **90 ngày**.
+  - Validate ràng buộc nghiêm ngặt theo backend contract: chặn chọn ngày bắt đầu sau ngày kết thúc (`from > to`), chặn khoảng thời gian vượt quá **90 ngày**.
   - Hiển thị rõ ràng khoảng thời gian đang được thống kê (theo chuẩn UTC đồng bộ với server).
 - **Biểu đồ phân loại tương tác (Interaction Breakdown):**
-  - Thanh phân bổ tổng hợp (Stacked segment bar) trực quan với màu sắc riêng cho từng loại tương tác (`VIEW`, `AUDIO_PLAY`, `SCAN`).
+  - Thanh phân bổ tổng hợp (Stacked segment bar) trực quan với màu sắc riêng cho từng loại tương tác (`VIEW`, `AUDIO_PLAY`, `SCAN`, `BEACON_TRIGGER`).
   - Danh sách chi tiết từng loại kèm số lượt, tỉ lệ phần trăm và thanh tiến trình (progress bar).
 - **Bảng xếp hạng Top 10 Hiện vật (Popular Artifacts):**
   - Hiển thị danh sách hiện vật có tương tác cao nhất.
@@ -44,8 +44,8 @@
 ### 3. Kiểm thử & Đảm bảo chất lượng (Quality Assurance)
 
 - Bổ sung unit tests cho service: `src/services/__tests__/analyticsService.test.ts` (3 tests).
-- Bổ sung component tests cho Dashboard: `src/pages/__tests__/DashboardPage.test.tsx` (10 tests: tải dữ liệu, empty state, error retry, 403 forbidden, đổi preset, validate giới hạn 90 ngày, tính ngày kết thúc bao gồm, refresh).
-- Toàn bộ test suite của dự án đạt **56/56 tests passed**.
+- Bổ sung component tests cho Dashboard: `src/pages/__tests__/DashboardPage.test.tsx` (12 tests: tải dữ liệu, empty state, error retry, 403 forbidden, đổi preset, validate giới hạn 90 ngày, tính ngày kết thúc bao gồm, refresh, `BEACON_TRIGGER`, chống request trùng trong StrictMode).
+- Toàn bộ test suite của dự án đạt **48/48 tests passed** sau khi đồng bộ `main`.
 - Kiểm tra kiểu dữ liệu (`npx tsc --noEmit`), linter (`npm run lint`), và build (`npm run build`) đều thành công 100% không có lỗi.
 - Không sử dụng dữ liệu giả (mock data) trong giao diện Dashboard thực tế.
 

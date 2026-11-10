@@ -1,4 +1,4 @@
-import { useEffect, useState, useId } from 'react'
+import { useEffect, useRef, useState, useId } from 'react'
 import { ApiError } from '../services/apiClient'
 import { getInteractionSummary } from '../services/analyticsService'
 import type {
@@ -151,7 +151,7 @@ function getTypeClass(type: string): string {
   const upper = type.toUpperCase()
   if (upper === 'VIEW') return 'view'
   if (upper === 'AUDIO_PLAY') return 'audio'
-  if (upper === 'SCAN') return 'scan'
+  if (upper === 'SCAN' || upper === 'BEACON_TRIGGER') return 'scan'
   return 'other'
 }
 
@@ -160,6 +160,7 @@ function getTypeLabel(type: string): string {
   if (upper === 'VIEW') return 'Artifact Views'
   if (upper === 'AUDIO_PLAY') return 'Audio Plays'
   if (upper === 'SCAN') return 'QR/Beacon Scans'
+  if (upper === 'BEACON_TRIGGER') return 'Beacon Triggers'
   return type
 }
 
@@ -219,7 +220,7 @@ function getTypeIconName(type: string): UiIconName {
   const upper = type.toUpperCase()
   if (upper === 'VIEW') return 'view'
   if (upper === 'AUDIO_PLAY') return 'audio'
-  if (upper === 'SCAN') return 'scan'
+  if (upper === 'SCAN' || upper === 'BEACON_TRIGGER') return 'scan'
   return 'other'
 }
 
@@ -232,6 +233,10 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [isForbidden, setIsForbidden] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const inFlightRequest = useRef<{
+    key: string
+    promise: Promise<InteractionSummary>
+  } | null>(null)
 
   // Filter state
   const [preset, setPreset] = useState<PresetRange>('30d')
@@ -247,17 +252,28 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false
+    const requestKey = [
+      activeParams.from ?? '',
+      activeParams.to ?? '',
+      reloadKey,
+    ].join('|')
 
-    async function loadSummary() {
-      setError(null)
-      setIsForbidden(false)
+    let request = inFlightRequest.current
+    if (!request || request.key !== requestKey) {
+      request = {
+        key: requestKey,
+        promise: getInteractionSummary(activeParams),
+      }
+      inFlightRequest.current = request
+    }
 
-      try {
-        const data = await getInteractionSummary(activeParams)
+    request.promise
+      .then((data) => {
         if (!cancelled) {
           setSummary(data)
         }
-      } catch (err: unknown) {
+      })
+      .catch((err: unknown) => {
         if (!cancelled) {
           if (err instanceof ApiError && err.status === 403) {
             setIsForbidden(true)
@@ -270,15 +286,16 @@ export default function DashboardPage() {
             setError('An unexpected error occurred while loading analytics.')
           }
         }
-      } finally {
+      })
+      .finally(() => {
+        if (inFlightRequest.current === request) {
+          inFlightRequest.current = null
+        }
         if (!cancelled) {
           setLoading(false)
           setRefreshing(false)
         }
-      }
-    }
-
-    void loadSummary()
+      })
 
     return () => {
       cancelled = true
@@ -288,6 +305,8 @@ export default function DashboardPage() {
   const handleSelectPreset = (nextPreset: PresetRange) => {
     setPreset(nextPreset)
     setDateError(null)
+    setError(null)
+    setIsForbidden(false)
 
     if (nextPreset === 'custom') {
       return
@@ -311,6 +330,8 @@ export default function DashboardPage() {
     setDateError(null)
     setPreset('custom')
     setLoading(true)
+    setError(null)
+    setIsForbidden(false)
     setActiveParams(toRangeParams(startDateInput, endDateInput))
   }
 
@@ -320,11 +341,15 @@ export default function DashboardPage() {
 
   const handleRefresh = () => {
     setRefreshing(true)
+    setError(null)
+    setIsForbidden(false)
     setReloadKey((key) => key + 1)
   }
 
   const handleRetry = () => {
     setLoading(true)
+    setError(null)
+    setIsForbidden(false)
     setReloadKey((key) => key + 1)
   }
 
@@ -609,7 +634,7 @@ export default function DashboardPage() {
               <header className="analytics-panel__header">
                 <div className="analytics-panel__title-group">
                   <h2>Interaction Breakdown</h2>
-                  <p>Distribution across VIEW, AUDIO_PLAY, and SCAN events</p>
+                  <p>Distribution across VIEW, AUDIO_PLAY, SCAN, and BEACON_TRIGGER events</p>
                 </div>
                 <span className="analytics-panel__badge">
                   {interactionTypes.length} {interactionTypes.length === 1 ? 'type' : 'types'}

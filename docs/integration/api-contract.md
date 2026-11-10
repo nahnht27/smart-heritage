@@ -202,14 +202,18 @@ Trả về: `{"status":"UP","timestamp":"..."}` (dạng `Map`, không dùng enve
 | Trường | Kiểu | Ràng buộc | Mô tả |
 |--------|------|-----------|-------|
 | `eventId` | UUID | `@NotNull` | UUID định danh sự kiện, dùng để tránh ghi trùng (idempotency) |
+| `visitorId` | UUID | `@NotNull` | UUID ẩn danh, ổn định theo thiết bị; dùng cho `uniqueVisitors` |
 | `artifactId` | Integer | `@NotNull`, `@Positive` | ID hiện vật tương tác |
-| `interactionType` | String | `@NotBlank`, `@Pattern(VIEW\|AUDIO_PLAY\|SCAN)` | Loại tương tác |
+| `beaconId` | Integer | Tùy chọn; bắt buộc với `BEACON_TRIGGER`, `@Positive` | ID beacon đã resolve; chỉ hợp lệ với `BEACON_TRIGGER` |
+| `interactionType` | String | `@NotBlank`, `@Pattern(?i:VIEW\|AUDIO_PLAY\|SCAN\|BEACON_TRIGGER)` | Loại tương tác |
 | `languageCode` | String | `@NotBlank`, `@Size(max=16)`, `@Pattern([A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*)` | Mã ngôn ngữ (ví dụ `vi`, `en`) |
 | `startedAt` | Instant | `@NotNull` | Thời điểm bắt đầu tương tác |
 | `endedAt` | Instant | Tùy chọn | Thời điểm kết thúc tương tác |
 | `interactedAt` | Instant | `@NotNull` | Thời điểm sự kiện xảy ra |
 
-Request: `POST /api/interactions`, header `Authorization: Bearer <accessToken>`.
+Request: `POST /api/interactions`. Endpoint công khai: khách ẩn danh không cần token.
+Nếu có header `Authorization: Bearer <accessToken>` hợp lệ, backend gán `user_id` theo principal.
+Client **không** gửi `userId`; nếu body có `userId` thì backend bỏ qua, không tin giá trị client.
 
 **Response:**
 
@@ -218,11 +222,12 @@ Request: `POST /api/interactions`, header `Authorization: Bearer <accessToken>`.
 | `201 Created` | Tạo sự kiện tương tác mới thành công |
 | `200 OK` | Sự kiện đã tồn tại theo `eventId` (idempotency), trả về bản ghi hiện có |
 | `400 Bad Request` | Dữ liệu không hợp lệ (validation, `endedAt` trước `startedAt`, `interactionType` không hợp lệ, v.v.) |
-| `401 Unauthorized` | Chưa đăng nhập |
-| `404 Not Found` | `artifactId` không tồn tại hoặc user không tồn tại |
-| `409 Conflict` | `eventId` đã được dùng bởi user khác, hoặc vi phạm unique constraint `event_id` khi request đồng thời |
+| `404 Not Found` | `artifactId`/`beaconId` không tồn tại (hoặc user trong token không tồn tại) |
+| `409 Conflict` | `eventId` đã được dùng bởi user/visitor khác, hoặc vi phạm unique constraint `event_id` khi request đồng thời |
 
-**Quy tắc idempotency:** Gửi cùng `eventId` nhiều lần chỉ tạo **một** bản ghi trong database. Lần đầu trả về `201 Created`, lần sau trả về `200 OK` với thông báo `"Interaction event was already recorded"`. Nếu `eventId` đã được dùng bởi user khác, trả về `409 Conflict`.
+**Quy tắc idempotency:** Gửi cùng `eventId` nhiều lần chỉ tạo **một** bản ghi trong database. Lần đầu trả về `201 Created`, lần sau trả về `200 OK` với thông báo `"Interaction event was already recorded"`.
+Retry hợp lệ khi cùng danh tính: user đã đăng nhập trùng username (không bắt buộc trùng `visitorId`), hoặc khách ẩn danh trùng `visitorId`.
+Nếu `eventId` đã được dùng bởi user/visitor khác, trả về `409 Conflict`.
 
 **Giới hạn race condition:** Nếu hai request cùng `eventId` đến gần cùng một lúc, cả hai có thể thấy `eventId` chưa tồn tại và cùng cố insert. Một trong hai sẽ vi phạm unique constraint `event_id` và nhận `409 Conflict` với thông báo `"The submitted eventId has already been recorded."`. Do đó, trong trường hợp race condition, client có thể nhận `201 Created` (lần đầu) hoặc `409 Conflict` (lần bị chặn bởi unique constraint). Client nên xem cả hai mã trạng thái là thành công (sự kiện đã được ghi).
 
@@ -231,7 +236,9 @@ Request: `POST /api/interactions`, header `Authorization: Bearer <accessToken>`.
 ```json
 {
   "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "visitorId": "11111111-1111-4111-8111-111111111111",
   "artifactId": 1,
+  "beaconId": null,
   "interactionType": "VIEW",
   "languageCode": "vi",
   "startedAt": "2026-10-20T10:00:00Z",
@@ -250,6 +257,7 @@ Request: `POST /api/interactions`, header `Authorization: Bearer <accessToken>`.
     "interactionId": 1,
     "eventId": "550e8400-e29b-41d4-a716-446655440000",
     "artifactId": 1,
+    "beaconId": null,
     "interactionType": "VIEW",
     "languageCode": "vi",
     "startedAt": "2026-10-20T10:00:00Z",
@@ -265,7 +273,54 @@ Request: `POST /api/interactions`, header `Authorization: Bearer <accessToken>`.
 
 `durationSeconds` được tính tự động từ `startedAt` và `endedAt` (giây, `long`). Nếu `endedAt` null thì `durationSeconds` null.
 
-#### 2.7.2 GET `/api/analytics/interactions/summary` — thống kê tương tác (ADMIN)
+Với `BEACON_TRIGGER`, request phải gửi `beaconId` lấy từ response resolve; backend kiểm tra beacon enabled, đã gán artifact và artifact khớp `artifactId`.
+
+#### 2.7.2 Beacon resolve và quản trị beacon (Wave 4)
+
+##### GET `/api/beacons/resolve` — public
+
+| Tham số | Kiểu | Bắt buộc | Mô tả |
+|---------|------|----------|-------|
+| `uuid` | UUID | Có | Proximity UUID của iBeacon |
+| `major` | Integer | Có | `0..65535` |
+| `minor` | Integer | Có | `0..65535` |
+
+Không yêu cầu JWT. Trả `404 Not Found` nếu beacon không tồn tại hoặc đang disabled.
+
+**Response `data`:**
+
+```json
+{
+  "beaconId": 7,
+  "name": "Beacon cổng chính",
+  "uuid": "e2c56db5-dffb-48d2-b060-d0f5a71096e0",
+  "major": 1,
+  "minor": 2,
+  "enabled": true,
+  "artifactId": 42,
+  "artifactName": "Trống đồng Đông Sơn",
+  "siteId": 3,
+  "siteName": "Khu di tích"
+}
+```
+
+`artifactId`, `artifactName`, `siteId`, `siteName` có thể null nếu beacon chưa được gán hiện vật.
+
+##### `/api/admin/beacons` — ADMIN
+
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `GET` | `/api/admin/beacons` | Danh sách beacon |
+| `POST` | `/api/admin/beacons` | Tạo beacon, trả `201` |
+| `GET` | `/api/admin/beacons/{beaconId}` | Chi tiết beacon |
+| `PUT` | `/api/admin/beacons/{beaconId}` | Cập nhật beacon |
+| `DELETE` | `/api/admin/beacons/{beaconId}` | Xóa beacon |
+
+`BeaconRequest`: `name` (`@NotBlank`, max 255), `uuid` (`@NotNull`), `major`/`minor` (`0..65535`), `enabled` (optional), `artifactId` (optional, positive).
+
+Lỗi: `400` validation, `404` artifact/beacon không tồn tại, `409` trùng `(uuid, major, minor)`.
+
+#### 2.7.3 GET `/api/analytics/interactions/summary` — thống kê tương tác (ADMIN)
 
 | Tham số | Kiểu | Bắt buộc | Mô tả |
 |---------|------|----------|-------|
@@ -287,17 +342,101 @@ Yêu cầu header `Authorization: Bearer <accessToken>` và role `ADMIN`.
 | `from` | Instant | Thời điểm bắt đầu lọc |
 | `to` | Instant | Thời điểm kết thúc lọc |
 | `totalInteractions` | long | Tổng số sự kiện trong khoảng |
-| `uniqueVisitors` | long | Số visitor duy nhất (distinct `userId`) |
+| `uniqueVisitors` | long | Số visitor duy nhất (distinct `visitorId`) |
 | `interactionTypes` | List | Danh sách `{interactionType, count}` |
 | `popularArtifacts` | List | Top 10 artifact phổ biến nhất `{artifactId, artifactName, count}` |
 
 Nếu không có dữ liệu, các danh sách trả về rỗng và các số là 0.
 
+#### 2.7.4 GET `/api/analytics/interactions/timeseries` — chuỗi thời gian theo ngày (ADMIN)
+
+| Tham số | Kiểu | Bắt buộc | Mô tả |
+|---------|------|----------|-------|
+| `from` | Instant (ISO-8601) | Có | Thời điểm bắt đầu khoảng lọc |
+| `to` | Instant (ISO-8601) | Có | Thời điểm kết thúc khoảng lọc |
+
+Yêu cầu header `Authorization: Bearer <accessToken>` và role `ADMIN`.
+
+**Quy tắc:**
+- `from` và `to` đều bắt buộc; thiếu một trong hai trả `400 Bad Request`.
+- `from` phải sớm hơn `to`; khoảng không vượt quá **90 ngày**.
+- Khoảng lọc là `[from, to)`.
+- Mỗi ngày được nhóm theo **UTC calendar date**; response luôn chứa đủ mọi ngày trong khoảng, kể cả ngày không có dữ liệu (giá trị `0`).
+- Ngày cuối cùng là UTC date của `to - 1 nanosecond`; nếu `to` là đúng nửa đêm thì ngày đó không thuộc khoảng.
+
+**Response:** `ApiResponse<List<DailyInteractionResponse>>`
+
+| Trường | Kiểu | Mô tả |
+|--------|------|-------|
+| `date` | LocalDate (`YYYY-MM-DD`) | Ngày UTC |
+| `totalInteractions` | long | Tổng số sự kiện trong ngày |
+| `uniqueVisitors` | long | Số `visitorId` duy nhất trong ngày |
+
+**Ví dụ:**
+
+```http
+GET /api/analytics/interactions/timeseries?from=2026-10-01T00:00:00Z&to=2026-10-04T00:00:00Z
+Authorization: Bearer <ADMIN_TOKEN>
+```
+
+```json
+{
+  "success": true,
+  "message": "Daily interaction time-series retrieved successfully",
+  "data": [
+    { "date": "2026-10-01", "totalInteractions": 2, "uniqueVisitors": 2 },
+    { "date": "2026-10-02", "totalInteractions": 0, "uniqueVisitors": 0 },
+    { "date": "2026-10-03", "totalInteractions": 1, "uniqueVisitors": 1 }
+  ],
+  "timestamp": "...",
+  "path": "/api/analytics/interactions/timeseries",
+  "errors": null
+}
+```
+
+#### 2.7.5 GET `/api/analytics/interactions/languages` — thống kê theo ngôn ngữ (ADMIN)
+
+| Tham số | Kiểu | Bắt buộc | Mô tả |
+|---------|------|----------|-------|
+| `from` | Instant (ISO-8601) | Có | Thời điểm bắt đầu khoảng lọc |
+| `to` | Instant (ISO-8601) | Có | Thời điểm kết thúc khoảng lọc |
+
+Yêu cầu header `Authorization: Bearer <accessToken>` và role `ADMIN`.
+
+**Quy tắc:**
+- `from` và `to` đều bắt buộc; `from < to`; khoảng tối đa **90 ngày**; lọc theo `[from, to)`.
+- `languageCode` được trim; giá trị null/rỗng được gom vào bucket `UNKNOWN`.
+- Kết quả sắp xếp giảm dần theo `interactionCount`, sau đó tăng dần theo `languageCode`.
+
+**Response:** `ApiResponse<List<LanguageCountResponse>>`
+
+| Trường | Kiểu | Mô tả |
+|--------|------|-------|
+| `languageCode` | String | Mã ngôn ngữ đã chuẩn hóa hoặc `UNKNOWN` |
+| `interactionCount` | long | Số sự kiện tương ứng |
+
+**Ví dụ:**
+
+```json
+{
+  "success": true,
+  "message": "Language analytics retrieved successfully",
+  "data": [
+    { "languageCode": "vi", "interactionCount": 3 },
+    { "languageCode": "en", "interactionCount": 2 },
+    { "languageCode": "UNKNOWN", "interactionCount": 1 }
+  ],
+  "timestamp": "...",
+  "path": "/api/analytics/interactions/languages",
+  "errors": null
+}
+```
+
 ---
 
-### 2.8 Visitor Interaction / Analytics — trạng thái triển khai
+### 2.8 Visitor Interaction / Analytics / Beacon — trạng thái triển khai
 
-Backend đã có implementation đầy đủ cho hai endpoint trên. Mobile chỉ có service layer (`mobile/src/services/interactionApi.ts`) để gọi API, chưa có màn hình UI gọi thực sự.
+Backend đã có implementation cho `POST /api/interactions`, ba endpoint analytics (`summary`, `timeseries`, `languages`), public beacon resolve và admin beacon CRUD. Mobile ghi `VIEW` khi mở chi tiết hiện vật và `BEACON_TRIGGER` khi foreground beacon discovery xác nhận người dùng vào vùng. Native/device verification của beacon chưa được thực hiện; xem `docs/features/ibeacon-mobile-integration.md`.
 
 ---
 
@@ -408,7 +547,7 @@ environment:
 
 ---
 
-## 6. Checklist integration smoke test (M1–M5)
+## 6. Checklist integration smoke test (M1–Wave 4)
 
 | # | Kịch bản | Endpoint | Kết quả mong đợi |
 |---|----------|----------|------------------|
@@ -430,17 +569,33 @@ environment:
 | 16 | Ghi sự kiện tương tác (visitor) | `POST /api/interactions` + token visitor + `eventId` mới | `201 Created`, `success: true` |
 | 17 | Ghi sự kiện trùng `eventId` (visitor) | `POST /api/interactions` + cùng `eventId` lần 2 | `200 OK`, `"Interaction event was already recorded"` |
 | 18 | Ghi sự kiện trùng `eventId` (user khác) | `POST /api/interactions` + cùng `eventId`, token user khác | `409 Conflict` |
-| 19 | Ghi sự kiện không xác thực | `POST /api/interactions` không có token | `401 Unauthorized` |
+| 19 | Ghi sự kiện ẩn danh | `POST /api/interactions` không có token, có `visitorId` | `201 Created` |
 | 20 | Xem analytics summary (ADMIN) | `GET /api/analytics/interactions/summary?from=..&to=..` + token ADMIN | `200 OK`, `totalInteractions`, `uniqueVisitors`, ... |
 | 21 | Xem analytics summary (VISITOR) | `GET /api/analytics/interactions/summary` + token VISITOR | `403 Forbidden` |
 | 22 | Xem analytics summary (không token) | `GET /api/analytics/interactions/summary` không có token | `401 Unauthorized` |
 | 23 | Analytics range không hợp lệ | `GET /api/analytics/interactions/summary?from=..&to=..` với `from > to` | `400 Bad Request` |
 | 24 | Analytics khoảng thời gian > 90 ngày | `GET /api/analytics/interactions/summary?from=..&to=..` > 90 ngày | `400 Bad Request` |
+| 25 | Timeseries theo ngày (ADMIN) | `GET /api/analytics/interactions/timeseries?from=..&to=..` + token ADMIN | `200 OK`, đủ mọi ngày UTC, ngày trống có giá trị `0` |
+| 26 | Timeseries thiếu tham số | `GET /api/analytics/interactions/timeseries` + token ADMIN | `400 Bad Request` |
+| 27 | Timeseries (VISITOR) | `GET /api/analytics/interactions/timeseries?from=..&to=..` + token VISITOR | `403 Forbidden` |
+| 28 | Timeseries (không token) | `GET /api/analytics/interactions/timeseries?from=..&to=..` | `401 Unauthorized` |
+| 29 | Language analytics (ADMIN) | `GET /api/analytics/interactions/languages?from=..&to=..` + token ADMIN | `200 OK`, sắp xếp count giảm dần |
+| 30 | Language analytics bucket UNKNOWN | Ghi sự kiện có `languageCode` null/rỗng rồi gọi languages | `200 OK`, có `UNKNOWN` |
+| 31 | Language analytics range sai | `GET /api/analytics/interactions/languages?from=..&to=..` với `from >= to` | `400 Bad Request` |
+| 32 | Resolve beacon công khai | `GET /api/beacons/resolve?uuid=..&major=..&minor=..` | `200 OK`, `data.beaconId`, `data.artifactId` |
+| 33 | Resolve beacon không tồn tại/disabled | `GET /api/beacons/resolve` với beacon unknown hoặc disabled | `404 Not Found` |
+| 34 | Tạo beacon (ADMIN) | `POST /api/admin/beacons` + token ADMIN | `201 Created`, `data.beaconId` |
+| 35 | Tạo beacon trùng identity | `POST /api/admin/beacons` cùng `uuid`/`major`/`minor` | `409 Conflict` |
+| 36 | Tạo beacon (VISITOR) | `POST /api/admin/beacons` + token VISITOR | `403 Forbidden` |
+| 37 | Ghi `BEACON_TRIGGER` hợp lệ | `POST /api/interactions` với `beaconId` đúng artifact | `201 Created`, `data.beaconId` |
+| 38 | Ghi `BEACON_TRIGGER` thiếu/sai beacon | `POST /api/interactions` thiếu `beaconId`, beacon disabled hoặc khác artifact | `400 Bad Request` / `404 Not Found` |
 
 ---
 
 ## 7. Ghi chú cho M3–M5
 
-- M3 (Mobile) có service layer `mobile/src/services/interactionApi.ts` để gọi `POST /api/interactions` (tạo `eventId` UUID, gửi Bearer token từ `authStorage`). **Chưa có màn hình UI gọi thực sự** tại thời điểm viết tài liệu này. Không gọi API tương tác từ màn hình mobile cho đến khi có luồng quét/iBeacon/Xem thực tế.
-- M5 (Visitor Interaction / Analytics) đã có implementation backend: entity `VisitorInteraction`, repository, service, controller, DTO, exception handler, và tests. Các endpoint: `POST /api/interactions`, `GET /api/analytics/interactions/summary`.
-- Nếu M3/M5 cần thêm endpoint, hãy mở PR và cập nhật tài liệu này kèm theo.
+- M3 (Mobile) tạo `eventId` UUID cho mỗi lượt xem, lưu `visitorId` UUID ổn định trong AsyncStorage, gửi Bearer token nếu có, và ghi `VIEW` khi màn hình chi tiết hiện vật tải thành công. Không ghi từ màn hình mock (yêu thích/lịch sử) và chưa ghi `SCAN`/`AUDIO_PLAY` khi tính năng thật chưa tồn tại.
+- M5 (Visitor Interaction / Analytics) đã có implementation backend: entity `VisitorInteraction`, repository, service, controller, DTO, exception handler, và tests. Các endpoint: `POST /api/interactions`, `GET /api/analytics/interactions/summary`, `GET /api/analytics/interactions/timeseries`, `GET /api/analytics/interactions/languages`.
+- Timeseries và languages dùng chung quy tắc range `[from, to)`, tối đa 90 ngày và yêu cầu role `ADMIN`. Unique visitors luôn tính theo `visitorId`, không theo `userId`.
+- Wave 4 thêm beacon resolve/admin CRUD và `BEACON_TRIGGER`; native build/device verification vẫn là bước tiếp theo, không được suy diễn từ unit tests.
+- Nếu M3/M5/Wave 4 cần thêm endpoint, hãy mở PR và cập nhật tài liệu này kèm theo.

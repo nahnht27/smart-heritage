@@ -112,3 +112,96 @@ The proposed contract adds fields that are not currently present in the ERD, par
 The contract also requires a consistent mapping between beaconId in the proposed payload and the current API draft's beaconMinor.
 These differences must be resolved with M2, M3, and Backend before changing the entity, API, or database schema.
 
+## 10. Wave 3 Decision (Implemented)
+
+This section records the decisions applied by the Wave 3 visitor interaction and analytics hardening work.
+The proposal above is kept for history; where it conflicts with this section, this section is authoritative.
+
+### 10.1 Identity and schema decisions
+
+- `visitorId` is a required, client-generated UUID v4 stored in mobile persistent storage.
+  It is pseudonymous, stable across app restarts, and does not change on login/logout.
+- Anonymous visitors are supported: `user_id` is nullable in `visitor_interaction`, and anonymous records store `userId = null`.
+- Authenticated identity is derived **only** from the Spring Security principal.
+  A client-supplied `userId` is never trusted or persisted. Unknown fields in the request body are ignored, so a conflicting client `userId` cannot change ownership.
+- `eventId` idempotency remains global and owned:
+  - authenticated retry: same `eventId` + same authenticated user -> `200 OK` with the existing row (the principal owns the event, so a changed `visitorId` after reinstall is accepted);
+  - anonymous retry: same `eventId` + same `visitorId` -> `200 OK` with the existing row;
+  - a different user/visitor reusing an `eventId` -> `409 Conflict`.
+- `beaconId`/`beaconMinor` are **not** added. There is no real beacon flow yet, so no speculative schema or API field is introduced.
+- `interactionType` keeps the existing enum `VIEW | AUDIO_PLAY | SCAN`.
+  The proposal's `BEACON_TRIGGER`, `MANUAL_VIEW`, and favorite types are not adopted in this wave, and no `SCAN`/`AUDIO_PLAY` events are emitted from fake features.
+- `languageCode` is the language used for this event, not the saved user preference.
+- `durationSeconds` is computed by the backend from `startedAt` and `endedAt`; clients do not send it.
+- `interactedAt` is the reporting time for analytics, and all timestamps are ISO-8601 UTC instants.
+
+### 10.2 Field mapping after Wave 3
+
+| Field | Mobile | Backend request DTO | Database | Analytics usage |
+|---|---|---|---|---|
+| `eventId` | Generated once per interaction attempt; reused on retry | `UUID eventId`, required | `event_id uuid NOT NULL`, unique `uk_visitor_interaction_event_id` | Not aggregated; deduplication only |
+| `visitorId` | Persistent UUID from AsyncStorage; generated once per installation | `UUID visitorId`, required | `visitor_id uuid NOT NULL` | `count(distinct visitor_id)` for unique visitors |
+| `userId` | Not sent | Not in DTO (ignored if present) | `user_id integer NULL`, derived from principal | Ownership/idempotency check only |
+| `artifactId` | Real artifact ID from the detail route | `Integer artifactId`, required, positive | `artifact_id integer NOT NULL` | Grouping for popular artifacts |
+| `beaconId` / `beaconMinor` | Not sent | Not in DTO | Not added | Deferred until a real beacon flow exists |
+| `interactionType` | `VIEW` only (real artifact detail open) | `String`, required, pattern `(?i:VIEW\|AUDIO_PLAY\|SCAN)` | `interaction_type varchar(50) NOT NULL` | Interaction-type counts |
+| `languageCode` | `vi` for the current event | `String`, required, max 16, language tag pattern | `language_code varchar(16) NOT NULL` | Available for language grouping; not yet shown as a dashboard preference metric |
+| `startedAt` | Event start instant | `Instant`, required | `started_at timestamptz NOT NULL` | Duration calculation input |
+| `endedAt` | Only when a real end exists; absent for detail views | `Instant`, optional | `ended_at timestamptz NULL` | Duration calculation input |
+| `durationSeconds` | Not sent | Not in DTO | `duration_seconds bigint NULL`, backend-computed | Not currently aggregated by the summary endpoint |
+| `interactedAt` | Event reporting instant | `Instant`, required | `interacted_at timestamptz NOT NULL` | Reporting-period filter `[from, to)` |
+
+### 10.3 Mobile recording rules
+
+- `POST /api/interactions` is public; the mobile request sends the Bearer token only when a session exists.
+- An interaction is recorded only when a user opens a real artifact detail screen loaded from the backend.
+- No events are emitted from mock-only screens such as favorites/history, and no `SCAN`/`AUDIO_PLAY` event is emitted until those features are real.
+- A failed analytics write never blocks browsing; failures are swallowed after being reported to the service caller.
+- Each artifact-detail view attempt creates one `eventId`; retrying the same logical event reuses that ID.
+
+### 10.4 Remaining deferred decisions
+
+- Beacon identifiers and beacon-triggered interactions remain deferred.
+- Favorite add/remove events remain deferred until favorites are backed by real API data.
+- Language preference analytics is deferred; the current dashboard does not claim event language equals user preference.
+- A "recent activities" feed is not implemented because the backend exposes no such endpoint.
+
+
+## 11. Wave 4 Decision (Implemented)
+
+Section này ghi đè các quyết định deferred ở Section 10 khi có xung đột.
+
+### 11.1 Beacon và `BEACON_TRIGGER`
+
+- Backend đã thêm bảng `beacon` với định danh `(proximity_uuid, major, minor)`.
+- `beacon.artifact_id` là nullable; beacon chưa gán hiện vật vẫn có thể tồn tại nhưng không thể tạo interaction hợp lệ.
+- Public API resolve beacon: `GET /api/beacons/resolve?uuid={uuid}&major={major}&minor={minor}`.
+- `interactionType` bổ sung giá trị `BEACON_TRIGGER`.
+- `beaconId` đã được thêm vào `CreateInteractionRequest` và `InteractionRecordResponse`.
+- `BEACON_TRIGGER` bắt buộc có `beaconId`; beacon phải enabled, có artifact và artifact khớp `artifactId`.
+- Interaction type khác không được gửi `beaconId`.
+- Idempotency theo `eventId` vẫn được kiểm tra trước khi validate beacon.
+
+### 11.2 Mobile recording rules
+
+- Chỉ ghi `BEACON_TRIGGER` sau khi trigger controller xác nhận người dùng đã vào vùng ổn định.
+- Mỗi lần vào vùng tạo một `eventId` mới; retry của cùng lần ghi dùng lại `eventId`.
+- Mobile gửi `beaconId` lấy từ response resolve, không tự suy ra từ major/minor.
+- Banner trong app không tự động điều hướng; người dùng bấm “Xem chi tiết”.
+- Không ghi interaction nếu beacon chưa gán artifact hoặc resolve thất bại.
+- Không ghi interaction khi app ở background; foreground scanning là MVP.
+
+### 11.3 Field mapping sau Wave 4
+
+| Field | Mobile | Backend request DTO | Database | Analytics usage |
+|---|---|---|---|---|
+| `beaconId` | Lấy từ `GET /api/beacons/resolve` | `Integer beaconId`, optional; bắt buộc với `BEACON_TRIGGER` | `beacon_id integer NULL`, FK `beacon`, `ON DELETE SET NULL` | Có thể dùng để phân tích theo beacon trong tương lai |
+| `interactionType` | `VIEW` khi mở detail; `BEACON_TRIGGER` khi beacon trigger | Pattern `(?i:VIEW\|AUDIO_PLAY\|SCAN\|BEACON_TRIGGER)` | `interaction_type varchar(50) NOT NULL` | Interaction-type counts |
+| `eventId` | UUID mới mỗi lần vào vùng; reuse khi retry | `UUID eventId`, required | Unique `uk_visitor_interaction_event_id` | Deduplication only |
+
+### 11.4 Deferred
+
+- Background scanning/foreground service vẫn deferred.
+- Favorite add/remove events vẫn deferred.
+- Beacon offline cache chưa triển khai.
+- Native/device verification của beacon chưa có trong wave này.
