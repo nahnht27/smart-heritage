@@ -116,7 +116,7 @@ describe('analyticsCsv utility', () => {
       // Header metadata
       expect(csv).toContain('"BÁO CÁO PHÂN TÍCH TƯƠNG TÁC — SMART HERITAGE"')
       expect(csv).toContain('"Khoảng thời gian báo cáo","2026-10-08 đến 2026-11-06 (UTC)"')
-      expect(csv).toContain('"Thời điểm xuất (UTC)","2026-11-11 07:00:00 UTC"')
+      expect(csv).toContain('"Thời điểm xuất báo cáo (UTC)","2026-11-11 07:00:00 UTC"')
 
       // KPIs
       expect(csv).toContain('"[1] CHỈ SỐ HIỆU QUẢ CHÍNH (KPIs)"')
