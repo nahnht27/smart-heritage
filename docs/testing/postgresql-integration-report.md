@@ -86,13 +86,13 @@ The `postgres-integration` profile:
 
 **Test methods:**
 
-- `schemaUsesWave3ColumnsAndFlywayV2`
+- `schemaUsesCurrentColumnsAndFlywayHistory`
 
 **Verification:**
 
 - `visitor_interaction.user_id` is nullable.
 - `visitor_interaction.visitor_id` is `uuid`.
-- Flyway migration version `2` is applied successfully.
+- Flyway migrations `2`, `3`, and `4` are applied successfully.
 - The unique constraint on `event_id` exists.
 - Expected timestamp and duration column types are present.
 
@@ -324,3 +324,23 @@ The PostgreSQL integration suite passed **22/22 tests** with zero failures, erro
 The results verify Wave 3 interaction identity rules, persistence, constraints, idempotency, concurrency handling, duration calculation, summary analytics, UTC daily time-series, language aggregation, authorization, validation, and transaction rollback.
 
 **Final Result: 22/22 INTEGRATION TESTS PASSED — BUILD SUCCESS.**
+
+## 9. LTJ-54 migration governance update (2026-11-11)
+
+Bổ sung kiểm thử migration ngoài suite Visitor Interaction:
+
+- `DatabaseMigrationIT` — **6/6 PASS**:
+  - fresh DB chạy V1–V4 và validate;
+  - không auto-baseline schema không có history;
+  - baseline hiện tại ở V3, V2 ở V2, legacy V1 ở V1;
+  - schema kiểu Hibernate được V4 chuẩn hoá index/check/default/FK.
+- `VisitorInteractionPostgresIT` — **22/22 PASS**, có thêm assertion Flyway V4.
+- `./mvnw -B test` — **134/134 unit tests PASS**.
+- `./mvnw -B -Ppostgres-integration verify` — **28/28 integration tests PASS**.
+- Manual PostgreSQL 16 disposable:
+  - fresh DB: V1–V4, app health `UP`, Hibernate validate PASS;
+  - DB kiểu Hibernate: detection `3` → baseline 3 → V4 → detection `4`, dữ
+    liệu giữ nguyên, app health `UP`.
+
+Chi tiết: [migration-strategy.md](../database/migration-strategy.md) và
+[schema-baseline.md](../database/schema-baseline.md).
