@@ -80,9 +80,14 @@
 - Compose V2 `config -q`: PASS.
 - YAML parse, `bash -n`, `git diff --check`: PASS.
 
-## F. Remaining
+## F. CI / PR và remaining
 
-- Push branch, mở PR vào `main`, chờ CI thực tế.
+- PR: https://github.com/nahnht27/smart-heritage/pull/31 (base `main`, chưa
+  merge).
+- CI push run `43039388577`: tất cả job PASS.
+- CI pull_request run `43039442507`: tất cả job PASS, gồm `backend-test`,
+  `postgres-integration` (22 + 6 test), `frontend-checks`, `mobile-tests`,
+  `docker-build`, `integration-smoke`; `mobile-static-analysis` advisory PASS.
 - Chưa có production database/credentials thật để diễn tập; mới kiểm chứng trên
   PostgreSQL 16 disposable.
 - Chưa có PITR; rollback dữ liệu dựa trên backup/restore.
