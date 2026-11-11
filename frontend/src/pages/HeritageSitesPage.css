@@ -524,3 +524,43 @@
     flex: 1;
   }
 }
+
+
+.heritage-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-top: 1px solid #e5e9e3;
+  font-size: 13px;
+  color: #5c635c;
+  background: #fafbfa;
+}
+
+.heritage-pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.heritage-page-button {
+  padding: 6px 14px;
+  border: 1px solid #d3d8d2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #292e2a;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.heritage-page-button:hover:not(:disabled) {
+  background: #f0f2ef;
+  border-color: #b5bcb3;
+}
+
+.heritage-page-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

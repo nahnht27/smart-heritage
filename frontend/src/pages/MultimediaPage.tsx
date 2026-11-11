@@ -1,7 +1,7 @@
-
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ApiError, apiRequest } from '../services/apiClient'
+import type { PageResponse } from '../types/api'
 import './MultimediaPage.css'
 
 interface Multimedia {
@@ -27,6 +27,17 @@ interface MultimediaForm {
 
 const ENDPOINT = '/api/multimedia'
 const ARTIFACT_ENDPOINT = '/api/artifacts'
+
+// Only http(s) URLs are accepted. <input type="url"> also accepts schemes such
+// as javascript: or data:, which must never become a clickable link.
+function isHttpUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
 
 const emptyForm: MultimediaForm = {
   artifactId: '',
@@ -61,10 +72,18 @@ function MultimediaPage() {
       setArtifactsLoading(true)
 
       try {
-        const response = await apiRequest<ArtifactOption[]>(ARTIFACT_ENDPOINT)
+        type ArtifactsData = ArtifactOption[] | PageResponse<ArtifactOption>
+        const response = await apiRequest<ArtifactsData>(ARTIFACT_ENDPOINT)
 
         if (!cancelled) {
-          setArtifacts(response.data ?? [])
+          const resData = response.data
+          if (Array.isArray(resData)) {
+            setArtifacts(resData)
+          } else if (resData && Array.isArray(resData.content)) {
+            setArtifacts(resData.content)
+          } else {
+            setArtifacts([])
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -230,6 +249,10 @@ function MultimediaPage() {
       return
     }
 
+    if (!isHttpUrl(url)) {
+      setFormError('URL must start with http:// or https://.')
+      return
+    }
     setSaving(true)
     setFormError('')
     setError('')
@@ -436,14 +459,20 @@ function MultimediaPage() {
                         </span>
                         <div>
                           <strong>{item.title || 'Untitled'}</strong>
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            title={item.url}
-                          >
-                            {item.url}
-                          </a>
+                          {isHttpUrl(item.url) ? (
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={item.url}
+                            >
+                              {item.url}
+                            </a>
+                          ) : (
+                            <span title="Not a valid http(s) URL">
+                              {item.url}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -553,15 +582,18 @@ function MultimediaPage() {
 
                 <label>
                   <span>Type *</span>
-                  <input
+                  <select
                     required
-                    maxLength={20}
                     value={form.type}
+                    disabled={saving}
                     onChange={(event) =>
                       updateField('type', event.target.value)
                     }
-                    placeholder="e.g. IMAGE, VIDEO, AUDIO"
-                  />
+                  >
+                    <option value="IMAGE">IMAGE</option>
+                    <option value="VIDEO">VIDEO</option>
+                    <option value="AUDIO">AUDIO</option>
+                  </select>
                 </label>
 
                 <label>

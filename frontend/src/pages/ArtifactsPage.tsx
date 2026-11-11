@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ApiError, apiRequest } from '../services/apiClient'
+import type { PageResponse } from '../types/api'
 import './ArtifactsPage.css'
 
 interface HeritageSite {
@@ -30,6 +31,7 @@ const emptyForm: ArtifactForm = {
 
 const ARTIFACTS_ENDPOINT = '/api/artifacts'
 const SITES_ENDPOINT = '/api/heritage-sites'
+const PAGE_SIZE = 10
 
 function ArtifactsPage() {
   const [sites, setSites] = useState<HeritageSite[]>([])
@@ -43,8 +45,10 @@ function ArtifactsPage() {
   const [reloadKey, setReloadKey] = useState(0)
 
   const [siteFilter, setSiteFilter] = useState('')
-  const [siteFilterError, setSiteFilterError] = useState('')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalElements, setTotalElements] = useState(0)
 
   const [showForm, setShowForm] = useState(false)
   const [editingArtifact, setEditingArtifact] =
@@ -54,7 +58,7 @@ function ArtifactsPage() {
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
-  // GET /api/heritage-sites
+  // GET /api/heritage-sites (no page/size to get full list for dropdown)
   useEffect(() => {
     let cancelled = false
 
@@ -63,11 +67,18 @@ function ArtifactsPage() {
       setSitesError('')
 
       try {
-        const response =
-          await apiRequest<HeritageSite[]>(SITES_ENDPOINT)
+        type SitesData = HeritageSite[] | PageResponse<HeritageSite>
+        const response = await apiRequest<SitesData>(SITES_ENDPOINT)
 
         if (!cancelled) {
-          setSites(response.data ?? [])
+          const resData = response.data
+          if (Array.isArray(resData)) {
+            setSites(resData)
+          } else if (resData && Array.isArray(resData.content)) {
+            setSites(resData.content)
+          } else {
+            setSites([])
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -93,62 +104,78 @@ function ArtifactsPage() {
     }
   }, [reloadKey])
 
-  // GET /api/artifacts
-  // GET /api/artifacts?siteId={siteId}
+  // The filter is picked from the loaded sites, so it is always a valid ID.
+  // If the selected site no longer exists (e.g. deleted elsewhere), fall back
+  // to "all sites" instead of requesting a missing site (404).
+  const activeSiteFilter =
+    siteFilter && sites.some((site) => String(site.siteId) === siteFilter)
+      ? siteFilter
+      : ''
+
+  // GET /api/artifacts with siteId, keyword, page, size
   useEffect(() => {
     let cancelled = false
 
     async function fetchArtifacts() {
-      const trimmedSiteId = siteFilter.trim()
-
-      if (trimmedSiteId) {
-        if (!/^\d+$/.test(trimmedSiteId)) {
-          setArtifacts([])
-          setError('')
-          setSiteFilterError(
-            'Heritage Site ID phải là số nguyên dương.',
-          )
-          setLoading(false)
-          return
-        }
-
-        const siteId = Number(trimmedSiteId)
-
-        if (!Number.isSafeInteger(siteId) || siteId < 1) {
-          setArtifacts([])
-          setError('')
-          setSiteFilterError(
-            'Heritage Site ID phải khác 0.',
-          )
-          setLoading(false)
-          return
-        }
-      }
-
-      setSiteFilterError('')
       setLoading(true)
       setError('')
 
       try {
         const params = new URLSearchParams()
 
-        if (trimmedSiteId) {
-          params.set('siteId', trimmedSiteId)
+        if (activeSiteFilter) {
+          params.set('siteId', activeSiteFilter)
         }
+
+        const trimmedSearch = search.trim()
+        if (trimmedSearch) {
+          params.set('keyword', trimmedSearch)
+        }
+
+        params.set('page', String(page))
+        params.set('size', String(PAGE_SIZE))
 
         const query = params.toString()
         const endpoint = query
           ? `${ARTIFACTS_ENDPOINT}?${query}`
           : ARTIFACTS_ENDPOINT
 
-        const response = await apiRequest<Artifact[]>(endpoint)
+        type ArtifactData = Artifact[] | PageResponse<Artifact>
+        const response = await apiRequest<ArtifactData>(endpoint)
 
         if (!cancelled) {
-          setArtifacts(response.data ?? [])
+          const resData = response.data
+          if (Array.isArray(resData)) {
+            // Dual compatibility: client-side fallback if backend returns unpaginated List<T>
+            const keywordLower = trimmedSearch.toLowerCase()
+            const filtered = keywordLower
+              ? resData.filter(
+                  (artifact) =>
+                    artifact.name.toLowerCase().includes(keywordLower) ||
+                    (artifact.description ?? '').toLowerCase().includes(keywordLower) ||
+                    (artifact.siteName ?? '').toLowerCase().includes(keywordLower),
+                )
+              : resData
+
+            setTotalElements(filtered.length)
+            setTotalPages(Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)))
+            setArtifacts(filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE))
+          } else if (resData && Array.isArray(resData.content)) {
+            // Backend PageResponse<T> from M2 contract
+            setArtifacts(resData.content)
+            setTotalElements(resData.totalElements)
+            setTotalPages(Math.max(1, resData.totalPages))
+          } else {
+            setArtifacts([])
+            setTotalElements(0)
+            setTotalPages(1)
+          }
         }
       } catch (err) {
         if (!cancelled) {
           setArtifacts([])
+          setTotalElements(0)
+          setTotalPages(1)
 
           setError(
             err instanceof ApiError
@@ -168,17 +195,7 @@ function ArtifactsPage() {
     return () => {
       cancelled = true
     }
-  }, [siteFilter, reloadKey])
-
-  const filteredArtifacts = artifacts.filter((artifact) => {
-    const keyword = search.trim().toLowerCase()
-
-    return (
-      artifact.name.toLowerCase().includes(keyword) ||
-      (artifact.description ?? '').toLowerCase().includes(keyword) ||
-      (artifact.siteName ?? '').toLowerCase().includes(keyword)
-    )
-  })
+  }, [activeSiteFilter, search, page, reloadKey])
 
   function openAddForm() {
     setEditingArtifact(null)
@@ -393,23 +410,36 @@ function ArtifactsPage() {
           aria-label="Search artifacts"
           placeholder="Search artifacts..."
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) => {
+            setSearch(event.target.value)
+            setPage(0)
+          }}
         />
 
-        <input
-          aria-label="Filter by Heritage Site ID"
-          placeholder="Filter by Heritage Site ID"
-          inputMode="numeric"
-          value={siteFilter}
-          onChange={(event) => setSiteFilter(event.target.value)}
-        />
+        <select
+          aria-label="Filter by Heritage Site"
+          value={activeSiteFilter}
+          onChange={(event) => {
+            setSiteFilter(event.target.value)
+            setPage(0)
+          }}
+          disabled={sitesLoading || !!sitesError}
+        >
+          <option value="">
+            {sitesLoading
+              ? 'Loading Heritage Sites...'
+              : sitesError
+                ? 'Heritage Sites unavailable'
+                : 'All Heritage Sites'}
+          </option>
+
+          {sites.map((site) => (
+            <option key={site.siteId} value={String(site.siteId)}>
+              {site.name}
+            </option>
+          ))}
+        </select>
       </div>
-
-      {siteFilterError && (
-        <p className="artifact-form-error" role="alert">
-          {siteFilterError}
-        </p>
-      )}
 
       <div className="artifact-list-heading">
         <div>
@@ -418,8 +448,9 @@ function ArtifactsPage() {
         </div>
 
         <span>
-          {filteredArtifacts.length}{' '}
-          {filteredArtifacts.length === 1 ? 'artifact' : 'artifacts'}
+          {search.trim()
+            ? `${totalElements} matching ${totalElements === 1 ? 'artifact' : 'artifacts'}`
+            : `${totalElements} ${totalElements === 1 ? 'artifact' : 'artifacts'}`}
         </span>
       </div>
 
@@ -428,17 +459,16 @@ function ArtifactsPage() {
           <div className="artifact-state" role="status">
             <p>Loading artifacts...</p>
           </div>
-        ) : siteFilterError || error ? null : filteredArtifacts.length ===
-          0 ? (
+        ) : error ? null : totalElements === 0 ? (
           <div className="artifact-state">
             <h3>No artifacts found</h3>
             <p>
-              {search || siteFilter
+              {search || activeSiteFilter
                 ? 'Try changing your search or Heritage Site filter.'
                 : 'Artifacts will appear here once they are available.'}
             </p>
 
-            {!search && !siteFilter && (
+            {!search && !activeSiteFilter && (
               <button
                 type="button"
                 className="artifact-secondary-button"
@@ -449,49 +479,85 @@ function ArtifactsPage() {
             )}
           </div>
         ) : (
-          <div className="artifact-table-scroll">
-            <table className="artifact-table">
-              <thead>
-                <tr>
-                  <th>Artifact</th>
-                  <th>Heritage Site</th>
-                  <th>Description</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {filteredArtifacts.map((artifact) => (
-                  <tr key={artifact.artifactId}>
-                    <td>{artifact.name}</td>
-                    <td>
-                      {artifact.siteName || `Site #${artifact.siteId}`}
-                    </td>
-                    <td>{artifact.description || '—'}</td>
-                    <td className="artifact-actions">
-                      <button
-                        type="button"
-                        onClick={() => void openArtifactDetail(artifact)}
-                        disabled={deletingId !== null || loading}
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(artifact)}
-                        disabled={deletingId !== null || loading}
-                      >
-                        {deletingId === artifact.artifactId
-                          ? 'Deleting...'
-                          : 'Delete'}
-                      </button>
-                    </td>
+          <>
+            <div className="artifact-table-scroll">
+              <table className="artifact-table">
+                <thead>
+                  <tr>
+                    <th>Artifact</th>
+                    <th>Heritage Site</th>
+                    <th>Description</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+
+                <tbody>
+                  {artifacts.map((artifact) => (
+                    <tr key={artifact.artifactId}>
+                      <td>{artifact.name}</td>
+                      <td>
+                        {artifact.siteName || `Site #${artifact.siteId}`}
+                      </td>
+                      <td>{artifact.description || '—'}</td>
+                      <td className="artifact-actions">
+                        <button
+                          type="button"
+                          onClick={() => void openArtifactDetail(artifact)}
+                          disabled={deletingId !== null || loading}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(artifact)}
+                          disabled={deletingId !== null || loading}
+                        >
+                          {deletingId === artifact.artifactId
+                            ? 'Deleting...'
+                            : 'Delete'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {totalElements > 0 && (
+              <nav
+                className="artifact-pagination"
+                aria-label="Artifacts pagination"
+              >
+                <span>
+                  Showing page {page + 1} of {totalPages} ({totalElements}{' '}
+                  {totalElements === 1 ? 'artifact' : 'artifacts'})
+                </span>
+                <div className="artifact-pagination-buttons">
+                  <button
+                    type="button"
+                    className="artifact-page-button"
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={page === 0 || loading}
+                    aria-label="Previous page"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    className="artifact-page-button"
+                    onClick={() =>
+                      setPage((p) => Math.min(totalPages - 1, p + 1))
+                    }
+                    disabled={page >= totalPages - 1 || loading}
+                    aria-label="Next page"
+                  >
+                    Next
+                  </button>
+                </div>
+              </nav>
+            )}
+          </>
         )}
       </div>
 

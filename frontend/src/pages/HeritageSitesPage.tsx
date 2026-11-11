@@ -1,7 +1,7 @@
-
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ApiError, apiRequest } from '../services/apiClient'
+import type { PageResponse } from '../types/api'
 import './HeritageSitesPage.css'
 
 interface HeritageSite {
@@ -29,12 +29,19 @@ const emptyForm: SiteForm = {
   longitude: '',
 }
 
+const PAGE_SIZE = 10
+
 function HeritageSitesPage() {
   const [sites, setSites] = useState<HeritageSite[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+  const [search, setSearch] = useState('')
+
+  const [page, setPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalElements, setTotalElements] = useState(0)
 
   const [showForm, setShowForm] = useState(false)
   const [editingSite, setEditingSite] = useState<HeritageSite | null>(null)
@@ -55,16 +62,53 @@ function HeritageSitesPage() {
       setLoading(true)
 
       try {
-        const response = await apiRequest<HeritageSite[]>(
-          '/api/heritage-sites',
-        )
+        const params = new URLSearchParams()
+        const trimmedKeyword = search.trim()
+
+        if (trimmedKeyword) {
+          params.set('keyword', trimmedKeyword)
+        }
+        params.set('page', String(page))
+        params.set('size', String(PAGE_SIZE))
+
+        const query = params.toString()
+        const endpoint = query
+          ? `/api/heritage-sites?${query}`
+          : '/api/heritage-sites'
+
+        type ResponseData = HeritageSite[] | PageResponse<HeritageSite>
+        const response = await apiRequest<ResponseData>(endpoint)
 
         if (!cancelled) {
-          setSites(response.data ?? [])
+          const resData = response.data
+          if (Array.isArray(resData)) {
+            // Dual compatibility: client-side fallback if backend returns unpaginated List<T>
+            const keywordLower = trimmedKeyword.toLowerCase()
+            const filtered = keywordLower
+              ? resData.filter((site) =>
+                  site.name.toLowerCase().includes(keywordLower),
+                )
+              : resData
+
+            setTotalElements(filtered.length)
+            setTotalPages(Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)))
+            setSites(filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE))
+          } else if (resData && Array.isArray(resData.content)) {
+            // Backend PageResponse<T> from M2 contract
+            setSites(resData.content)
+            setTotalElements(resData.totalElements)
+            setTotalPages(Math.max(1, resData.totalPages))
+          } else {
+            setSites([])
+            setTotalElements(0)
+            setTotalPages(1)
+          }
         }
       } catch (err) {
         if (!cancelled) {
           setSites([])
+          setTotalElements(0)
+          setTotalPages(1)
           setError(
             err instanceof ApiError
               ? err.message
@@ -83,7 +127,7 @@ function HeritageSitesPage() {
     return () => {
       cancelled = true
     }
-  }, [reloadKey])
+  }, [page, search, reloadKey])
 
   function openAddForm() {
     setEditingSite(null)
@@ -307,8 +351,23 @@ function HeritageSitesPage() {
         </div>
 
         <span className="heritage-count">
-          {sites.length} {sites.length === 1 ? 'site' : 'sites'}
+          {search.trim()
+            ? `${totalElements} matching ${totalElements === 1 ? 'site' : 'sites'}`
+            : `${totalElements} ${totalElements === 1 ? 'site' : 'sites'}`}
         </span>
+      </div>
+
+      <div className="heritage-search">
+        <input
+          type="search"
+          aria-label="Search heritage sites"
+          placeholder="Search by name..."
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value)
+            setPage(0)
+          }}
+        />
       </div>
 
       <div className="heritage-table-card">
@@ -322,100 +381,154 @@ function HeritageSitesPage() {
             <h3>Unable to display heritage sites</h3>
             <p>Check the backend connection and try again.</p>
           </div>
-        ) : sites.length === 0 ? (
-          <div className="heritage-state">
-            <div className="heritage-empty-icon" aria-hidden="true">
-              <span>⌖</span>
+        ) : totalElements === 0 ? (
+          search.trim() ? (
+            <div className="heritage-state">
+              <h3>No matching heritage sites</h3>
+              <p>Try a different name.</p>
+
+              <button
+                type="button"
+                className="heritage-secondary-button"
+                onClick={() => {
+                  setSearch('')
+                  setPage(0)
+                }}
+              >
+                Clear search
+              </button>
+            </div>
+          ) : (
+            <div className="heritage-state">
+              <div className="heritage-empty-icon" aria-hidden="true">
+                <span>⌖</span>
+              </div>
+
+              <h3>No heritage sites yet</h3>
+              <p>
+                Heritage sites will appear here once they are available.
+              </p>
+
+              <button
+                type="button"
+                className="heritage-secondary-button"
+                onClick={openAddForm}
+              >
+                Add your first site
+              </button>
+            </div>
+          )
+        ) : (
+          <>
+            <div className="heritage-table-scroll">
+              <table className="heritage-table">
+                <thead>
+                  <tr>
+                    <th>Site</th>
+                    <th>Address</th>
+                    <th>Description</th>
+                    <th>Coordinates</th>
+                    <th className="heritage-actions-heading">Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {sites.map((site) => (
+                    <tr key={site.siteId}>
+                      <td>
+                        <div className="heritage-site-name">
+                          <span className="heritage-site-icon" aria-hidden="true">
+                            ⌖
+                          </span>
+
+                          <div>
+                            <strong>{site.name}</strong>
+                            <span>ID: {site.siteId}</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td>{site.address || '—'}</td>
+                      <td className="heritage-description-cell">
+                        {site.description || '—'}
+                      </td>
+                      <td className="heritage-coordinates">
+                        {site.latitude ?? '—'}, {site.longitude ?? '—'}
+                      </td>
+
+                      <td>
+                        <div className="heritage-row-actions">
+                          <button
+                            type="button"
+                            className="heritage-action-button"
+                            onClick={() => void handleViewDetails(site)}
+                            disabled={detailLoading || deletingId !== null}
+                            aria-label={`View ${site.name}`}
+                          >
+                            View
+                          </button>
+
+                          <button
+                            type="button"
+                            className="heritage-action-button"
+                            onClick={() => openEditForm(site)}
+                            disabled={saving || deletingId !== null}
+                            aria-label={`Edit ${site.name}`}
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            className="heritage-action-button delete"
+                            onClick={() => void handleDelete(site)}
+                            disabled={deletingId !== null || saving}
+                            aria-label={`Delete ${site.name}`}
+                          >
+                            {deletingId === site.siteId ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            <h3>No heritage sites yet</h3>
-            <p>
-              Heritage sites will appear here once they are available.
-            </p>
-
-            <button
-              type="button"
-              className="heritage-secondary-button"
-              onClick={openAddForm}
-            >
-              Add your first site
-            </button>
-          </div>
-        ) : (
-          <div className="heritage-table-scroll">
-            <table className="heritage-table">
-              <thead>
-                <tr>
-                  <th>Site</th>
-                  <th>Address</th>
-                  <th>Description</th>
-                  <th>Coordinates</th>
-                  <th className="heritage-actions-heading">Actions</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {sites.map((site) => (
-                  <tr key={site.siteId}>
-                    <td>
-                      <div className="heritage-site-name">
-                        <span className="heritage-site-icon" aria-hidden="true">
-                          ⌖
-                        </span>
-
-                        <div>
-                          <strong>{site.name}</strong>
-                          <span>ID: {site.siteId}</span>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td>{site.address || '—'}</td>
-                    <td className="heritage-description-cell">
-                      {site.description || '—'}
-                    </td>
-                    <td className="heritage-coordinates">
-                      {site.latitude ?? '—'}, {site.longitude ?? '—'}
-                    </td>
-
-                    <td>
-                      <div className="heritage-row-actions">
-                        <button
-                          type="button"
-                          className="heritage-action-button"
-                          onClick={() => void handleViewDetails(site)}
-                          disabled={detailLoading || deletingId !== null}
-                          aria-label={`View ${site.name}`}
-                        >
-                          View
-                        </button>
-
-                        <button
-                          type="button"
-                          className="heritage-action-button"
-                          onClick={() => openEditForm(site)}
-                          disabled={saving || deletingId !== null}
-                          aria-label={`Edit ${site.name}`}
-                        >
-                          Edit
-                        </button>
-
-                        <button
-                          type="button"
-                          className="heritage-action-button delete"
-                          onClick={() => void handleDelete(site)}
-                          disabled={deletingId !== null || saving}
-                          aria-label={`Delete ${site.name}`}
-                        >
-                          {deletingId === site.siteId ? 'Deleting...' : 'Delete'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            {totalElements > 0 && (
+              <nav
+                className="heritage-pagination"
+                aria-label="Heritage sites pagination"
+              >
+                <span>
+                  Showing page {page + 1} of {totalPages} ({totalElements}{' '}
+                  {totalElements === 1 ? 'site' : 'sites'})
+                </span>
+                <div className="heritage-pagination-buttons">
+                  <button
+                    type="button"
+                    className="heritage-page-button"
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={page === 0 || loading}
+                    aria-label="Previous page"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    className="heritage-page-button"
+                    onClick={() =>
+                      setPage((p) => Math.min(totalPages - 1, p + 1))
+                    }
+                    disabled={page >= totalPages - 1 || loading}
+                    aria-label="Next page"
+                  >
+                    Next
+                  </button>
+                </div>
+              </nav>
+            )}
+          </>
         )}
       </div>
 
@@ -521,12 +634,12 @@ function HeritageSitesPage() {
                 type="button"
                 className="heritage-primary-button"
                 onClick={() => {
-  if (!viewingSite) return
+                  if (!viewingSite) return
 
-  const site = viewingSite
-  closeDetails()
-  openEditForm(site)
-}}
+                  const site = viewingSite
+                  closeDetails()
+                  openEditForm(site)
+                }}
               >
                 Edit site
               </button>
