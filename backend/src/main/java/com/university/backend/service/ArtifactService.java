@@ -3,10 +3,15 @@ package com.university.backend.service;
 import com.university.backend.entity.Artifact;
 import com.university.backend.entity.HeritageSite;
 import com.university.backend.exception.BadRequestException;
+import com.university.backend.exception.ResourceConflictException;
 import com.university.backend.exception.ResourceNotFoundException;
 import com.university.backend.repository.ArtifactRepository;
+import com.university.backend.repository.BeaconRepository;
 import com.university.backend.repository.HeritageSiteRepository;
+import com.university.backend.repository.MultimediaRepository;
+import com.university.backend.repository.VisitorInteractionRepository;
 import com.university.backend.specification.ArtifactSpecification;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,12 +30,22 @@ public class ArtifactService {
 
     private final ArtifactRepository artifactRepository;
     private final HeritageSiteRepository heritageSiteRepository;
+    private final MultimediaRepository multimediaRepository;
+    private final VisitorInteractionRepository visitorInteractionRepository;
+    private final BeaconRepository beaconRepository;
 
     public ArtifactService(
             ArtifactRepository artifactRepository,
-            HeritageSiteRepository heritageSiteRepository) {
+            HeritageSiteRepository heritageSiteRepository,
+            MultimediaRepository multimediaRepository,
+            VisitorInteractionRepository visitorInteractionRepository,
+            BeaconRepository beaconRepository) {
+
         this.artifactRepository = artifactRepository;
         this.heritageSiteRepository = heritageSiteRepository;
+        this.multimediaRepository = multimediaRepository;
+        this.visitorInteractionRepository = visitorInteractionRepository;
+        this.beaconRepository = beaconRepository;
     }
 
     @Transactional(readOnly = true)
@@ -127,6 +142,22 @@ public class ArtifactService {
     @Transactional
     public void deleteArtifact(Integer artifactId) {
         Artifact existingArtifact = getArtifactById(artifactId);
+
+        if (multimediaRepository.existsByArtifact_ArtifactId(artifactId)) {
+            throw new ResourceConflictException(
+                    "Cannot delete artifact because it has associated multimedia.");
+        }
+
+        if (visitorInteractionRepository.existsByArtifact_ArtifactId(artifactId)) {
+            throw new ResourceConflictException(
+                    "Cannot delete artifact because it has visitor interaction history.");
+        }
+
+        if (beaconRepository.existsByArtifact_ArtifactId(artifactId)) {
+            throw new ResourceConflictException(
+                    "Cannot delete artifact because it is associated with one or more beacons.");
+        }
+
         artifactRepository.delete(existingArtifact);
     }
 
@@ -151,7 +182,8 @@ public class ArtifactService {
 
     private void validatePagination(int page, int size) {
         if (page < 0) {
-            throw new BadRequestException("page must be greater than or equal to 0");
+            throw new BadRequestException(
+                    "page must be greater than or equal to 0");
         }
 
         if (size < 1 || size > MAX_PAGE_SIZE) {

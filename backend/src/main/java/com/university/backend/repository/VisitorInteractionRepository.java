@@ -91,4 +91,6 @@ public interface VisitorInteractionRepository
     List<LanguageCountResponse> countByLanguageInPeriod(
             @Param("from") Instant from,
             @Param("to") Instant to);
+
+    boolean existsByArtifact_ArtifactId(Integer artifactId);
 }

@@ -10,4 +10,6 @@ public interface MultimediaRepository
         extends JpaRepository<Multimedia, Integer> {
 
     List<Multimedia> findByArtifact_ArtifactId(Integer artifactId);
+
+    boolean existsByArtifact_ArtifactId(Integer artifactId);
 }
