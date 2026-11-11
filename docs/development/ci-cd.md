@@ -42,7 +42,7 @@ Các job chạy song song trên `ubuntu-latest` và độc lập với nhau, tr�
 | Job | Gate | Lệnh chính | Ghi chú |
 |-----|------|------------|---------|
 | `backend-test` | **Required** | `cd backend && ./mvnw -B test` | Java 17 (Temurin), Maven Wrapper; upload Surefire reports |
-| `postgres-integration` | **Required** | `cd backend && ./mvnw -B -Ppostgres-integration verify` | PostgreSQL 16 service; Failsafe chạy `**/*IT.java`; report gate bắt buộc ≥22 test, 0 failure/error/skip |
+| `postgres-integration` | **Required** | `cd backend && ./mvnw -B -Ppostgres-integration verify` | PostgreSQL 16 service; Failsafe chạy `**/*IT.java`; gate bắt buộc `VisitorInteractionPostgresIT` ≥22 và `DatabaseMigrationIT` ≥6 test, 0 failure/error/skip |
 | `frontend-checks` | **Required** | `npm ci`, `npm run lint`, `npm run build` | `build` chạy `tsc -b && vite build` |
 | `mobile-tests` | **Required** | `npm ci`, `npm test -- --ci --coverage` | Upload coverage artifact |
 | `mobile-static-analysis` | **Advisory** | `npx tsc --noEmit`, `npm run lint` | `continue-on-error: true`; technical debt có sẵn |
@@ -60,7 +60,11 @@ Các job chạy song song trên `ubuntu-latest` và độc lập với nhau, tr�
 - Job dùng service `postgres:16-alpine` ephemeral, database `smart_heritage_ci`.
 - Chạy `./mvnw -B -Ppostgres-integration verify`; profile Failsafe chỉ chạy `**/*IT.java` và `failIfNoTests=true`.
 - Biến `POSTGRES_TEST_URL`, `POSTGRES_TEST_USERNAME`, `POSTGRES_TEST_PASSWORD` chỉ được map thành `SPRING_DATASOURCE_*` cho Failsafe fork, nên unit tests H2 không bị ảnh hưởng.
-- Step report gate parse `target/failsafe-reports/TEST-*VisitorInteractionPostgresIT.xml`; fail nếu không có report, test count `< 22`, hoặc có `failures`/`errors`/`skipped`.
+- Step report gate parse cả `TEST-*VisitorInteractionPostgresIT.xml` và
+  `TEST-*DatabaseMigrationIT.xml`; fail nếu thiếu report, test count dưới ngưỡng
+  (22 và 6), hoặc có `failures`/`errors`/`skipped`.
+- `DatabaseMigrationIT` kiểm tra fresh V1–V4, không auto-baseline, baseline
+  V1/V2/V3 và chuẩn hoá schema Hibernate bằng V4.
 - Artifact: `postgres-integration-reports` (Surefire + Failsafe, giữ 7 ngày).
 - Không dùng `continue-on-error`, không `|| true`, không fallback H2 cho integration tests.
 
@@ -234,3 +238,14 @@ cho tới khi config được đưa vào Git một cách chủ động.
 - CI: job `postgres-integration` được nâng từ chạy một test class bằng Surefire sang Failsafe + report gate.
 - Kết quả CI thực tế: PR #24, run `42261630401` — `postgres-integration` PASS (1m20s); report gate thấy 22 test, 0 failure/error/skip.
 - Run: https://github.com/nahnht27/smart-heritage/actions/runs/42261630401
+
+### LTJ-54 — migration gate
+
+- Gate PostgreSQL hiện kiểm tra hai report: `VisitorInteractionPostgresIT` tối
+  thiểu 22 test và `DatabaseMigrationIT` tối thiểu 6 test; mọi failure/error/skip
+  đều fail job.
+- Local (Docker Maven + PostgreSQL 16 disposable):
+  - `./mvnw -B test` → 134 unit tests PASS.
+  - `./mvnw -B -Ppostgres-integration verify` → 28 integration tests PASS
+    (22 Visitor Interaction + 6 migration).
+  - Report gate: `GATE OK`.
