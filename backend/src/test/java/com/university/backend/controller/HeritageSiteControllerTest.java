@@ -183,4 +183,105 @@ class HeritageSiteControllerTest extends ContentApiTestSupport {
                                 """))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void searchHeritageSitesByKeywordShouldReturnMatchingSites() throws Exception {
+        String token = createAdminToken();
+
+        createSite(token, "Hue Imperial Citadel");
+        createSite(token, "Hoi An Ancient Town");
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("keyword", "  hue  ")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].name").value("Hue Imperial Citadel"));
+    }
+
+    @Test
+    void searchHeritageSitesShouldSupportPagination() throws Exception {
+        String token = createAdminToken();
+
+        createSite(token, "Heritage Site A");
+        createSite(token, "Heritage Site B");
+        createSite(token, "Heritage Site C");
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("page", "0")
+                        .param("size", "2")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(2)))
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(2))
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.totalPages").value(2));
+    }
+
+    @Test
+    void searchHeritageSitesShouldSupportDescendingSort() throws Exception {
+        String token = createAdminToken();
+
+        createSite(token, "Heritage Site A");
+        createSite(token, "Heritage Site C");
+        createSite(token, "Heritage Site B");
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("sortBy", "name")
+                        .param("direction", "desc")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].name").value("Heritage Site C"))
+                .andExpect(jsonPath("$.data[1].name").value("Heritage Site B"))
+                .andExpect(jsonPath("$.data[2].name").value("Heritage Site A"));
+    }
+
+    @Test
+    void searchHeritageSitesShouldRejectInvalidPageSize() throws Exception {
+        String token = createAdminToken();
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("page", "0")
+                        .param("size", "101")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchHeritageSitesShouldRejectInvalidDirectionWithoutSortField()
+            throws Exception {
+        String token = createAdminToken();
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("direction", "sideways")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchHeritageSitesShouldUseStableTieBreakerAcrossPages()
+            throws Exception {
+        String token = createAdminToken();
+        int firstId = createSite(token, "Duplicate Site");
+        int secondId = createSite(token, "Duplicate Site");
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("page", "0")
+                        .param("size", "1")
+                        .param("sortBy", "name")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].siteId")
+                        .value(firstId));
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("page", "1")
+                        .param("size", "1")
+                        .param("sortBy", "name")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].siteId")
+                        .value(secondId));
+    }
 }

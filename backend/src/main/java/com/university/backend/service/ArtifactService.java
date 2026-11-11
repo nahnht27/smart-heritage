@@ -1,15 +1,27 @@
 package com.university.backend.service;
+
 import com.university.backend.entity.Artifact;
 import com.university.backend.entity.HeritageSite;
+import com.university.backend.exception.BadRequestException;
 import com.university.backend.exception.ResourceNotFoundException;
 import com.university.backend.repository.ArtifactRepository;
 import com.university.backend.repository.HeritageSiteRepository;
+import com.university.backend.specification.ArtifactSpecification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 
 @Service
 public class ArtifactService {
+
+    private static final int MAX_PAGE_SIZE = 100;
+    private static final List<String> ALLOWED_SORT_FIELDS =
+            List.of("name", "artifactId");
 
     private final ArtifactRepository artifactRepository;
     private final HeritageSiteRepository heritageSiteRepository;
@@ -29,6 +41,54 @@ public class ArtifactService {
 
         validateHeritageSiteExists(siteId);
         return artifactRepository.findByHeritageSite_SiteId(siteId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Artifact> searchArtifacts(
+            Integer siteId,
+            String keyword,
+            String sortBy,
+            String direction) {
+
+        validateSiteId(siteId);
+        validateHeritageSiteExistsIfProvided(siteId);
+
+        var specification = ArtifactSpecification.filter(
+                siteId,
+                normalizeKeyword(keyword)
+        );
+
+        return artifactRepository.findAll(
+                specification,
+                createSort(sortBy, direction)
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Artifact> searchArtifacts(
+            Integer siteId,
+            String keyword,
+            int page,
+            int size,
+            String sortBy,
+            String direction) {
+
+        validateSiteId(siteId);
+        validateHeritageSiteExistsIfProvided(siteId);
+        validatePagination(page, size);
+
+        var specification = ArtifactSpecification.filter(
+                siteId,
+                normalizeKeyword(keyword)
+        );
+
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                createSort(sortBy, direction)
+        );
+
+        return artifactRepository.findAll(specification, pageable);
     }
 
     @Transactional(readOnly = true)
@@ -68,6 +128,64 @@ public class ArtifactService {
     public void deleteArtifact(Integer artifactId) {
         Artifact existingArtifact = getArtifactById(artifactId);
         artifactRepository.delete(existingArtifact);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        return keyword.trim();
+    }
+
+    private void validateSiteId(Integer siteId) {
+        if (siteId != null && siteId <= 0) {
+            throw new BadRequestException("siteId must be greater than 0");
+        }
+    }
+
+    private void validateHeritageSiteExistsIfProvided(Integer siteId) {
+        if (siteId != null) {
+            validateHeritageSiteExists(siteId);
+        }
+    }
+
+    private void validatePagination(int page, int size) {
+        if (page < 0) {
+            throw new BadRequestException("page must be greater than or equal to 0");
+        }
+
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            throw new BadRequestException(
+                    "size must be between 1 and " + MAX_PAGE_SIZE);
+        }
+    }
+
+    private Sort createSort(String sortBy, String direction) {
+        String field = (sortBy == null || sortBy.isBlank())
+                ? "name"
+                : sortBy.trim();
+
+        if (!ALLOWED_SORT_FIELDS.contains(field)) {
+            throw new BadRequestException(
+                    "Invalid sortBy field. Allowed fields: "
+                            + String.join(", ", ALLOWED_SORT_FIELDS));
+        }
+
+        try {
+            Sort.Direction sortDirection =
+                    Sort.Direction.fromString(
+                            direction == null ? "asc" : direction.trim());
+
+            String tieBreaker = "name".equals(field)
+                    ? "artifactId"
+                    : "name";
+
+            return Sort.by(sortDirection, field)
+                    .and(Sort.by(sortDirection, tieBreaker));
+        } catch (IllegalArgumentException exception) {
+            throw new BadRequestException(
+                    "direction must be either 'asc' or 'desc'");
+        }
     }
 
     private HeritageSite getHeritageSite(Integer siteId) {
