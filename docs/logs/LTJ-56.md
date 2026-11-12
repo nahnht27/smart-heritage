@@ -124,13 +124,11 @@ Nhận định phục vụ thiết kế bài đo:
 - Không sử dụng phương thức `resetDatabase()` của `VisitorInteractionPostgresIT`.
 Đã có số liệu baseline tại Mục 9. Chưa xác nhận N+1 và chưa thay đổi mã nguồn nghiệp vụ.
 
-## 8. Biên dịch kiểm thử tích hợp
+## 8. Biên dịch kiểm thử tích hợp.
 - Đã tạo file `backend/src/test/java/com/university/backend/integration/ArtifactQueryOptimizationIT.java`.
-- Phát hiện file kiểm thử có ký tự UTF-8 BOM ở đầu file, khiến Maven báo lỗi `illegal character: '\ufeff'`.
-- Đã chuẩn hóa file sang UTF-8 không BOM.
 - Đã chạy `mvn -DskipTests test-compile` bằng Docker Maven 3.9.6 với Java 17.
 - Kết quả: `BUILD SUCCESS`; biên dịch thành công 15 file test.
-- Đã chạy kiểm thử tích hợp PostgreSQL riêng cho ArtifactQueryOptimizationIT; kết quả và số liệu baseline được ghi tại Mục 9.
+- Đã chạy kiểm thử tích hợp PostgreSQL riêng cho ArtifactQueryOptimizationIT; kết quả và số liệu baseline được ghi tại Mục 9
 
 ## 9. Đo baseline truy vấn trên PostgreSQL
 - Đã chạy `ArtifactQueryOptimizationIT` bằng Docker Maven 3.9.6, Java 17, với profile `postgres-integration` và Spring profile `postgres-test`.
@@ -200,8 +198,8 @@ Nhận định phục vụ thiết kế bài đo:
 - Kết quả kiểm thử và số liệu sau tối ưu được xác nhận ở Mục 13 và Mục 14 bằng lần chạy PostgreSQL integration test độc lập.
 
 ## 13. Kết quả đo sau khi áp dụng EntityGraph
-- Môi trường kiểm thử: PostgreSQL 16.15, database `smart_heritage_test`, profile `postgres-test`.
-- Thay đổi được kiểm chứng: `ArtifactRepository` sử dụng `@EntityGraph(attributePaths = "heritageSite")` cho cả truy vấn có phân trang và không phân trang.
+- Môi trường kiểm thử: PostgreSQL 16.15, database `smart_heritage_test`, Spring profile `postgres-test`.
+- Đã áp dụng @EntityGraph(attributePaths = "heritageSite") cho hai phương thức truy vấn Artifact có và không có phân trang trong ArtifactRepository.
 
 ### So sánh số câu SQL
 | Trường hợp | Trước tối ưu | Sau tối ưu |
@@ -210,35 +208,36 @@ Nhận định phục vụ thiết kế bài đo:
 | Truy vấn Artifact có phân trang | 5 | 2 |
 | Truy vấn không có kết quả | 1 | 1 |
 
-- Truy vấn không phân trang giảm 3 câu SQL (75%).
-- Truy vấn có phân trang giảm 3 câu SQL (60%).
+- Truy vấn không phân trang giảm 3 câu SQL.
+- Truy vấn có phân trang giảm 3 câu SQL.
 - Truy vấn có phân trang vẫn thực hiện câu `COUNT` riêng để xác định tổng số bản ghi.
-- SQL truy vấn Artifact đã JOIN `heritage_site`, không còn các câu SELECT riêng để tải từng HeritageSite.
-- Số Multimedia entity được tải trong các truy vấn Artifact: 0.
-- Kiểm thử bao gồm Artifact không có Multimedia, có một Multimedia, có nhiều Multimedia, nhiều Artifact dùng chung HeritageSite, phân trang và kết quả rỗng.
+- SQL truy vấn Artifact đã JOIN `heritage_site`, không còn các câu SELECT riêng để tải từng HeritageSite. Không tải Multimedia entity trong các truy vấn Artifact được kiểm thử.
+
+### Phạm vi kiểm thử
+- Artifact không có Multimedia.
+- Artifact có một Multimedia và có nhiều Multimedia.
+- Nhiều Artifact cùng tham chiếu một HeritageSite.
+- Truy vấn có và không có phân trang.
+- Truy vấn không có kết quả.
 
 ### Kết quả kiểm thử
 - Chạy `ArtifactQueryOptimizationIT` trên PostgreSQL.
 - Tổng số: 3 tests.
 - Failures: 0; Errors: 0; Skipped: 0.
 - Kết quả Maven: `BUILD SUCCESS`.
-- Đã xác nhận số liệu sau tối ưu bằng Hibernate Statistics và SQL log.
 
 ### Kết luận
 - Nguyên nhân truy vấn dư trước tối ưu là quan hệ LAZY `Artifact.heritageSite` được truy cập khi ánh xạ `ArtifactResponse.fromEntity()`.
 - EntityGraph giúp tải HeritageSite cùng truy vấn Artifact.
 - Không thêm quan hệ Multimedia vào Artifact và không tải Multimedia không cần thiết.
-- Chưa thay đổi cấu trúc response API.
-## 14. Xác nhận lại kết quả sau khi chuẩn hóa nhãn log
+- Không thay đổi cấu trúc response API.
 
-- Ngày thực hiện: 12/11/2026.
-- Đã đổi nhãn output từ `[LTJ-56 BASELINE]` thành `[LTJ-56 AFTER]` và đổi tên ba phương thức test để thể hiện đúng mục đích đo sau tối ưu.
+## 14. Xác nhận lại kết quả sau khi chuẩn hóa nhãn log.
 - Môi trường: Docker Maven 3.9.6, Java 17.0.11, PostgreSQL 16.15, database `smart_heritage_test`.
 - Spring profile: `postgres-test`; Maven profile: `postgres-integration`.
 - Flyway xác thực thành công 3 migrations; schema version 3 đã cập nhật.
 
-### Số liệu sau tối ưu được xác nhận lại
-
+### Số liệu sau tối ưu được xác nhận lại.
 | Trường hợp | SQL statements |
 |---|---:|
 | Artifact không phân trang | 1 |
@@ -252,8 +251,7 @@ Nhận định phục vụ thiết kế bài đo:
 - Kết quả: 3 tests, 0 failures, 0 errors, 0 skipped.
 - Maven Failsafe 3.2.5: `BUILD SUCCESS`.
 
-### Kết luận
-
+### Kết luận.
 - Kết quả sau tối ưu được xác nhận lại sau khi chuẩn hóa nhãn log.
 - So với baseline, truy vấn không phân trang giảm từ 4 xuống 1 câu SQL; truy vấn phân trang giảm từ 5 xuống 2 câu SQL.
 - Không có Multimedia entity load trong các truy vấn Artifact được kiểm thử.
