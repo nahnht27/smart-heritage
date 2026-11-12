@@ -113,7 +113,9 @@ xử lý bằng migration mới.
   chuẩn hoá schema kiểu Hibernate bằng V4.
 - `VisitorInteractionPostgresIT`: API/service trên PostgreSQL 16 với Flyway và
   Hibernate validate.
-- CI `postgres-integration` chạy cả hai report và fail nếu thiếu test/failure/
+- `SchemaDetectorIT`: detector trên V1/V2 không có `beacon`, V3 có history,
+  V4 đầy đủ, Hibernate-era và các V4 thiếu invariant.
+- CI `postgres-integration` chạy cả ba report và fail nếu thiếu test/failure/
   error/skip.
 - Trước release: backup + migrate trên bản sao hoặc database cô lập, sau đó kiểm
   tra app start, health và dữ liệu.

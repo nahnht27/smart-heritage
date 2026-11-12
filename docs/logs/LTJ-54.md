@@ -31,7 +31,7 @@
 ## C. Implementation
 
 - Thêm `V4__normalize_legacy_schema.sql`, idempotent, không sửa dữ liệu nghiệp
-  vụ; bổ sung index/check/default/FK action còn thiếu.
+  vụ; bổ sung index/check/default/nullability/FK action còn thiếu.
 - Đổi Flyway sang baseline tường minh:
   - `baseline-on-migrate: false`
   - `baseline-version: 3` cho schema kiểu Hibernate
@@ -42,10 +42,12 @@
 - Thêm Flyway Maven plugin và `scripts/database/flyway.sh` (Flyway CLI Docker,
   không cần Java/Maven trên host).
 - Thêm `scripts/database/detect-schema-version.sql` (read-only) để phân loại
-  V1/V2/V3/V4 trước baseline.
-- Thêm `DatabaseMigrationIT` (6 test) và cập nhật `VisitorInteractionPostgresIT`
-  kiểm tra Flyway V4.
-- CI gate kiểm tra cả hai report: 22 Visitor Interaction + 6 migration.
+  V1/V2/V3/V4 trước baseline; dùng `to_regclass` để an toàn khi `beacon` chưa có.
+- Detector kiểm tra đúng index/check/default/nullability/FK action; dùng Flyway history để
+  phân biệt V3/V4 vì hai migration tạo cùng catalog shape.
+- Thêm `DatabaseMigrationIT` (6 test), `SchemaDetectorIT` (13 test) và cập nhật
+  `VisitorInteractionPostgresIT` kiểm tra Flyway V4.
+- CI gate kiểm tra ba report: 22 Visitor Interaction + 6 migration + 13 detector.
 - Thêm/cập nhật tài liệu database, deployment, release, ERD, CI, README.
 
 ## D. Data safety
@@ -62,10 +64,14 @@
 ## E. Tests / verification
 
 - `./mvnw -B test`: **134/134 PASS**.
-- `./mvnw -B -Ppostgres-integration verify`: **28/28 PASS**
+- `./mvnw -B -Ppostgres-integration verify`: **41/41 PASS**
+  - `VisitorInteractionPostgresIT`: 22/22
   - `DatabaseMigrationIT`: 6/6
-  - `VisitorInteractionPostgresIT`: 22/22.
-- CI report gate local: `GATE OK` (22 + 6, 0 failure/error/skip).
+  - `SchemaDetectorIT`: 13/13.
+- `SchemaDetectorIT` xác nhận detector trả `1`/`2` khi bảng `beacon` không tồn
+  tại, `3` cho V3 có history và Hibernate-era, `4` cho V4 đầy đủ, và
+  `UNEXPECTED` khi V4 thiếu index/check/default/nullability/FK action.
+- CI report gate local: `GATE OK` (22 + 6 + 13, 0 failure/error/skip).
 - Fresh PostgreSQL 16:
   - Flyway V1–V4, history `1,2,3,4`;
   - app health `UP`, Hibernate validate PASS.
@@ -85,9 +91,11 @@
 - PR: https://github.com/nahnht27/smart-heritage/pull/31 (base `main`, chưa
   merge).
 - CI push run `43039388577`: tất cả job PASS.
-- CI pull_request run `43039442507`: tất cả job PASS, gồm `backend-test`,
-  `postgres-integration` (22 + 6 test), `frontend-checks`, `mobile-tests`,
-  `docker-build`, `integration-smoke`; `mobile-static-analysis` advisory PASS.
+- CI pull_request run `43039442507`: tất cả job PASS trước detector review, gồm
+  `backend-test`, `postgres-integration` (22 + 6 test), `frontend-checks`,
+  `mobile-tests`, `docker-build`, `integration-smoke`;
+  `mobile-static-analysis` advisory PASS.
+- CI run cho detector review: PENDING sau khi push commit mới.
 - Chưa có production database/credentials thật để diễn tập; mới kiểm chứng trên
   PostgreSQL 16 disposable.
 - Chưa có PITR; rollback dữ liệu dựa trên backup/restore.

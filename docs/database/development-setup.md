@@ -65,7 +65,7 @@ POSTGRES_TEST_PASSWORD='postgres' \
   ./mvnw -B -Ppostgres-integration verify
 ```
 
-Suite chạy `VisitorInteractionPostgresIT` và `DatabaseMigrationIT`; không chạy
+Suite chạy `VisitorInteractionPostgresIT`, `DatabaseMigrationIT` và `SchemaDetectorIT`; không chạy
 trên database dev/production. Nếu host không có Java, dùng Docker Maven:
 
 ```bash
@@ -87,7 +87,7 @@ docker run --rm --network host \
 3. Viết SQL idempotent khi phù hợp (`IF NOT EXISTS`, `DO` block) cho constraint/
    index; không dùng `DROP` dữ liệu nếu không có kế hoạch.
 4. Chạy fresh PostgreSQL và database cũ (baseline + migrate) trước khi mở PR.
-5. Thêm test vào `DatabaseMigrationIT` nếu thay đổi schema.
+5. Thêm test vào `DatabaseMigrationIT`/`SchemaDetectorIT` nếu thay đổi schema hoặc detector.
 6. Cập nhật ERD/tài liệu database nếu cần.
 
 Quy ước:

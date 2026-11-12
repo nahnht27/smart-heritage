@@ -31,8 +31,8 @@ Checklist bắt buộc:
 - [ ] Mobile Jest PASS (`npm ci --legacy-peer-deps && npm test -- --ci`).
 - [ ] PostgreSQL smoke/integration PASS (public-only CI + authenticated smoke
       thủ công nếu có fixture an toàn).
-- [ ] Flyway migration mới đã review; `DatabaseMigrationIT` và
-      `VisitorInteractionPostgresIT` PASS trên PostgreSQL.
+- [ ] Flyway migration mới đã review; `DatabaseMigrationIT`,
+      `VisitorInteractionPostgresIT` và `SchemaDetectorIT` PASS trên PostgreSQL.
 - [ ] Đã thử migrate trên bản sao database cũ (fresh + baseline adoption).
 - [ ] UI E2E đã review (Admin Web + Mobile) hoặc ghi rõ PENDING.
 - [ ] `.env.production` đã kiểm tra đủ biến, không dùng giá trị dev/placeholder.

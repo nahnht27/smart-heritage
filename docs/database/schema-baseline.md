@@ -11,18 +11,31 @@ Script: [`scripts/database/detect-schema-version.sql`](../../scripts/database/de
 psql "$SPRING_DATASOURCE_URL" -f scripts/database/detect-schema-version.sql
 ```
 
-Script chỉ đọc. Output gồm `detected_version` và các cờ:
+Script chỉ đọc. Output gồm `detected_version`, `flyway_version` và các cờ:
 
 | Cột | Ý nghĩa |
 |---|---|
 | `has_base_tables` | Có đủ bảng gốc V1 |
 | `has_beacon` | Có bảng `beacon` (V3) |
-| `has_visitor_id` | Có `visitor_interaction.visitor_id` (V2) |
-| `user_id_nullable` | `visitor_interaction.user_id` cho phép NULL |
-| `has_analytics_index` | Có index `idx_visitor_interaction_interacted_at` |
-| `has_visitor_index` | Có index `idx_visitor_interaction_visitor_id` |
-| `has_beacon_checks` | Có check constraint `ck_beacon_major_range` |
-| `has_beacon_set_null` | FK beacon của interaction có `ON DELETE SET NULL` |
+| `has_visitor_id`, `visitor_id_not_null` | Có `visitor_interaction.visitor_id` và NOT NULL (V2) |
+| `user_id_nullable` | `visitor_interaction.user_id` cho phép NULL (V2) |
+| `has_beacon_id`, `beacon_id_nullable` | Có `visitor_interaction.beacon_id` và nullable (V3) |
+| `has_analytics_index` | Có index `idx_visitor_interaction_interacted_at` trên đúng cột |
+| `has_visitor_index` | Có index `idx_visitor_interaction_visitor_id` trên đúng cột |
+| `has_beacon_index` | Có index `idx_visitor_interaction_beacon_id` trên đúng cột |
+| `has_beacon_artifact_index` | Có index `idx_beacon_artifact_id` trên đúng cột |
+| `has_beacon_major_check`, `has_beacon_minor_check` | Có đủ hai check `0..65535` và đã validate |
+| `has_beacon_enabled_not_null`, `has_beacon_enabled_true_default` | `beacon.enabled` NOT NULL, default `true` |
+| `has_beacon_identity_unique` | Unique `(proximity_uuid, major, minor)` |
+| `has_event_id_unique` | Unique `visitor_interaction.event_id` |
+| `has_beacon_fk_set_null` | FK đúng cột `beacon_id → beacon.beacon_id`, `ON DELETE SET NULL` |
+| `has_v4_shape` | Đủ toàn bộ invariant V4 ở trên |
+
+Các kiểm tra dùng `to_regclass`, nên script chạy an toàn cả khi bảng `beacon`
+chưa tồn tại (V1/V2). Khi `flyway_schema_history` tồn tại, version history được
+đọc để phân biệt V3/V4: migration V3 đã tạo cùng catalog shape với V4. Không có
+history thì schema đủ chuẩn hoá được báo `4`; schema kiểu Hibernate thiếu
+index/check/default/nullability/FK action được báo `3`.
 
 ## 2. Đọc kết quả
 
@@ -30,13 +43,19 @@ Script chỉ đọc. Output gồm `detected_version` và các cờ:
 |---|---|---|
 | `1` | Schema V1, chưa có anonymous visitor/beacon | 1 |
 | `2` | Có `visitor_id`, chưa có beacon | 2 |
-| `3` | Có beacon và visitor_id, nhưng thiếu chuẩn hoá V4 | 3 |
+| `3` | V3 theo history, hoặc schema kiểu Hibernate còn thiếu chuẩn hoá V4 | 3 |
 | `4` | Đã đủ schema V4 | 4 |
 | `UNEXPECTED` | Không khớp chuỗi migration | **Không baseline**; review thủ công |
 | `INCOMPLETE` | Thiếu bảng gốc | **Không baseline**; kiểm tra sai DB/schema |
 
 `3` là kết quả bình thường với database do Hibernate tạo: đủ bảng/cột nhưng
-thiếu index/check/default/FK action. V4 sẽ bổ sung các phần thiếu.
+thiếu index/check/default/nullability/FK action. V4 sẽ bổ sung các phần thiếu. V3 có history
+cũng trả `3` dù catalog đã giống V4; không được dùng shape một mình để baseline
+V3 thành V4.
+
+`UNEXPECTED` cũng là kết quả đúng khi history ghi V4 nhưng thiếu một invariant
+V4 (index, check, default, FK action...). Tuyệt đối không baseline các kết quả
+`UNEXPECTED`/`INCOMPLETE`.
 
 ## 3. Checklist trước baseline
 
@@ -125,6 +144,8 @@ nếu môi trường đã có Java và source checkout.
   detection `4`, dữ liệu giữ nguyên, app health `UP`.
 - DB V1: baseline 1 rồi migrate V2–V4, history đúng, dữ liệu giữ nguyên.
 - DB V2: baseline 2 rồi migrate V3–V4, history đúng.
+- `SchemaDetectorIT`: 13/13 pass (bao gồm V1/V2 không có bảng `beacon`, V3 có
+  history, Hibernate-era, và các V4 thiếu index/check/default/nullability/FK action).
 - `DatabaseMigrationIT`: 6/6 pass; `VisitorInteractionPostgresIT`: 22/22 pass.
 
 Production thật vẫn **PENDING** vì chưa có hạ tầng/credentials.
