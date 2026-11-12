@@ -4,7 +4,8 @@
 
 - **Branch:** `LTJ-54-database-migration-schema-governance`
 - **Base:** `origin/main` tại `43a3a72`
-- **Implementation commit:** `38b623e`
+- **Implementation commits:** `38b623e`, `0e097ec`, `9c21426`
+- **Detector review commit:** `23dcfab`
 - **Mục tiêu:** Flyway versioned migrations, baseline an toàn cho database cũ,
   Hibernate `validate`, giữ nguyên dữ liệu, cập nhật CI/Docker/tài liệu.
 
@@ -90,12 +91,12 @@
 
 - PR: https://github.com/nahnht27/smart-heritage/pull/31 (base `main`, chưa
   merge).
-- CI push run `43039388577`: tất cả job PASS.
-- CI pull_request run `43039442507`: tất cả job PASS trước detector review, gồm
-  `backend-test`, `postgres-integration` (22 + 6 test), `frontend-checks`,
+- CI push run `43254054573`: tất cả job PASS, gồm `postgres-integration`
+  (22 + 6 + 13 test, `GATE OK`).
+- CI pull_request run `43254070627`: tất cả job PASS, gồm `backend-test`,
+  `postgres-integration` (22 + 6 + 13 test, `GATE OK`), `frontend-checks`,
   `mobile-tests`, `docker-build`, `integration-smoke`;
   `mobile-static-analysis` advisory PASS.
-- CI run cho detector review: PENDING sau khi push commit mới.
 - Chưa có production database/credentials thật để diễn tập; mới kiểm chứng trên
   PostgreSQL 16 disposable.
 - Chưa có PITR; rollback dữ liệu dựa trên backup/restore.
