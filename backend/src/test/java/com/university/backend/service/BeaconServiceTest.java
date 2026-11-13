@@ -133,7 +133,7 @@ class BeaconServiceTest {
         Beacon disabled = new Beacon();
         disabled.setBeaconId(4);
         disabled.setEnabled(false);
-        when(beaconRepository.findByProximityUuidAndMajorAndMinor(
+        when(beaconRepository.findForResolutionByIdentity(
                 BEACON_UUID, 1, 101)).thenReturn(Optional.of(disabled));
 
         assertThrows(
@@ -150,7 +150,7 @@ class BeaconServiceTest {
         enabled.setMajor(1);
         enabled.setMinor(101);
         enabled.setEnabled(true);
-        when(beaconRepository.findByProximityUuidAndMajorAndMinor(
+        when(beaconRepository.findForResolutionByIdentity(
                 BEACON_UUID, 1, 101)).thenReturn(Optional.of(enabled));
 
         BeaconResponse response = beaconService.resolveBeacon(BEACON_UUID, 1, 101);

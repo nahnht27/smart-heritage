@@ -73,7 +73,7 @@ public class BeaconService {
     @Transactional(readOnly = true)
     public BeaconResponse resolveBeacon(UUID uuid, Integer major, Integer minor) {
         Beacon beacon = beaconRepository
-                .findByProximityUuidAndMajorAndMinor(uuid, major, minor)
+                .findForResolutionByIdentity(uuid, major, minor)
                 .filter(Beacon::isEnabled)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Beacon not found or disabled"));
