@@ -323,6 +323,118 @@ class DatabaseMigrationIT {
         }
     }
 
+    @Test
+    void exactBeaconForeignKeyIsPreserved() throws Exception {
+        try (Database database = Database.create("fk_exact")) {
+            targeted(database.url(), "3").migrate();
+            executeSql(database, "alter table visitor_interaction "
+                    + "rename constraint fk_visitor_interaction_beacon to fk_exact_beacon");
+
+            assertEquals(1, flyway(database.url()).migrate().migrationsExecuted);
+
+            try (Connection connection = database.connect()) {
+                assertExactBeaconForeignKey(connection, "fk_exact_beacon", "n");
+                assertEquals(0, queryInt(connection,
+                        "select count(*) from pg_constraint "
+                                + "where conname = 'fk_visitor_interaction_beacon'"));
+                assertHistory(connection, "4", "SQL");
+            }
+        }
+    }
+
+    @Test
+    void exactBeaconForeignKeyWithWrongDeleteActionIsNormalized() throws Exception {
+        try (Database database = Database.create("fk_wrong_delete")) {
+            targeted(database.url(), "3").migrate();
+            try (Connection connection = database.connect()) {
+                seedCurrentData(connection);
+            }
+            executeSql(database, "alter table visitor_interaction "
+                    + "drop constraint fk_visitor_interaction_beacon");
+            executeSql(database, "alter table visitor_interaction "
+                    + "add constraint fk_exact_no_action "
+                    + "foreign key (beacon_id) references beacon(beacon_id)");
+
+            assertEquals(1, flyway(database.url()).migrate().migrationsExecuted);
+
+            try (Connection connection = database.connect()) {
+                assertCurrentData(connection);
+                assertExactBeaconForeignKey(
+                        connection, "fk_visitor_interaction_beacon", "n");
+                assertEquals(0, queryInt(connection,
+                        "select count(*) from pg_constraint "
+                                + "where conname = 'fk_exact_no_action'"));
+                assertHistory(connection, "4", "SQL");
+            }
+        }
+    }
+
+    @Test
+    void beaconForeignKeyWithWrongColumnMappingIsRejected() throws Exception {
+        try (Database database = Database.create("fk_wrong_mapping")) {
+            targeted(database.url(), "3").migrate();
+            executeSql(database, "alter table visitor_interaction "
+                    + "drop constraint fk_visitor_interaction_beacon");
+            executeSql(database, "alter table visitor_interaction "
+                    + "add constraint fk_wrong_beacon_mapping "
+                    + "foreign key (artifact_id) references beacon(beacon_id) "
+                    + "on delete set null");
+
+            FlywayException exception = assertThrows(
+                    FlywayException.class,
+                    () -> flyway(database.url()).migrate());
+
+            assertTrue(exception.getMessage().contains("fk_wrong_beacon_mapping"));
+            assertTrue(exception.getMessage().contains(
+                    "references public.beacon through unexpected columns"));
+            try (Connection connection = database.connect()) {
+                assertEquals(1, queryInt(connection,
+                        "select count(*) from pg_constraint "
+                                + "where conname = 'fk_wrong_beacon_mapping' "
+                                + "and contype = 'f'"));
+                assertEquals(0, queryInt(connection,
+                        "select count(*) from pg_constraint "
+                                + "where conname = 'fk_visitor_interaction_beacon'"));
+                assertEquals(0, queryInt(connection,
+                        "select count(*) from flyway_schema_history where version = '4'"));
+            }
+        }
+    }
+
+    @Test
+    void normalizingBeaconForeignKeyPreservesUnrelatedConstraints() throws Exception {
+        try (Database database = Database.create("fk_unrelated")) {
+            targeted(database.url(), "3").migrate();
+            executeSql(database, "alter table visitor_interaction "
+                    + "rename constraint fkmtcoqflkohmy8km0j7qkiw64d "
+                    + "to fk_unrelated_artifact");
+            executeSql(database, "alter table visitor_interaction "
+                    + "rename constraint fksovoigajsar5x0lldbs7a9sgs "
+                    + "to fk_unrelated_user");
+            executeSql(database, "alter table visitor_interaction "
+                    + "drop constraint fk_visitor_interaction_beacon");
+            executeSql(database, "alter table visitor_interaction "
+                    + "add constraint fk_exact_wrong_action "
+                    + "foreign key (beacon_id) references beacon(beacon_id)");
+
+            assertEquals(1, flyway(database.url()).migrate().migrationsExecuted);
+
+            try (Connection connection = database.connect()) {
+                assertEquals(2, queryInt(connection,
+                        "select count(*) from pg_constraint "
+                                + "where conrelid = 'public.visitor_interaction'::regclass "
+                                + "and conname in "
+                                + "('fk_unrelated_artifact', 'fk_unrelated_user')"));
+                assertExactBeaconForeignKey(
+                        connection, "fk_visitor_interaction_beacon", "n");
+                assertEquals(0, queryInt(connection,
+                        "select count(*) from pg_constraint "
+                                + "where conname = 'fk_exact_wrong_action'"));
+                assertHistory(connection, "4", "SQL");
+            }
+        }
+    }
+
     private static Flyway flyway(String url) {
         return configuration(url).load();
     }
@@ -632,6 +744,39 @@ class DatabaseMigrationIT {
                 "select confdeltype::text from pg_constraint "
                         + "where conname = ? and contype = 'f'",
                 name));
+    }
+
+    private static void assertExactBeaconForeignKey(
+            Connection connection, String name, String expectedDeleteAction)
+            throws SQLException {
+        assertEquals(1, queryInt(connection, """
+                select count(*)
+                from pg_constraint c
+                where c.conname = ?
+                  and c.contype = 'f'
+                  and c.conrelid = 'public.visitor_interaction'::regclass
+                  and c.confrelid = 'public.beacon'::regclass
+                  and c.confdeltype::text = ?
+                  and c.conkey = ARRAY[
+                      (
+                          select a.attnum
+                          from pg_attribute a
+                          where a.attrelid = 'public.visitor_interaction'::regclass
+                            and a.attname = 'beacon_id'
+                            and not a.attisdropped
+                      )
+                  ]::smallint[]
+                  and c.confkey = ARRAY[
+                      (
+                          select a.attnum
+                          from pg_attribute a
+                          where a.attrelid = 'public.beacon'::regclass
+                            and a.attname = 'beacon_id'
+                            and not a.attisdropped
+                      )
+                  ]::smallint[]
+                """, name, expectedDeleteAction),
+                "missing exact beacon foreign key: " + name);
     }
 
     private static void assertHistory(Connection connection, String version, String type)

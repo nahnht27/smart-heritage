@@ -335,16 +335,19 @@ Bổ sung kiểm thử migration và schema detector ngoài suite Visitor Intera
   - V4 đầy đủ, Hibernate-era, partial schema, các V4 thiếu invariant và
     constraint cùng tên sai biểu thức được phân loại đúng
     (`4`, `3`, `UNEXPECTED`).
-- `DatabaseMigrationIT` — **8/8 PASS**:
+- `DatabaseMigrationIT` — **12/12 PASS**:
   - fresh DB chạy V1–V4 và validate;
   - không auto-baseline schema không có history;
   - baseline hiện tại ở V3, V2 ở V2, legacy V1 ở V1;
   - schema kiểu Hibernate được V4 chuẩn hoá index/check/default/FK;
-  - constraint trùng tên sai biểu thức làm V4 fail rõ ràng, không bị thay thế.
+  - constraint trùng tên sai biểu thức làm V4 fail rõ ràng, không bị thay thế;
+  - FK đúng `beacon_id → beacon_id` được giữ nguyên;
+  - FK đúng mapping nhưng sai delete action được thay bằng `ON DELETE SET NULL`;
+  - FK trỏ tới `beacon` qua cột khác bị từ chối, không drop constraint lạ.
 - `VisitorInteractionPostgresIT` — **22/22 PASS**, có thêm assertion Flyway V4.
 - `./mvnw -B test` — **134/134 unit tests PASS**.
-- `./mvnw -B -Ppostgres-integration verify` — **46/46 integration tests PASS**
-  (22 Visitor Interaction + 8 migration + 16 detector).
+- `./mvnw -B -Ppostgres-integration verify` — **50/50 integration tests PASS**
+  (22 Visitor Interaction + 12 migration + 16 detector).
 - Manual PostgreSQL 16 disposable:
   - fresh DB: V1–V4, app health `UP`, Hibernate validate PASS;
   - DB kiểu Hibernate: detection `3` → baseline 3 → V4 → detection `4`, dữ

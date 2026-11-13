@@ -117,35 +117,97 @@ END $$;
 
 DO $$
 DECLARE
-    existing_fk text;
-    existing_delete_action "char";
+    local_beacon_id smallint;
+    foreign_beacon_id smallint;
+    unexpected_fk_name text;
+    unexpected_fk_definition text;
+    wrong_fk record;
+    exact_fk_name text;
+    exact_fk_validated boolean;
 BEGIN
-    SELECT constraint_name, delete_action
-    INTO existing_fk, existing_delete_action
-    FROM (
-        SELECT conname AS constraint_name,
-               confdeltype AS delete_action
-        FROM pg_constraint
-        WHERE conrelid = 'public.visitor_interaction'::regclass
-          AND contype = 'f'
-          AND confrelid = 'public.beacon'::regclass
-        LIMIT 1
-    ) existing;
+    SELECT a.attnum
+    INTO local_beacon_id
+    FROM pg_attribute a
+    WHERE a.attrelid = 'public.visitor_interaction'::regclass
+      AND a.attname = 'beacon_id'
+      AND NOT a.attisdropped;
 
-    IF existing_fk IS NULL THEN
-        ALTER TABLE public.visitor_interaction
-            ADD CONSTRAINT fk_visitor_interaction_beacon
-            FOREIGN KEY (beacon_id)
-            REFERENCES public.beacon (beacon_id)
-            ON DELETE SET NULL;
-    ELSIF existing_delete_action <> 'n' THEN
+    SELECT a.attnum
+    INTO foreign_beacon_id
+    FROM pg_attribute a
+    WHERE a.attrelid = 'public.beacon'::regclass
+      AND a.attname = 'beacon_id'
+      AND NOT a.attisdropped;
+
+    IF local_beacon_id IS NULL OR foreign_beacon_id IS NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = 'Required beacon_id columns are missing from public.visitor_interaction or public.beacon',
+            HINT = 'Run V1-V3 or repair the schema manually, then rerun V4.';
+    END IF;
+
+    SELECT c.conname, pg_get_constraintdef(c.oid, true)
+    INTO unexpected_fk_name, unexpected_fk_definition
+    FROM pg_constraint c
+    WHERE c.conrelid = 'public.visitor_interaction'::regclass
+      AND c.contype = 'f'
+      AND c.confrelid = 'public.beacon'::regclass
+      AND NOT (
+          c.conkey = ARRAY[local_beacon_id]::smallint[]
+          AND c.confkey = ARRAY[foreign_beacon_id]::smallint[]
+      )
+    ORDER BY c.conname
+    LIMIT 1;
+
+    IF unexpected_fk_name IS NOT NULL THEN
+        RAISE EXCEPTION USING
+            MESSAGE = format(
+                'Foreign key %I on public.visitor_interaction references public.beacon through unexpected columns',
+                unexpected_fk_name
+            ),
+            DETAIL = format(
+                'Found: %s. Expected visitor_interaction(beacon_id) -> beacon(beacon_id). Refusing to drop or replace an unrelated constraint.',
+                unexpected_fk_definition
+            ),
+            HINT = 'Drop or fix the constraint manually, then rerun V4.';
+    END IF;
+
+    FOR wrong_fk IN
+        SELECT c.conname
+        FROM pg_constraint c
+        WHERE c.conrelid = 'public.visitor_interaction'::regclass
+          AND c.contype = 'f'
+          AND c.confrelid = 'public.beacon'::regclass
+          AND c.conkey = ARRAY[local_beacon_id]::smallint[]
+          AND c.confkey = ARRAY[foreign_beacon_id]::smallint[]
+          AND c.confdeltype <> 'n'
+        ORDER BY c.conname
+    LOOP
         EXECUTE format(
                 'ALTER TABLE public.visitor_interaction DROP CONSTRAINT %I',
-                existing_fk);
+                wrong_fk.conname);
+    END LOOP;
+
+    SELECT c.conname, c.convalidated
+    INTO exact_fk_name, exact_fk_validated
+    FROM pg_constraint c
+    WHERE c.conrelid = 'public.visitor_interaction'::regclass
+      AND c.contype = 'f'
+      AND c.confrelid = 'public.beacon'::regclass
+      AND c.conkey = ARRAY[local_beacon_id]::smallint[]
+      AND c.confkey = ARRAY[foreign_beacon_id]::smallint[]
+      AND c.confdeltype = 'n'
+    ORDER BY c.conname
+    LIMIT 1;
+
+    IF exact_fk_name IS NULL THEN
         ALTER TABLE public.visitor_interaction
             ADD CONSTRAINT fk_visitor_interaction_beacon
             FOREIGN KEY (beacon_id)
             REFERENCES public.beacon (beacon_id)
             ON DELETE SET NULL;
+    ELSIF NOT exact_fk_validated THEN
+        EXECUTE format(
+                'ALTER TABLE public.visitor_interaction VALIDATE CONSTRAINT %I',
+                exact_fk_name);
     END IF;
 END $$;

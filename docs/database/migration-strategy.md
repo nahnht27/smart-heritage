@@ -35,6 +35,12 @@ V4 kiểm tra biểu thức của constraint check trùng tên. Nếu `ck_beacon
 hoặc `ck_beacon_minor_range` tồn tại nhưng không đúng range `0..65535`, migration
 fail rõ ràng; không tự drop/thay thế constraint và không sửa dữ liệu nghiệp vụ.
 
+Với FK, V4 so khớp chính xác `conkey`/`confkey` của
+`visitor_interaction.beacon_id → beacon.beacon_id`. FK đúng mapping và
+`ON DELETE SET NULL` được giữ nguyên; FK đúng mapping nhưng sai delete action
+được thay bằng FK chuẩn; FK trỏ tới `beacon` qua cột khác làm migration fail rõ
+ràng và không bị drop.
+
 Không sửa checksum của V1–V4 sau khi đã merge. Thay đổi tiếp theo bắt đầu từ
 `V5__...sql`.
 
@@ -114,7 +120,8 @@ xử lý bằng migration mới.
 ## 6. Kiểm thử bắt buộc
 
 - `DatabaseMigrationIT`: fresh V1–V4, không auto-baseline, baseline 3/2/1, chuẩn
-  hoá schema kiểu Hibernate bằng V4, và fail an toàn khi constraint trùng tên sai.
+  hoá schema kiểu Hibernate bằng V4, fail an toàn khi constraint trùng tên sai,
+  và xác minh FK đúng mapping/sai delete action/sai cột.
 - `VisitorInteractionPostgresIT`: API/service trên PostgreSQL 16 với Flyway và
   Hibernate validate.
 - `SchemaDetectorIT`: detector trên V1/V2 không có `beacon`, V3 có history,
