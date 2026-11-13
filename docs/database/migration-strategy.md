@@ -31,6 +31,10 @@ Migration dùng **Flyway 10.22.0**, chạy tự động khi backend khởi độ
 | V3 | `V3__beacon_management.sql` | Bảng `beacon`, FK `visitor_interaction.beacon_id`, check/index Wave 4 |
 | V4 | `V4__normalize_legacy_schema.sql` | Chuẩn hoá DB do Hibernate tạo: index, default `enabled`, check range, FK `ON DELETE SET NULL` |
 
+V4 kiểm tra biểu thức của constraint check trùng tên. Nếu `ck_beacon_major_range`
+hoặc `ck_beacon_minor_range` tồn tại nhưng không đúng range `0..65535`, migration
+fail rõ ràng; không tự drop/thay thế constraint và không sửa dữ liệu nghiệp vụ.
+
 Không sửa checksum của V1–V4 sau khi đã merge. Thay đổi tiếp theo bắt đầu từ
 `V5__...sql`.
 
@@ -109,12 +113,12 @@ xử lý bằng migration mới.
 
 ## 6. Kiểm thử bắt buộc
 
-- `DatabaseMigrationIT`: fresh V1–V4, không auto-baseline, baseline 3/2/1, và
-  chuẩn hoá schema kiểu Hibernate bằng V4.
+- `DatabaseMigrationIT`: fresh V1–V4, không auto-baseline, baseline 3/2/1, chuẩn
+  hoá schema kiểu Hibernate bằng V4, và fail an toàn khi constraint trùng tên sai.
 - `VisitorInteractionPostgresIT`: API/service trên PostgreSQL 16 với Flyway và
   Hibernate validate.
 - `SchemaDetectorIT`: detector trên V1/V2 không có `beacon`, V3 có history,
-  V4 đầy đủ, Hibernate-era và các V4 thiếu invariant.
+  V4 đầy đủ, Hibernate-era, và các V4 thiếu invariant hoặc sai biểu thức check.
 - CI `postgres-integration` chạy cả ba report và fail nếu thiếu test/failure/
   error/skip.
 - Trước release: backup + migrate trên bản sao hoặc database cô lập, sau đó kiểm

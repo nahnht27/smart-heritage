@@ -24,7 +24,7 @@ Script chỉ đọc. Output gồm `detected_version`, `flyway_version` và các 
 | `has_visitor_index` | Có index `idx_visitor_interaction_visitor_id` trên đúng cột |
 | `has_beacon_index` | Có index `idx_visitor_interaction_beacon_id` trên đúng cột |
 | `has_beacon_artifact_index` | Có index `idx_beacon_artifact_id` trên đúng cột |
-| `has_beacon_major_check`, `has_beacon_minor_check` | Có đủ hai check `0..65535` và đã validate |
+| `has_beacon_major_check`, `has_beacon_minor_check` | Có check đúng tên **và** biểu thức đã chuẩn hoá khớp `major`/`minor BETWEEN 0 AND 65535`; constraint đã validate |
 | `has_beacon_enabled_not_null`, `has_beacon_enabled_true_default` | `beacon.enabled` NOT NULL, default `true` |
 | `has_beacon_identity_unique` | Unique `(proximity_uuid, major, minor)` |
 | `has_event_id_unique` | Unique `visitor_interaction.event_id` |
@@ -32,9 +32,12 @@ Script chỉ đọc. Output gồm `detected_version`, `flyway_version` và các 
 | `has_v4_shape` | Đủ toàn bộ invariant V4 ở trên |
 
 Các kiểm tra dùng `to_regclass`, nên script chạy an toàn cả khi bảng `beacon`
-chưa tồn tại (V1/V2). Khi `flyway_schema_history` tồn tại, version history được
-đọc để phân biệt V3/V4: migration V3 đã tạo cùng catalog shape với V4. Không có
-history thì schema đủ chuẩn hoá được báo `4`; schema kiểu Hibernate thiếu
+chưa tồn tại (V1/V2). Check constraint được so khớp bằng cả tên và biểu thức
+`pg_get_constraintdef` đã chuẩn hoá (bỏ whitespace/ngoặc), không chỉ tên; cùng
+tên nhưng sai range bị coi là thiếu. Khi `flyway_schema_history` tồn tại,
+version history được đọc để phân biệt V3/V4: migration V3 đã tạo cùng catalog
+shape với V4. Không có history thì schema đủ chuẩn hoá được báo `4`; schema
+kiểu Hibernate thiếu
 index/check/default/nullability/FK action được báo `3`.
 
 ## 2. Đọc kết quả
@@ -54,7 +57,8 @@ cũng trả `3` dù catalog đã giống V4; không được dùng shape một m
 V3 thành V4.
 
 `UNEXPECTED` cũng là kết quả đúng khi history ghi V4 nhưng thiếu một invariant
-V4 (index, check, default, FK action...). Tuyệt đối không baseline các kết quả
+V4 (index, check, default, nullability, FK action...). Constraint đúng tên nhưng
+sai biểu thức cũng bị coi là thiếu. Tuyệt đối không baseline các kết quả
 `UNEXPECTED`/`INCOMPLETE`.
 
 ## 3. Checklist trước baseline
@@ -144,8 +148,9 @@ nếu môi trường đã có Java và source checkout.
   detection `4`, dữ liệu giữ nguyên, app health `UP`.
 - DB V1: baseline 1 rồi migrate V2–V4, history đúng, dữ liệu giữ nguyên.
 - DB V2: baseline 2 rồi migrate V3–V4, history đúng.
-- `SchemaDetectorIT`: 13/13 pass (bao gồm V1/V2 không có bảng `beacon`, V3 có
-  history, Hibernate-era, và các V4 thiếu index/check/default/nullability/FK action).
-- `DatabaseMigrationIT`: 6/6 pass; `VisitorInteractionPostgresIT`: 22/22 pass.
+- `SchemaDetectorIT`: 16/16 pass (bao gồm V1/V2 không có bảng `beacon`, V3 có
+  history, Hibernate-era, các V4 thiếu invariant và constraint cùng tên sai
+  biểu thức).
+- `DatabaseMigrationIT`: 8/8 pass; `VisitorInteractionPostgresIT`: 22/22 pass.
 
 Production thật vẫn **PENDING** vì chưa có hạ tầng/credentials.

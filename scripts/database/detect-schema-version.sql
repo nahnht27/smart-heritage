@@ -5,7 +5,9 @@
 --
 -- This is a read-only diagnostic. It does not modify the database.
 --
--- The detector inspects catalog shape, not trust. Flyway history is used only
+-- The detector inspects catalog shape, not trust. Check constraints must have
+-- both the expected name and the expected normalized expression; a same-name
+-- constraint with a different range is treated as missing. Flyway history is used only
 -- to disambiguate V3 from V4 when it exists: the V3 migration already creates
 -- the same index/check/default/FK catalog entries as V4, so shape alone cannot
 -- distinguish those two histories. With no history, a fully normalized schema
@@ -176,6 +178,18 @@ state AS (
               AND c.contype = 'c'
               AND c.conname = 'ck_beacon_major_range'
               AND c.convalidated
+              AND lower(
+                  regexp_replace(
+                      regexp_replace(
+                          pg_get_constraintdef(c.oid, true),
+                          '[[:space:]]', '', 'g'
+                      ),
+                      '[()]', '', 'g'
+                  )
+              ) IN (
+                  'checkmajor>=0andmajor<=65535',
+                  'checkmajor<=65535andmajor>=0'
+              )
         ) AS has_beacon_major_check,
         EXISTS (
             SELECT 1
@@ -184,6 +198,18 @@ state AS (
               AND c.contype = 'c'
               AND c.conname = 'ck_beacon_minor_range'
               AND c.convalidated
+              AND lower(
+                  regexp_replace(
+                      regexp_replace(
+                          pg_get_constraintdef(c.oid, true),
+                          '[[:space:]]', '', 'g'
+                      ),
+                      '[()]', '', 'g'
+                  )
+              ) IN (
+                  'checkminor>=0andminor<=65535',
+                  'checkminor<=65535andminor>=0'
+              )
         ) AS has_beacon_minor_check,
         EXISTS (
             SELECT 1

@@ -46,17 +46,17 @@
   V1/V2/V3/V4 trước baseline; dùng `to_regclass` để an toàn khi `beacon` chưa có.
 - Detector kiểm tra đúng index/check/default/nullability/FK action; dùng Flyway history để
   phân biệt V3/V4 vì hai migration tạo cùng catalog shape.
-- Thêm `DatabaseMigrationIT` (6 test), `SchemaDetectorIT` (13 test) và cập nhật
+- Thêm `DatabaseMigrationIT` (8 test), `SchemaDetectorIT` (16 test) và cập nhật
   `VisitorInteractionPostgresIT` kiểm tra Flyway V4.
-- CI gate kiểm tra ba report: 22 Visitor Interaction + 6 migration + 13 detector.
+- CI gate kiểm tra ba report: 22 Visitor Interaction + 8 migration + 16 detector.
 - Thêm/cập nhật tài liệu database, deployment, release, ERD, CI, README.
 
 ## D. Data safety
 
 - Không có `DROP TABLE`/`DROP COLUMN`/data rewrite.
 - Baseline chỉ chạy khi chưa có `flyway_schema_history`; không auto-baseline.
-- V4 dùng `IF NOT EXISTS`/`DO` block; nếu beacon vi phạm range check, migration
-  fail rõ ràng thay vì bỏ qua.
+- V4 dùng `IF NOT EXISTS`/`DO` block; constraint trùng tên được kiểm tra biểu thức,
+  sai range hoặc beacon vi phạm check đều fail rõ ràng thay vì bỏ qua.
 - Test xác nhận dữ liệu V1/V2/current/Hibernate-like được giữ nguyên; xoá beacon
   chỉ chuyển `beacon_id` về NULL, không xoá interaction.
 - Manual DB kiểu Hibernate: 1 site, 1 artifact, 1 beacon, 1 interaction trước và
@@ -65,14 +65,15 @@
 ## E. Tests / verification
 
 - `./mvnw -B test`: **134/134 PASS**.
-- `./mvnw -B -Ppostgres-integration verify`: **41/41 PASS**
+- `./mvnw -B -Ppostgres-integration verify`: **46/46 PASS**
   - `VisitorInteractionPostgresIT`: 22/22
-  - `DatabaseMigrationIT`: 6/6
-  - `SchemaDetectorIT`: 13/13.
+  - `DatabaseMigrationIT`: 8/8
+  - `SchemaDetectorIT`: 16/16.
 - `SchemaDetectorIT` xác nhận detector trả `1`/`2` khi bảng `beacon` không tồn
   tại, `3` cho V3 có history và Hibernate-era, `4` cho V4 đầy đủ, và
-  `UNEXPECTED` khi V4 thiếu index/check/default/nullability/FK action.
-- CI report gate local: `GATE OK` (22 + 6 + 13, 0 failure/error/skip).
+  `UNEXPECTED` khi V4 thiếu invariant hoặc constraint cùng tên sai biểu thức.
+- `DatabaseMigrationIT` xác nhận V4 fail rõ ràng, không thay thế constraint sai.
+- CI report gate local: `GATE OK` (22 + 8 + 16, 0 failure/error/skip).
 - Fresh PostgreSQL 16:
   - Flyway V1–V4, history `1,2,3,4`;
   - app health `UP`, Hibernate validate PASS.
