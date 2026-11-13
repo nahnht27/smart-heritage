@@ -6,6 +6,7 @@
 - **Base:** `origin/main` tại `43a3a72`
 - **Implementation commits:** `38b623e`, `0e097ec`, `9c21426`
 - **Detector review commit:** `23dcfab`
+- **Check semantics commit:** `04cea51`
 - **Mục tiêu:** Flyway versioned migrations, baseline an toàn cho database cũ,
   Hibernate `validate`, giữ nguyên dữ liệu, cập nhật CI/Docker/tài liệu.
 
@@ -92,10 +93,10 @@
 
 - PR: https://github.com/nahnht27/smart-heritage/pull/31 (base `main`, chưa
   merge).
-- CI push run `43254054573`: tất cả job PASS, gồm `postgres-integration`
-  (22 + 6 + 13 test, `GATE OK`).
-- CI pull_request run `43254070627`: tất cả job PASS, gồm `backend-test`,
-  `postgres-integration` (22 + 6 + 13 test, `GATE OK`), `frontend-checks`,
+- CI push run `43333973292`: tất cả job PASS, gồm `postgres-integration`
+  (22 + 8 + 16 test, `GATE OK`).
+- CI pull_request run `43333985516`: tất cả job PASS, gồm `backend-test`,
+  `postgres-integration` (22 + 8 + 16 test, `GATE OK`), `frontend-checks`,
   `mobile-tests`, `docker-build`, `integration-smoke`;
   `mobile-static-analysis` advisory PASS.
 - Chưa có production database/credentials thật để diễn tập; mới kiểm chứng trên
