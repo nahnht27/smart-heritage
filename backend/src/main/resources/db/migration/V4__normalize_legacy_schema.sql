@@ -28,27 +28,90 @@ ALTER TABLE public.beacon
     ALTER COLUMN enabled SET DEFAULT true;
 
 DO $$
+DECLARE
+    existing_definition text;
+    existing_validated boolean;
+    normalized_definition text;
 BEGIN
-    IF NOT EXISTS (
-            SELECT 1
-            FROM pg_constraint
-            WHERE conname = 'ck_beacon_major_range'
-              AND conrelid = 'public.beacon'::regclass
-    ) THEN
+    SELECT pg_get_constraintdef(c.oid, true), c.convalidated
+    INTO existing_definition, existing_validated
+    FROM pg_constraint c
+    WHERE c.conname = 'ck_beacon_major_range'
+      AND c.conrelid = 'public.beacon'::regclass;
+
+    IF NOT FOUND THEN
         ALTER TABLE public.beacon
             ADD CONSTRAINT ck_beacon_major_range
             CHECK (major BETWEEN 0 AND 65535);
-    END IF;
+    ELSE
+        normalized_definition := lower(
+            regexp_replace(
+                regexp_replace(existing_definition, '[[:space:]]', '', 'g'),
+                '[()]', '', 'g'
+            )
+        );
 
-    IF NOT EXISTS (
-            SELECT 1
-            FROM pg_constraint
-            WHERE conname = 'ck_beacon_minor_range'
-              AND conrelid = 'public.beacon'::regclass
-    ) THEN
+        IF normalized_definition NOT IN (
+                'checkmajor>=0andmajor<=65535',
+                'checkmajor<=65535andmajor>=0'
+        ) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = 'ck_beacon_major_range on public.beacon does not enforce major BETWEEN 0 AND 65535',
+                DETAIL = format(
+                    'Found: %s. Refusing to replace an existing constraint automatically.',
+                    existing_definition
+                ),
+                HINT = 'Drop or fix the constraint manually, then rerun V4.';
+        END IF;
+
+        IF NOT existing_validated THEN
+            ALTER TABLE public.beacon
+                VALIDATE CONSTRAINT ck_beacon_major_range;
+        END IF;
+    END IF;
+END $$;
+
+DO $$
+DECLARE
+    existing_definition text;
+    existing_validated boolean;
+    normalized_definition text;
+BEGIN
+    SELECT pg_get_constraintdef(c.oid, true), c.convalidated
+    INTO existing_definition, existing_validated
+    FROM pg_constraint c
+    WHERE c.conname = 'ck_beacon_minor_range'
+      AND c.conrelid = 'public.beacon'::regclass;
+
+    IF NOT FOUND THEN
         ALTER TABLE public.beacon
             ADD CONSTRAINT ck_beacon_minor_range
             CHECK (minor BETWEEN 0 AND 65535);
+    ELSE
+        normalized_definition := lower(
+            regexp_replace(
+                regexp_replace(existing_definition, '[[:space:]]', '', 'g'),
+                '[()]', '', 'g'
+            )
+        );
+
+        IF normalized_definition NOT IN (
+                'checkminor>=0andminor<=65535',
+                'checkminor<=65535andminor>=0'
+        ) THEN
+            RAISE EXCEPTION USING
+                MESSAGE = 'ck_beacon_minor_range on public.beacon does not enforce minor BETWEEN 0 AND 65535',
+                DETAIL = format(
+                    'Found: %s. Refusing to replace an existing constraint automatically.',
+                    existing_definition
+                ),
+                HINT = 'Drop or fix the constraint manually, then rerun V4.';
+        END IF;
+
+        IF NOT existing_validated THEN
+            ALTER TABLE public.beacon
+                VALIDATE CONSTRAINT ck_beacon_minor_range;
+        END IF;
     END IF;
 END $$;
 

@@ -100,8 +100,8 @@ jobs:
 
           expected = {
               "VisitorInteractionPostgresIT": 22,
-              "DatabaseMigrationIT": 6,
-              "SchemaDetectorIT": 13,
+              "DatabaseMigrationIT": 8,
+              "SchemaDetectorIT": 16,
           }
           failed = False
           for class_name, minimum in expected.items():

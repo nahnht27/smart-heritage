@@ -265,6 +265,64 @@ class DatabaseMigrationIT {
         }
     }
 
+    @Test
+    void wrongMajorConstraintWithExpectedNameIsRejectedWithoutReplacement() throws Exception {
+        try (Database database = Database.create("wrong_major_check")) {
+            targeted(database.url(), "3").migrate();
+            executeSql(database,
+                    "alter table beacon drop constraint ck_beacon_major_range");
+            executeSql(database,
+                    "alter table beacon add constraint ck_beacon_major_range "
+                            + "check (major between 0 and 100)");
+
+            FlywayException exception = assertThrows(
+                    FlywayException.class,
+                    () -> flyway(database.url()).migrate());
+
+            assertTrue(exception.getMessage().contains("ck_beacon_major_range"));
+            assertTrue(exception.getMessage().contains(
+                    "does not enforce major BETWEEN 0 AND 65535"));
+            try (Connection connection = database.connect()) {
+                String definition = Objects.requireNonNull(queryObject(connection,
+                        "select pg_get_constraintdef(oid) from pg_constraint "
+                                + "where conname = 'ck_beacon_major_range' "
+                                + "and conrelid = 'public.beacon'::regclass")).toString();
+                assertTrue(definition.contains("<= 100"));
+                assertEquals(0, queryInt(connection,
+                        "select count(*) from flyway_schema_history where version = '4'"));
+            }
+        }
+    }
+
+    @Test
+    void wrongMinorConstraintWithExpectedNameIsRejectedWithoutReplacement() throws Exception {
+        try (Database database = Database.create("wrong_minor_check")) {
+            targeted(database.url(), "3").migrate();
+            executeSql(database,
+                    "alter table beacon drop constraint ck_beacon_minor_range");
+            executeSql(database,
+                    "alter table beacon add constraint ck_beacon_minor_range "
+                            + "check (minor between 0 and 100)");
+
+            FlywayException exception = assertThrows(
+                    FlywayException.class,
+                    () -> flyway(database.url()).migrate());
+
+            assertTrue(exception.getMessage().contains("ck_beacon_minor_range"));
+            assertTrue(exception.getMessage().contains(
+                    "does not enforce minor BETWEEN 0 AND 65535"));
+            try (Connection connection = database.connect()) {
+                String definition = Objects.requireNonNull(queryObject(connection,
+                        "select pg_get_constraintdef(oid) from pg_constraint "
+                                + "where conname = 'ck_beacon_minor_range' "
+                                + "and conrelid = 'public.beacon'::regclass")).toString();
+                assertTrue(definition.contains("<= 100"));
+                assertEquals(0, queryInt(connection,
+                        "select count(*) from flyway_schema_history where version = '4'"));
+            }
+        }
+    }
+
     private static Flyway flyway(String url) {
         return configuration(url).load();
     }
@@ -489,6 +547,13 @@ class DatabaseMigrationIT {
             statement.execute("alter table visitor_interaction "
                     + "add constraint fk_visitor_interaction_beacon "
                     + "foreign key (beacon_id) references beacon(beacon_id)");
+        }
+    }
+
+    private static void executeSql(Database database, String sql) throws SQLException {
+        try (Connection connection = database.connect();
+             Statement statement = connection.createStatement()) {
+            statement.execute(sql);
         }
     }
 

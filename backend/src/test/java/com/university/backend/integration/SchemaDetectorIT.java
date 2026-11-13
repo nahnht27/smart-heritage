@@ -93,6 +93,8 @@ class SchemaDetectorIT {
             assertEquals("4", detection.detectedVersion());
             assertEquals("4", detection.flywayVersion());
             assertTrue(detection.hasBeacon());
+            assertTrue(detection.hasBeaconMajorCheck());
+            assertTrue(detection.hasBeaconMinorCheck());
             assertTrue(detection.hasV4Shape());
         }
     }
@@ -149,6 +151,57 @@ class SchemaDetectorIT {
     }
 
     @Test
+    void v4MissingMajorCheckIsNotAccepted() throws Exception {
+        try (Database database = Database.create("missing_major")) {
+            flyway(database.url()).migrate();
+            execute(database, "alter table beacon drop constraint ck_beacon_major_range");
+
+            Detection detection = detect(database);
+
+            assertEquals("UNEXPECTED", detection.detectedVersion());
+            assertEquals("4", detection.flywayVersion());
+            assertFalse(detection.hasBeaconMajorCheck());
+            assertFalse(detection.hasV4Shape());
+        }
+    }
+
+    @Test
+    void v4WrongMajorExpressionIsNotAccepted() throws Exception {
+        try (Database database = Database.create("wrong_major_check")) {
+            flyway(database.url()).migrate();
+            execute(database, "alter table beacon drop constraint ck_beacon_major_range");
+            execute(database, "alter table beacon add constraint ck_beacon_major_range "
+                    + "check (major between 0 and 100)");
+
+            Detection detection = detect(database);
+
+            assertEquals("UNEXPECTED", detection.detectedVersion());
+            assertEquals("4", detection.flywayVersion());
+            assertFalse(detection.hasBeaconMajorCheck());
+            assertTrue(detection.hasBeaconMinorCheck());
+            assertFalse(detection.hasV4Shape());
+        }
+    }
+
+    @Test
+    void v4WrongMinorExpressionIsNotAccepted() throws Exception {
+        try (Database database = Database.create("wrong_minor_check")) {
+            flyway(database.url()).migrate();
+            execute(database, "alter table beacon drop constraint ck_beacon_minor_range");
+            execute(database, "alter table beacon add constraint ck_beacon_minor_range "
+                    + "check (minor between 0 and 100)");
+
+            Detection detection = detect(database);
+
+            assertEquals("UNEXPECTED", detection.detectedVersion());
+            assertEquals("4", detection.flywayVersion());
+            assertTrue(detection.hasBeaconMajorCheck());
+            assertFalse(detection.hasBeaconMinorCheck());
+            assertFalse(detection.hasV4Shape());
+        }
+    }
+
+    @Test
     void v4MissingMinorCheckIsNotAccepted() throws Exception {
         try (Database database = Database.create("missing_minor")) {
             flyway(database.url()).migrate();
@@ -158,6 +211,7 @@ class SchemaDetectorIT {
 
             assertEquals("UNEXPECTED", detection.detectedVersion());
             assertEquals("4", detection.flywayVersion());
+            assertFalse(detection.hasBeaconMinorCheck());
             assertFalse(detection.hasV4Shape());
         }
     }
@@ -242,6 +296,8 @@ class SchemaDetectorIT {
                     result.getString("detected_version"),
                     result.getString("flyway_version"),
                     result.getBoolean("has_beacon"),
+                    result.getBoolean("has_beacon_major_check"),
+                    result.getBoolean("has_beacon_minor_check"),
                     result.getBoolean("has_v4_shape"));
         }
     }
@@ -316,6 +372,8 @@ class SchemaDetectorIT {
             String detectedVersion,
             String flywayVersion,
             boolean hasBeacon,
+            boolean hasBeaconMajorCheck,
+            boolean hasBeaconMinorCheck,
             boolean hasV4Shape) {
     }
 

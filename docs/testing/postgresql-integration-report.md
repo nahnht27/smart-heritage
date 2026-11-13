@@ -329,20 +329,22 @@ The results verify Wave 3 interaction identity rules, persistence, constraints, 
 
 Bổ sung kiểm thử migration và schema detector ngoài suite Visitor Interaction:
 
-- `SchemaDetectorIT` — **13/13 PASS**:
+- `SchemaDetectorIT` — **16/16 PASS**:
   - V1/V2 không có bảng `beacon` vẫn detect đúng;
   - V3 có history không bị báo nhầm thành V4;
-  - V4 đầy đủ, Hibernate-era, partial schema và các V4 thiếu index/check/
-    default/FK action được phân loại đúng (`4`, `3`, `UNEXPECTED`).
-- `DatabaseMigrationIT` — **6/6 PASS**:
+  - V4 đầy đủ, Hibernate-era, partial schema, các V4 thiếu invariant và
+    constraint cùng tên sai biểu thức được phân loại đúng
+    (`4`, `3`, `UNEXPECTED`).
+- `DatabaseMigrationIT` — **8/8 PASS**:
   - fresh DB chạy V1–V4 và validate;
   - không auto-baseline schema không có history;
   - baseline hiện tại ở V3, V2 ở V2, legacy V1 ở V1;
-  - schema kiểu Hibernate được V4 chuẩn hoá index/check/default/FK.
+  - schema kiểu Hibernate được V4 chuẩn hoá index/check/default/FK;
+  - constraint trùng tên sai biểu thức làm V4 fail rõ ràng, không bị thay thế.
 - `VisitorInteractionPostgresIT` — **22/22 PASS**, có thêm assertion Flyway V4.
 - `./mvnw -B test` — **134/134 unit tests PASS**.
-- `./mvnw -B -Ppostgres-integration verify` — **41/41 integration tests PASS**
-  (22 Visitor Interaction + 6 migration + 13 detector).
+- `./mvnw -B -Ppostgres-integration verify` — **46/46 integration tests PASS**
+  (22 Visitor Interaction + 8 migration + 16 detector).
 - Manual PostgreSQL 16 disposable:
   - fresh DB: V1–V4, app health `UP`, Hibernate validate PASS;
   - DB kiểu Hibernate: detection `3` → baseline 3 → V4 → detection `4`, dữ
