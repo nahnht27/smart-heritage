@@ -98,24 +98,37 @@ jobs:
           import sys
           import xml.etree.ElementTree as ET
 
-          reports = glob.glob(
-              "target/failsafe-reports/TEST-*VisitorInteractionPostgresIT.xml"
-          )
-          if len(reports) != 1:
-              print(f"Expected one VisitorInteractionPostgresIT report, found {len(reports)}")
-              sys.exit(1)
+          expected = {
+              "VisitorInteractionPostgresIT": 22,
+              "DatabaseMigrationIT": 12,
+              "SchemaDetectorIT": 16,
+              "ArtifactQueryOptimizationIT": 5,
+          }
+          failed = False
+          for class_name, minimum in expected.items():
+              reports = glob.glob(
+                  f"target/failsafe-reports/TEST-*{class_name}.xml"
+              )
+              if len(reports) != 1:
+                  print(f"Expected one {class_name} report, found {len(reports)}")
+                  failed = True
+                  continue
 
-          root = ET.parse(reports[0]).getroot()
-          tests = int(root.attrib.get("tests", 0))
-          failures = int(root.attrib.get("failures", 0))
-          errors = int(root.attrib.get("errors", 0))
-          skipped = int(root.attrib.get("skipped", 0))
-          print(
-              f"PostgreSQL integration tests: tests={tests}, "
-              f"failures={failures}, errors={errors}, skipped={skipped}"
-          )
+              root = ET.parse(reports[0]).getroot()
+              tests = int(root.attrib.get("tests", 0))
+              failures = int(root.attrib.get("failures", 0))
+              errors = int(root.attrib.get("errors", 0))
+              skipped = int(root.attrib.get("skipped", 0))
+              print(
+                  f"{class_name}: tests={tests}, failures={failures}, "
+                  f"errors={errors}, skipped={skipped}"
+              )
 
-          if tests < 22 or failures or errors or skipped:
+              if tests < minimum or failures or errors or skipped:
+                  print(f"{class_name} gate failed")
+                  failed = True
+
+          if failed:
               print("PostgreSQL integration test gate failed")
               sys.exit(1)
           PY
