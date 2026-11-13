@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useId } from 'react'
 import { ApiError } from '../services/apiClient'
 import { getInteractionSummary } from '../services/analyticsService'
+import { exportAnalyticsSummaryToCsv } from '../utils/analyticsCsv'
 import type {
   InteractionSummary,
   InteractionTypeCount,
@@ -243,6 +244,8 @@ export default function DashboardPage() {
   const [startDateInput, setStartDateInput] = useState(() => getPresetBounds('30d').startDateInput)
   const [endDateInput, setEndDateInput] = useState(() => getPresetBounds('30d').endDateInput)
   const [dateError, setDateError] = useState<string | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   // Active query parameters applied
   const [activeParams, setActiveParams] = useState<{ from?: string; to?: string }>(() => {
@@ -353,6 +356,21 @@ export default function DashboardPage() {
     setReloadKey((key) => key + 1)
   }
 
+  const handleExportCsv = () => {
+    if (!summary || loading || refreshing || isExporting) return
+    try {
+      setIsExporting(true)
+      setExportError(null)
+      exportAnalyticsSummaryToCsv(summary)
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to export CSV file.'
+      setExportError(message)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   // Derived calculations
   const totalInteractions = summary?.totalInteractions ?? 0
   const uniqueVisitors = summary?.uniqueVisitors ?? 0
@@ -399,6 +417,40 @@ export default function DashboardPage() {
         </div>
 
         <div className="analytics-header-actions">
+          <button
+            type="button"
+            className="export-button"
+            onClick={handleExportCsv}
+            disabled={loading || refreshing || !summary || isExporting}
+            aria-label="Export analytics summary to CSV"
+            title={!summary ? 'No data available to export' : 'Export current analytics to CSV'}
+          >
+            <svg
+              className="export-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <path
+                d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M7 10l5 5 5-5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M12 15V3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
+          </button>
           <button
             type="button"
             className="refresh-button"
@@ -525,6 +577,33 @@ export default function DashboardPage() {
           </p>
         )}
       </section>
+
+      {/* Export Error Alert */}
+      {exportError && (
+        <section
+          className="analytics-alert analytics-alert--error"
+          role="alert"
+          aria-live="assertive"
+        >
+          <div className="analytics-alert__content">
+            <span className="analytics-alert__icon" aria-hidden="true">
+              <UiIcon name="warning" size={20} />
+            </span>
+            <div>
+              <strong>Export Failed</strong>
+              <p style={{ margin: '2px 0 0' }}>{exportError}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="analytics-retry-button"
+            onClick={() => setExportError(null)}
+            aria-label="Dismiss export error"
+          >
+            Dismiss
+          </button>
+        </section>
+      )}
 
       {/* Error / Forbidden Alert */}
       {error && (
