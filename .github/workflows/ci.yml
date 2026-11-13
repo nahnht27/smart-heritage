@@ -100,7 +100,7 @@ jobs:
 
           expected = {
               "VisitorInteractionPostgresIT": 22,
-              "DatabaseMigrationIT": 8,
+              "DatabaseMigrationIT": 12,
               "SchemaDetectorIT": 16,
           }
           failed = False

@@ -34,11 +34,13 @@ Script chỉ đọc. Output gồm `detected_version`, `flyway_version` và các 
 Các kiểm tra dùng `to_regclass`, nên script chạy an toàn cả khi bảng `beacon`
 chưa tồn tại (V1/V2). Check constraint được so khớp bằng cả tên và biểu thức
 `pg_get_constraintdef` đã chuẩn hoá (bỏ whitespace/ngoặc), không chỉ tên; cùng
-tên nhưng sai range bị coi là thiếu. Khi `flyway_schema_history` tồn tại,
-version history được đọc để phân biệt V3/V4: migration V3 đã tạo cùng catalog
-shape với V4. Không có history thì schema đủ chuẩn hoá được báo `4`; schema
-kiểu Hibernate thiếu
-index/check/default/nullability/FK action được báo `3`.
+tên nhưng sai range bị coi là thiếu. FK được so khớp chính xác bằng
+`conkey`/`confkey` cho `visitor_interaction.beacon_id → beacon.beacon_id` và
+`ON DELETE SET NULL`, không chỉ bảng nguồn/đích. Khi `flyway_schema_history`
+tồn tại, version history được đọc để phân biệt V3/V4: migration V3 đã tạo cùng
+catalog shape với V4. Không có history thì schema đủ chuẩn hoá được báo `4`;
+schema kiểu Hibernate thiếu index/check/default/nullability/FK action được báo
+`3`.
 
 ## 2. Đọc kết quả
 
@@ -57,9 +59,9 @@ cũng trả `3` dù catalog đã giống V4; không được dùng shape một m
 V3 thành V4.
 
 `UNEXPECTED` cũng là kết quả đúng khi history ghi V4 nhưng thiếu một invariant
-V4 (index, check, default, nullability, FK action...). Constraint đúng tên nhưng
-sai biểu thức cũng bị coi là thiếu. Tuyệt đối không baseline các kết quả
-`UNEXPECTED`/`INCOMPLETE`.
+V4 (index, check, default, nullability, FK column mapping/action...). Constraint
+đúng tên nhưng sai biểu thức, hoặc FK sai cột dù đúng `ON DELETE SET NULL`, cũng
+bị coi là thiếu. Tuyệt đối không baseline các kết quả `UNEXPECTED`/`INCOMPLETE`.
 
 ## 3. Checklist trước baseline
 
@@ -151,6 +153,7 @@ nếu môi trường đã có Java và source checkout.
 - `SchemaDetectorIT`: 16/16 pass (bao gồm V1/V2 không có bảng `beacon`, V3 có
   history, Hibernate-era, các V4 thiếu invariant và constraint cùng tên sai
   biểu thức).
-- `DatabaseMigrationIT`: 8/8 pass; `VisitorInteractionPostgresIT`: 22/22 pass.
+- `DatabaseMigrationIT`: 12/12 pass (bao gồm FK đúng mapping, sai delete action
+  và sai cột); `VisitorInteractionPostgresIT`: 22/22 pass.
 
 Production thật vẫn **PENDING** vì chưa có hạ tầng/credentials.
