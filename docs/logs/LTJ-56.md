@@ -319,6 +319,14 @@ Kết luận: kiểm thử phân trang với tập dữ liệu lớn xác nhận
 - Test hồi quy: `MultimediaControllerTest#multimediaListsLoadArtifactsWithoutNPlusOne`.
 
 ### CI và kiểm thử toàn bộ
+- PR: #32 `perf(artifact): optimize artifact and multimedia queries`.
+- CI run: https://github.com/nahnht27/smart-heritage/actions/runs/43340352440
+  - PASS: `backend-test`, `postgres-integration`, `frontend-checks`,
+    `mobile-tests`, `docker-build`, `integration-smoke`;
+  - `mobile-static-analysis (advisory)`: PASS;
+  - PostgreSQL report gate: `GATE OK` (22 + 12 + 16 + 5).
+- PR #32 merged bằng merge commit `da80914` lúc `2026-11-13T00:53:28Z`;
+  `origin/main` đã fetch và xác nhận chứa commit này.
 - CI gate PostgreSQL bổ sung `ArtifactQueryOptimizationIT` tối thiểu 5 test.
 - `./mvnw -B test`: **135/135 unit tests PASS**.
 - `./mvnw -B -Ppostgres-integration verify`: **55/55 integration tests PASS**:
