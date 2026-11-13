@@ -102,6 +102,7 @@ jobs:
               "VisitorInteractionPostgresIT": 22,
               "DatabaseMigrationIT": 12,
               "SchemaDetectorIT": 16,
+              "ArtifactQueryOptimizationIT": 5,
           }
           failed = False
           for class_name, minimum in expected.items():

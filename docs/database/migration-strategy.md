@@ -126,7 +126,7 @@ xử lý bằng migration mới.
   Hibernate validate.
 - `SchemaDetectorIT`: detector trên V1/V2 không có `beacon`, V3 có history,
   V4 đầy đủ, Hibernate-era, và các V4 thiếu invariant hoặc sai biểu thức check.
-- CI `postgres-integration` chạy cả ba report và fail nếu thiếu test/failure/
+- CI `postgres-integration` chạy cả bốn report và fail nếu thiếu test/failure/
   error/skip.
 - Trước release: backup + migrate trên bản sao hoặc database cô lập, sau đó kiểm
   tra app start, health và dữ liệu.
