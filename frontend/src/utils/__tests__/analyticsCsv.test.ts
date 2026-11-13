@@ -31,7 +31,7 @@ describe('analyticsCsv utility', () => {
     it('mitigates CSV formula injection starting with =, +, -, @', () => {
       expect(escapeCsvCell('=SUM(A1:A10)')).toBe('"\'=SUM(A1:A10)"')
       expect(escapeCsvCell('+12345')).toBe('"\'+12345"')
-      expect(escapeCsvCell('-cmd|calc')).toBe('"\' -cmd|calc"'.replace(' ', ''))
+      expect(escapeCsvCell('-cmd|calc')).toBe('"\'-cmd|calc"')
       expect(escapeCsvCell('@HYPERLINK("http://attacker.com")')).toBe(
         '"\'@HYPERLINK(""http://attacker.com"")"',
       )

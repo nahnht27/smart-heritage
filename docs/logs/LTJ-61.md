@@ -11,7 +11,7 @@
 
 ## Các công việc đã hoàn thành
 
-### 1. Utility module `analyticsCsv.ts` 
+### 1. Utility module `analyticsCsv.ts`
 
 **File:** `frontend/src/utils/analyticsCsv.ts`
 
@@ -39,7 +39,7 @@ Tạo mới module độc lập chứa toàn bộ logic xuất CSV, không phụ
 - **UTF-8 BOM (`\uFEFF`):** Chèn vào đầu Blob để Microsoft Excel trên Windows tự nhận diện UTF-8, hiển thị đúng tiếng Việt có dấu (ví dụ: *Trống đồng Đông Sơn*, *Thạp đồng Đào Thịnh*).
 - **Tên file thông minh:** Đặt tên file theo date range inclusive, fallback `analytics-summary_all-time.csv` cho Toàn thời gian.
 
-#### Cấu trúc nội dung CSV 
+#### Cấu trúc nội dung CSV
 
 ```
 BÁO CÁO PHÂN TÍCH TƯƠNG TÁC — SMART HERITAGE
@@ -92,7 +92,7 @@ Thứ hạng, Mã hiện vật, Tên hiện vật,         Số lượt tương 
 
 ### 4. Kiểm thử
 
-#### 4.1. Unit tests cho CSV utility 
+#### 4.1. Unit tests cho CSV utility
 
 **File:** `frontend/src/utils/__tests__/analyticsCsv.test.ts` — **13 tests**
 
@@ -125,7 +125,7 @@ Test Files  13 passed (13)
 ```
 
 - `npm run lint` → **0 errors, 0 warnings**
-- `npm run build` → **0 TypeScript errors**, build thành công 
+- `npm run build` → **0 TypeScript errors**, build thành công
 
 ---
 
@@ -135,3 +135,12 @@ Test Files  13 passed (13)
 - Dữ liệu được bảo vệ khỏi lỗ hổng **CSV Formula Injection** (OWASP).
 - Export không phát sinh thêm bất kỳ API request nào.
 - Toàn bộ **74/74 tests passed**, lint và build sạch không có lỗi.
+
+---
+
+## Tích hợp `main` và kiểm tra lại (2026-11-13)
+
+- Đã merge `origin/main` mới nhất vào nhánh, không conflict; giữ nguyên hai commit LTJ-61.
+- `npm test`: **74/74 PASS** (13 test files).
+- `npm run lint`: PASS.
+- `npm run build`: PASS.
