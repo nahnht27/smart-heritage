@@ -65,7 +65,7 @@ POSTGRES_TEST_PASSWORD='postgres' \
   ./mvnw -B -Ppostgres-integration verify
 ```
 
-Suite chạy `VisitorInteractionPostgresIT`, `DatabaseMigrationIT` và `SchemaDetectorIT`; không chạy
+Suite chạy `VisitorInteractionPostgresIT`, `DatabaseMigrationIT`, `SchemaDetectorIT` và `ArtifactQueryOptimizationIT`; không chạy
 trên database dev/production. Nếu host không có Java, dùng Docker Maven:
 
 ```bash

@@ -355,3 +355,22 @@ Bổ sung kiểm thử migration và schema detector ngoài suite Visitor Intera
 
 Chi tiết: [migration-strategy.md](../database/migration-strategy.md) và
 [schema-baseline.md](../database/schema-baseline.md).
+
+## 10. LTJ-56 artifact/multimedia query update (2026-11-13)
+
+- `ArtifactQueryOptimizationIT` — **5/5 PASS**:
+  - unpaged Artifact query: 4 → 1 SQL;
+  - paged Artifact query: 5 → 2 SQL (1 SELECT + 1 COUNT);
+  - empty result: 1 → 1 SQL;
+  - filter `siteId` trả đúng artifact;
+  - 149 bản ghi qua hai trang, không trùng `artifactId`.
+- Multimedia audit:
+  - `MultimediaRepository.findAll()` và `findByArtifact_ArtifactId()` dùng
+    `@EntityGraph(attributePaths = "artifact")`;
+  - unit test H2 với Hibernate Statistics: unfiltered 3 → 1 SQL, filtered
+    3 → 2 SQL (1 existence check + 1 query);
+  - không thêm quan hệ collection Multimedia vào Artifact.
+- Full suite sau khi tích hợp `origin/main`:
+  - `./mvnw -B test` — **135/135 unit tests PASS**;
+  - `./mvnw -B -Ppostgres-integration verify` — **55/55 integration tests PASS**
+    (22 Visitor Interaction + 12 migration + 16 schema detector + 5 artifact).

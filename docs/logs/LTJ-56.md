@@ -5,7 +5,7 @@
 - Vai trò: M2 — Backend Developer
 - Mã công việc: S5-M2-01 (LTJ-56)
 - Nhánh Git: `feat/s5-m2-artifact-query-optimization`
-- Ngày cập nhật: 12/11/2026
+- Ngày cập nhật: 13/11/2026
 
 ## 2. Kết quả kiểm tra mã nguồn
 
@@ -255,7 +255,7 @@ Nhận định phục vụ thiết kế bài đo:
 - Kết quả sau tối ưu được xác nhận lại sau khi chuẩn hóa nhãn log.
 - So với baseline, truy vấn không phân trang giảm từ 4 xuống 1 câu SQL; truy vấn phân trang giảm từ 5 xuống 2 câu SQL.
 - Không có Multimedia entity load trong các truy vấn Artifact được kiểm thử.
-- Chưa chạy toàn bộ PostgreSQL integration test suite do rủi ro `VisitorInteractionPostgresIT` xóa dữ liệu dùng chung.
+- Tại thời điểm Mục 14, chưa chạy toàn bộ PostgreSQL integration test suite do rủi ro `VisitorInteractionPostgresIT` xóa dữ liệu dùng chung; toàn bộ suite đã chạy sau khi tích hợp `main` tại Mục 17.
 
 ## 15. Kiểm thử bổ sung bộ lọc siteId
 - Bổ sung test `filtersArtifactsBySiteIdAfterOptimization()` trong `ArtifactQueryOptimizationIT`.
@@ -285,3 +285,48 @@ Kết quả chạy PostgreSQL integration test:
 - Kết quả Maven: `BUILD SUCCESS`.
 
 Kết luận: kiểm thử phân trang với tập dữ liệu lớn xác nhận số lượng, metadata phân trang và tính duy nhất của Artifact giữa các trang.
+
+## 17. Tích hợp `main`, audit Multimedia và CI gate (2026-11-13)
+
+### Tích hợp main
+- Đã merge `origin/main` sau khi PR #31 (LTJ-54) merged vào `main`.
+- Giữ nguyên hai commit LTJ-56 `f234fb6`, `d5c6f23`; không rebase/force-push.
+- Merge commit tích hợp: `b988355`.
+
+### Rà soát Artifact
+- `ArtifactRepository.findAll(Specification, Sort)` và
+  `findAll(Specification, Pageable)` đều có
+  `@EntityGraph(attributePaths = "heritageSite")`.
+- SQL dùng JOIN `heritage_site`; không còn SELECT lazy-load riêng cho site trong
+  API list.
+- Query phân trang vẫn có SELECT + COUNT riêng; sorting, filter `siteId`,
+  DTO mapping và response API không đổi.
+- Không fetch Multimedia trong API Artifact và không thêm collection vào
+  `Artifact`.
+
+### Audit Multimedia
+- Đã kiểm tra `MultimediaController`, `MultimediaService` và
+  `MultimediaRepository`.
+- Đo baseline bằng Hibernate Statistics trên unit test H2 với 2 Artifact và 2
+  Multimedia:
+  - `GET /api/multimedia` (không filter): 3 SQL → 1 SQL.
+  - `GET /api/multimedia?artifactId=...`: 3 SQL → 2 SQL
+    (1 existence check + 1 query).
+- Đã thêm `@EntityGraph(attributePaths = "artifact")` cho
+  `MultimediaRepository.findAll()` và `findByArtifact_ArtifactId()`.
+- Không đổi API contract, DTO hoặc pagination; không thêm quan hệ collection
+  Multimedia vào Artifact.
+- Test hồi quy: `MultimediaControllerTest#multimediaListsLoadArtifactsWithoutNPlusOne`.
+
+### CI và kiểm thử toàn bộ
+- CI gate PostgreSQL bổ sung `ArtifactQueryOptimizationIT` tối thiểu 5 test.
+- `./mvnw -B test`: **135/135 unit tests PASS**.
+- `./mvnw -B -Ppostgres-integration verify`: **55/55 integration tests PASS**:
+  - `VisitorInteractionPostgresIT`: 22
+  - `DatabaseMigrationIT`: 12
+  - `SchemaDetectorIT`: 16
+  - `ArtifactQueryOptimizationIT`: 5
+- `ArtifactQueryOptimizationIT` đo trên PostgreSQL 16:
+  - unpaged: 4 → 1 SQL;
+  - paged: 5 → 2 SQL;
+  - empty: 1 → 1 SQL.
