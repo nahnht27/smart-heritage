@@ -86,13 +86,13 @@ The `postgres-integration` profile:
 
 **Test methods:**
 
-- `schemaUsesWave3ColumnsAndFlywayV2`
+- `schemaUsesCurrentColumnsAndFlywayHistory`
 
 **Verification:**
 
 - `visitor_interaction.user_id` is nullable.
 - `visitor_interaction.visitor_id` is `uuid`.
-- Flyway migration version `2` is applied successfully.
+- Flyway migrations `2`, `3`, and `4` are applied successfully.
 - The unique constraint on `event_id` exists.
 - Expected timestamp and duration column types are present.
 
@@ -324,3 +324,53 @@ The PostgreSQL integration suite passed **22/22 tests** with zero failures, erro
 The results verify Wave 3 interaction identity rules, persistence, constraints, idempotency, concurrency handling, duration calculation, summary analytics, UTC daily time-series, language aggregation, authorization, validation, and transaction rollback.
 
 **Final Result: 22/22 INTEGRATION TESTS PASSED — BUILD SUCCESS.**
+
+## 9. LTJ-54 migration governance update (2026-11-13)
+
+Bổ sung kiểm thử migration và schema detector ngoài suite Visitor Interaction:
+
+- `SchemaDetectorIT` — **16/16 PASS**:
+  - V1/V2 không có bảng `beacon` vẫn detect đúng;
+  - V3 có history không bị báo nhầm thành V4;
+  - V4 đầy đủ, Hibernate-era, partial schema, các V4 thiếu invariant và
+    constraint cùng tên sai biểu thức được phân loại đúng
+    (`4`, `3`, `UNEXPECTED`).
+- `DatabaseMigrationIT` — **12/12 PASS**:
+  - fresh DB chạy V1–V4 và validate;
+  - không auto-baseline schema không có history;
+  - baseline hiện tại ở V3, V2 ở V2, legacy V1 ở V1;
+  - schema kiểu Hibernate được V4 chuẩn hoá index/check/default/FK;
+  - constraint trùng tên sai biểu thức làm V4 fail rõ ràng, không bị thay thế;
+  - FK đúng `beacon_id → beacon_id` được giữ nguyên;
+  - FK đúng mapping nhưng sai delete action được thay bằng `ON DELETE SET NULL`;
+  - FK trỏ tới `beacon` qua cột khác bị từ chối, không drop constraint lạ.
+- `VisitorInteractionPostgresIT` — **22/22 PASS**, có thêm assertion Flyway V4.
+- `./mvnw -B test` — **134/134 unit tests PASS**.
+- `./mvnw -B -Ppostgres-integration verify` — **50/50 integration tests PASS**
+  (22 Visitor Interaction + 12 migration + 16 detector).
+- Manual PostgreSQL 16 disposable:
+  - fresh DB: V1–V4, app health `UP`, Hibernate validate PASS;
+  - DB kiểu Hibernate: detection `3` → baseline 3 → V4 → detection `4`, dữ
+    liệu giữ nguyên, app health `UP`.
+
+Chi tiết: [migration-strategy.md](../database/migration-strategy.md) và
+[schema-baseline.md](../database/schema-baseline.md).
+
+## 10. LTJ-56 artifact/multimedia query update (2026-11-13)
+
+- `ArtifactQueryOptimizationIT` — **5/5 PASS**:
+  - unpaged Artifact query: 4 → 1 SQL;
+  - paged Artifact query: 5 → 2 SQL (1 SELECT + 1 COUNT);
+  - empty result: 1 → 1 SQL;
+  - filter `siteId` trả đúng artifact;
+  - 149 bản ghi qua hai trang, không trùng `artifactId`.
+- Multimedia audit:
+  - `MultimediaRepository.findAll()` và `findByArtifact_ArtifactId()` dùng
+    `@EntityGraph(attributePaths = "artifact")`;
+  - unit test H2 với Hibernate Statistics: unfiltered 3 → 1 SQL, filtered
+    3 → 2 SQL (1 existence check + 1 query);
+  - không thêm quan hệ collection Multimedia vào Artifact.
+- Full suite sau khi tích hợp `origin/main`:
+  - `./mvnw -B test` — **135/135 unit tests PASS**;
+  - `./mvnw -B -Ppostgres-integration verify` — **55/55 integration tests PASS**
+    (22 Visitor Interaction + 12 migration + 16 schema detector + 5 artifact).
