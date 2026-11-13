@@ -216,10 +216,20 @@ docker compose -f docker-compose.production.yml --env-file .env.production logs 
 - PostgreSQL 16, volume `postgres_data` (project-scoped).
 - Không publish `5432`; chỉ backend truy cập qua hostname `postgres` trong
   network nội bộ.
-- `ddl-auto: update` (theo cấu hình hiện tại) tự cập nhật schema; không có
-  migration tool chính thức. Xem cảnh báo rollback trong
-  [release-management.md](release-management.md).
-- Backup/restore: xem [backup-restore.md](backup-restore.md).
+- Schema được quản lý bằng **Flyway versioned migrations** (V1–V4); production
+  đặt `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`. Không dùng `ddl-auto=update` và
+  không bật `baseline-on-migrate`.
+- Database trống: backend chạy V1–V4 khi start.
+- Database đang có dữ liệu: **backup, dừng backend, chạy detection + baseline
+  tường minh** theo [schema-baseline.md](../database/schema-baseline.md) trước
+  khi start version mới. Không baseline nếu `flyway_schema_history` đã tồn tại.
+  Dùng `scripts/database/flyway.sh` với
+  `FLYWAY_NETWORK=smart-heritage-production_internal` (không cần Java/Maven).
+- Flyway chạy trong backend startup; kiểm tra log `Successfully applied ...`
+  hoặc `Schema "public" is up to date`.
+- Chi tiết: [migration-strategy.md](../database/migration-strategy.md).
+- Backup/restore: xem [backup-restore.md](backup-restore.md). Luôn backup trước
+  deploy có thay đổi schema.
 
 ## 9. Mobile production build
 
@@ -274,13 +284,18 @@ dev trong cùng thư mục:
 - PostgreSQL persistence sau restart: PASS.
 - Backup/restore trên database cô lập: PASS (xem
   [backup-restore.md](backup-restore.md)).
+- Flyway fresh DB V1–V4 + Hibernate validate + `/api/health`: PASS trên
+  PostgreSQL 16 disposable.
+- Flyway adoption DB kiểu Hibernate: detection 3 → baseline 3 → V4 → validate:
+  PASS; dữ liệu giữ nguyên.
 - Chỉ frontend publish cổng, bind `127.0.0.1`; backend/PostgreSQL không publish.
 
 ## 11. Chưa thể verify
 
 - Deploy lên server/cloud thật: **PENDING** (không có hạ tầng/credentials).
 - Domain, DNS, TLS certificate: **PENDING**.
-- Production data migration/backup thật: **PENDING**.
+- Production data migration/backup trên hạ tầng thật: **PENDING**; đã kiểm
+  chứng trên PostgreSQL disposable, chưa có production credentials.
 - Mobile store build/signing: **PENDING** (chưa có EAS config).
 - UI E2E trên trình duyệt/emulator thật: **PENDING** theo báo cáo Task 2.
 

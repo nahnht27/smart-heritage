@@ -4,8 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.university.backend.repository.ArtifactRepository;
 import com.university.backend.repository.HeritageSiteRepository;
 import com.university.backend.repository.MultimediaRepository;
+import jakarta.persistence.EntityManagerFactory;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,7 +21,9 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "spring.jpa.properties.hibernate.generate_statistics=true"
+})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class MultimediaControllerTest extends ContentApiTestSupport {
@@ -30,11 +37,21 @@ class MultimediaControllerTest extends ContentApiTestSupport {
     @Autowired
     private MultimediaRepository multimediaRepository;
 
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
+
+    private Statistics statistics;
+
     @BeforeEach
     void cleanMultimediaTestData() {
         multimediaRepository.deleteAll();
         artifactRepository.deleteAll();
         heritageSiteRepository.deleteAll();
+
+        statistics = entityManagerFactory
+                .unwrap(SessionFactory.class)
+                .getStatistics();
+        statistics.setStatisticsEnabled(true);
     }
 
     private String validSiteRequest(String name) {
@@ -124,6 +141,48 @@ class MultimediaControllerTest extends ContentApiTestSupport {
                 .andExpect(jsonPath("$.data", hasSize(1)))
                 .andExpect(jsonPath("$.data[0].title").value("Artifact Image"))
                 .andExpect(jsonPath("$.data[0].artifactId").value(artifactId));
+    }
+
+    @Test
+    void multimediaListsLoadArtifactsWithoutNPlusOne() throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Multimedia Query Site");
+        int firstArtifactId = createArtifact(token, siteId, "First Query Artifact");
+        int secondArtifactId = createArtifact(token, siteId, "Second Query Artifact");
+
+        createMultimedia(token, firstArtifactId, "First Query Image");
+        createMultimedia(token, secondArtifactId, "Second Query Image");
+
+        statistics.clear();
+        mockMvc.perform(get("/api/multimedia"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)));
+
+        long unfilteredStatements = statistics.getPrepareStatementCount();
+        System.out.println(
+                "[LTJ-56 MULTIMEDIA] Unfiltered SQL statements = "
+                        + unfilteredStatements);
+        assertEquals(
+                1L,
+                unfilteredStatements,
+                "Unfiltered multimedia list must load Artifact in one query"
+        );
+
+        statistics.clear();
+        mockMvc.perform(get("/api/multimedia")
+                        .param("artifactId", String.valueOf(firstArtifactId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)));
+
+        long filteredStatements = statistics.getPrepareStatementCount();
+        System.out.println(
+                "[LTJ-56 MULTIMEDIA] Filtered SQL statements = "
+                        + filteredStatements);
+        assertEquals(
+                2L,
+                filteredStatements,
+                "Filtered multimedia list must use one existence check and one query"
+        );
     }
 
     @Test
