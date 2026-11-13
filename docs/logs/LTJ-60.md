@@ -2,7 +2,7 @@
 
 ## Thông tin chung
 
-- **Branch:** LTJ-60 (`feat/s5-m4-admin-beacon-management`)
+- **Branch:** `LTJ-60-admin-beacon-management`
 - **Task:** S5-M4-01 — Admin Beacon Management
 - **Sprint:** M4 — Sprint 5
 - **Mục tiêu chính:** Xây dựng trang quản trị Beacon trên Admin Web, tích hợp với API Admin Beacon thật đã có từ Wave 4 (CRUD + ánh xạ Artifact), gồm validation theo đúng quy tắc backend, xử lý đầy đủ các lỗi HTTP, và không tạo thêm API hay response field mới ở frontend.
@@ -63,7 +63,7 @@
 
 - `BeaconsPage.test.tsx` (22 tests): render danh sách theo dữ liệu backend; lọc theo trạng thái và từ khóa; empty state; error + retry; validation form create; create thành công; hiển thị lỗi 409; edit; xác nhận và xóa; lỗi 400/403/mạng khi lưu; 404 khi update và khi delete (refresh danh sách); 403 khi delete và khi update; 401 khi lưu và khi tải danh sách không bị coi là lỗi quyền; tải đủ Artifact không dùng page size cố định; giữ mapping khi Artifact không có trong danh sách; đổi/bỏ mapping; lỗi tải Artifact kèm retry.
 - `beaconService.test.ts` (8 tests): đúng endpoint và method cho getAll / getById / create / update / delete, truyền lỗi 409/404 từ backend, danh sách rỗng, response thiếu `data`.
-- Toàn bộ test suite đạt **88/88 tests passed** (14 test files).
+- Toàn bộ test suite sau khi tích hợp `main` đạt **104/104 tests passed** (15 test files), gồm 30 test LTJ-60 (22 BeaconsPage + 8 beaconService), 58 test baseline và 16 test mới từ LTJ-61.
 - `npx tsc -b`, `npm run lint`, `npm run build` đạt 0 errors.
 
 ## Kết quả đạt được
@@ -72,3 +72,19 @@
 - Validation khớp backend (UUID, Major/Minor 0–65535, Artifact tùy chọn), không có rule chỉ tồn tại ở frontend.
 - Lỗi 401/403/404/409/400 và lỗi mạng được xử lý rõ ràng; 403 không làm mất phiên.
 - Không dùng mock data trong code production và không tạo API hoặc response field mới.
+
+## 6. Tích hợp `main` và kiểm tra cuối (2026-11-13)
+
+- `origin/main` mới nhất được tích hợp: `bb7aff4`.
+- Merge commit tích hợp: `d69b42a` (`Merge origin/main into LTJ-60-admin-beacon-management`).
+- Không có conflict; toàn bộ thay đổi LTJ-60 được giữ nguyên.
+- `npm test -- --run`: **104/104 PASS** (15 test files).
+- `npx tsc -b`: PASS.
+- `npm run lint`: PASS.
+- `npm run build`: PASS.
+- CI required checks được xác nhận trên PR #35 sau khi push.
+
+### Giới hạn
+
+- Không thay đổi API contract hoặc thêm endpoint backend.
+- Kiểm thử E2E trình duyệt thủ công không nằm trong phạm vi; UI được xác nhận bằng component tests.
