@@ -31,6 +31,9 @@ Checklist bắt buộc:
 - [ ] Mobile Jest PASS (`npm ci --legacy-peer-deps && npm test -- --ci`).
 - [ ] PostgreSQL smoke/integration PASS (public-only CI + authenticated smoke
       thủ công nếu có fixture an toàn).
+- [ ] Flyway migration mới đã review; `DatabaseMigrationIT`,
+      `VisitorInteractionPostgresIT` và `SchemaDetectorIT` PASS trên PostgreSQL.
+- [ ] Đã thử migrate trên bản sao database cũ (fresh + baseline adoption).
 - [ ] UI E2E đã review (Admin Web + Mobile) hoặc ghi rõ PENDING.
 - [ ] `.env.production` đã kiểm tra đủ biến, không dùng giá trị dev/placeholder.
 - [ ] `JWT_SECRET`, `POSTGRES_PASSWORD`, `CORS_ALLOWED_ORIGINS` đúng môi trường.
@@ -56,18 +59,19 @@ scripts/deployment/backup-postgres.sh
 # 3. Build image version mới
 docker compose -f docker-compose.production.yml --env-file .env.production build
 
-# 4. Khởi động/cập nhật
+# 4. Khởi động/cập nhật (backend chạy Flyway migrate khi start)
 docker compose -f docker-compose.production.yml --env-file .env.production up -d
 
-# 5. Kiểm tra trạng thái
+# 5. Kiểm tra trạng thái + migration log
 docker compose -f docker-compose.production.yml --env-file .env.production ps
 
 # 6. Kiểm tra health qua reverse proxy nội bộ
 curl -fsS http://127.0.0.1:8080/healthz
 curl -fsS http://127.0.0.1:8080/api/health
 
-# 7. Xem log
-docker compose -f docker-compose.production.yml --env-file .env.production logs --tail=200
+# 7. Xem log Flyway và lỗi validate
+docker compose -f docker-compose.production.yml --env-file .env.production logs --tail=200 backend \
+  | grep -E 'Flyway|Migrating|Successfully applied|validate|ERROR'
 ```
 
 Không dùng `down -v` trong deploy thường; không xoá volume PostgreSQL. Các lệnh
@@ -87,8 +91,12 @@ Ghi lại:
 1. Xác định version đang chạy và version trước đó (`APP_VERSION`,
    `docker image ls`).
 2. Tạo backup mới **trước khi** rollback nếu database đã có dữ liệu mới.
-3. Xác định thay đổi database: dự án dùng Hibernate `ddl-auto: update`, không có
-   migration versioned. Rollback code không tự rollback schema.
+3. Xác định thay đổi database: schema dùng Flyway versioned migrations và
+   production chạy Hibernate `ddl-auto=validate`. Rollback code **không** tự
+   rollback schema; migration là forward-only.
+4. Chạy `flyway:info` trên database đích và ghi lại version hiện tại. Nếu
+   database chưa có history, xử lý theo
+   [schema-baseline.md](../database/schema-baseline.md) trước khi deploy.
 
 ### 4.2 Rollback application
 
@@ -107,7 +115,14 @@ curl -fsS http://127.0.0.1:8080/api/health
 Nếu image không còn, checkout đúng tag/commit cũ và build lại với version đó.
 Không force-push hay sửa lịch sử Git.
 
-### 4.3 Khi nào cần restore database
+### 4.3 Database rollback và restore
+
+Không chạy `flyway:clean` và không sửa/xoá `flyway_schema_history` để hạ version.
+Có hai lựa chọn:
+
+- **Forward fix**: viết migration mới tương thích với code cũ nếu có thể.
+- **Restore backup**: quay lại dump trước release khi schema mới không tương
+  thích với code cũ. Đây là thao tác destructive, cần cửa sổ bảo trì.
 
 Chỉ restore database khi:
 
@@ -120,8 +135,9 @@ Quy trình:
 2. Backup database hiện tại.
 3. Restore backup trước release vào đúng database (xem
    [backup-restore.md](backup-restore.md)); thao tác này destructive.
-4. Khởi động lại backend version cũ.
-5. Verify health + dữ liệu nghiệp vụ.
+4. Khởi động lại backend version cũ với `ddl-auto=validate`.
+5. Chạy detection schema và `flyway:info`; xác nhận history khớp version cũ.
+6. Verify health + dữ liệu nghiệp vụ.
 
 **Không tuyên bố rollback an toàn nếu schema thay đổi không tương thích.** Với
 thay đổi phá vỡ schema, cần cửa sổ bảo trì và kế hoạch dữ liệu rõ ràng.
@@ -159,8 +175,10 @@ thay đổi phá vỡ schema, cần cửa sổ bảo trì và kế hoạch dữ 
 - ...
 
 ### Database changes
-- Schema/data changes:
-- Migration/rollback notes:
+- Flyway version(s) and migration files:
+- Data impact:
+- Backup file:
+- Rollback notes (forward fix or restore):
 
 ### Configuration changes
 - New/removed env vars:
