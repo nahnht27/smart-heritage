@@ -6,8 +6,12 @@ import DashboardPage from '../DashboardPage'
 import * as analyticsService from '../../services/analyticsService'
 import { ApiError } from '../../services/apiClient'
 import type { InteractionSummary } from '../../types/analytics'
+import * as csvExportModule from '../../utils/analyticsCsv'
 
 vi.mock('../../services/analyticsService')
+vi.mock('../../utils/analyticsCsv', () => ({
+  exportAnalyticsSummaryToCsv: vi.fn(),
+}))
 
 const mockAnalyticsData: InteractionSummary = {
   from: '2026-10-08T00:00:00Z',
@@ -380,5 +384,75 @@ describe('DashboardPage — Admin Analytics', () => {
       expect(screen.getByText('1,420')).toBeInTheDocument()
     })
     expect(analyticsService.getInteractionSummary).toHaveBeenCalledTimes(1)
+  })
+
+  describe('Export CSV functionality', () => {
+    it('disables export button while data is loading and enables it when data is ready', async () => {
+      vi.mocked(analyticsService.getInteractionSummary).mockResolvedValueOnce(
+        mockAnalyticsData,
+      )
+
+      render(<DashboardPage />)
+
+      const exportBtn = screen.getByRole('button', {
+        name: /export analytics summary to csv/i,
+      })
+      expect(exportBtn).toBeDisabled()
+
+      await waitFor(() => {
+        expect(exportBtn).toBeEnabled()
+      })
+    })
+
+    it('exports the current summary data on click without re-fetching analytics', async () => {
+      const user = userEvent.setup()
+      vi.mocked(analyticsService.getInteractionSummary).mockResolvedValueOnce(
+        mockAnalyticsData,
+      )
+
+      render(<DashboardPage />)
+
+      const exportBtn = await screen.findByRole('button', {
+        name: /export analytics summary to csv/i,
+      })
+      expect(exportBtn).toBeEnabled()
+
+      await user.click(exportBtn)
+
+      expect(csvExportModule.exportAnalyticsSummaryToCsv).toHaveBeenCalledTimes(1)
+      expect(csvExportModule.exportAnalyticsSummaryToCsv).toHaveBeenCalledWith(
+        mockAnalyticsData,
+      )
+      // Confirm no duplicate API request was issued
+      expect(analyticsService.getInteractionSummary).toHaveBeenCalledTimes(1)
+    })
+
+    it('displays an error alert and allows dismissing if export fails', async () => {
+      const user = userEvent.setup()
+      vi.mocked(analyticsService.getInteractionSummary).mockResolvedValueOnce(
+        mockAnalyticsData,
+      )
+      vi.mocked(csvExportModule.exportAnalyticsSummaryToCsv).mockImplementationOnce(() => {
+        throw new Error('Blob creation failed')
+      })
+
+      render(<DashboardPage />)
+
+      const exportBtn = await screen.findByRole('button', {
+        name: /export analytics summary to csv/i,
+      })
+
+      await user.click(exportBtn)
+
+      expect(screen.getByText('Export Failed')).toBeInTheDocument()
+      expect(screen.getByText('Blob creation failed')).toBeInTheDocument()
+
+      const dismissBtn = screen.getByRole('button', {
+        name: /dismiss export error/i,
+      })
+      await user.click(dismissBtn)
+
+      expect(screen.queryByText('Export Failed')).not.toBeInTheDocument()
+    })
   })
 })

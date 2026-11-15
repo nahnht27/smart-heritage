@@ -49,6 +49,7 @@ Nguồn thực tế:
 - `backend/src/main/resources/db/migration/V1__baseline_schema.sql`
 - `backend/src/main/resources/db/migration/V2__visitor_interaction_anonymous_visitor.sql`
 - `backend/src/main/resources/db/migration/V3__beacon_management.sql`
+- `backend/src/main/resources/db/migration/V4__normalize_legacy_schema.sql`
 
 ### Beacon
 
@@ -88,4 +89,4 @@ Indexes/constraints:
 
 ## 5. DBML source
 
-File `08_erd_database_design.dbml` chứa schema chi tiết. Các bảng chưa implement được giữ lại như thiết kế tương lai; phần Wave 4 (`Beacon`, `VisitorInteraction`) phản ánh migration thực tế.
+File `08_erd_database_design.dbml` chứa schema chi tiết. Các bảng chưa implement được giữ lại như thiết kế tương lai; phần Wave 4 (`Beacon`, `VisitorInteraction`) phản ánh migration thực tế. V4 chỉ chuẩn hoá index/check/default/FK action cho schema cũ, không thêm bảng hay đổi dữ liệu nghiệp vụ.

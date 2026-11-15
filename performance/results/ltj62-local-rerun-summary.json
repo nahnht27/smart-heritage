@@ -1,0 +1,96 @@
+{
+  "evidenceType": "independent-local-reproduction",
+  "date": "2026-11-15",
+  "timezone": "Asia/Bangkok (UTC+07:00)",
+  "note": "This run is separate from the historical November 12, 2026 recorded results and does not replace them.",
+  "environment": {
+    "host": "WSL2 Linux on 11th Gen Intel Core i5-1135G7, 8 logical CPUs, 5.7 GiB RAM",
+    "k6": "v2.4.0",
+    "java": "Temurin 17.0.21",
+    "backend": "backend-0.0.1-SNAPSHOT.jar, local port 18081",
+    "database": "PostgreSQL 16.13, local port 55434",
+    "databaseName": "smart_heritage_ltj62",
+    "deployment": "Local host processes; Docker daemon was unavailable",
+    "dataset": "1 heritage site (48), 1 artifact (48), 1 enabled beacon (id 1, uuid 11111111-2222-4333-8444-555555555555, major 100, minor 1), 1 interaction in the Analytics window"
+  },
+  "summary": {
+    "scripts": 5,
+    "totalHttpRequests": 1960,
+    "failedHttpRequests": 0,
+    "failureRate": 0,
+    "highestP95Ms": 25.05
+  },
+  "scenarios": {
+    "smoke": {
+      "httpRequests": 20,
+      "failedHttpRequests": 0,
+      "checksPassed": 20,
+      "checksFailed": 0,
+      "vusMax": 1,
+      "avgMs": 10.04,
+      "p50Ms": 6.54,
+      "p90Ms": 19.47,
+      "p95Ms": 25.05,
+      "p99Ms": null,
+      "maxMs": 51.83
+    },
+    "baseline": {
+      "httpRequests": 600,
+      "failedHttpRequests": 0,
+      "checksPassed": 600,
+      "checksFailed": 0,
+      "vusMax": 5,
+      "avgMs": 5.78,
+      "p50Ms": 5.34,
+      "p90Ms": 9.51,
+      "p95Ms": 11.47,
+      "p99Ms": 15.19,
+      "maxMs": 23.73
+    },
+    "reliability": {
+      "httpRequests": 1040,
+      "failedHttpRequests": 0,
+      "checksPassed": 1040,
+      "checksFailed": 0,
+      "vusMax": 10,
+      "avgMs": 2.9,
+      "p50Ms": 2.89,
+      "p90Ms": 4.21,
+      "p95Ms": 4.6,
+      "p99Ms": 5.83,
+      "maxMs": 10.57
+    },
+    "beacon-performance": {
+      "httpRequests": 150,
+      "failedHttpRequests": 0,
+      "checksPassed": 300,
+      "checksFailed": 0,
+      "vusMax": 5,
+      "avgMs": 6.6,
+      "p50Ms": 5.24,
+      "p90Ms": 6.52,
+      "p95Ms": 7.26,
+      "p99Ms": 43.14,
+      "maxMs": 43.68
+    },
+    "analytics-performance": {
+      "httpRequests": 150,
+      "failedHttpRequests": 0,
+      "checksPassed": 300,
+      "checksFailed": 0,
+      "vusMax": 5,
+      "avgMs": 14.23,
+      "p50Ms": 9.79,
+      "p90Ms": 13.49,
+      "p95Ms": 15.86,
+      "p99Ms": 131.1,
+      "maxMs": 131.76
+    }
+  },
+  "limitations": [
+    "The local reproduction used a one-row QA dataset, not the historical QA dataset.",
+    "Docker resource monitoring was not repeated because Docker was unavailable.",
+    "The backend ran as a host process against a local PostgreSQL instance, not in the historical Docker QA topology.",
+    "Historical k6 terminal summaries were not committed; only the historical report and Docker Stats CSV are available in the repository."
+  ]
+}

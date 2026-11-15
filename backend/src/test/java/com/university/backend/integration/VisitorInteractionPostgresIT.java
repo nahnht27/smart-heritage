@@ -108,7 +108,7 @@ class VisitorInteractionPostgresIT {
     }
 
     @Test
-    void schemaUsesWave3ColumnsAndFlywayV2() {
+    void schemaUsesCurrentColumnsAndFlywayHistory() {
         Integer nullableUserId = jdbcTemplate.queryForObject("""
                 select count(*)
                 from information_schema.columns
@@ -149,6 +149,13 @@ class VisitorInteractionPostgresIT {
                 where version = '3' and success = true
                 """, Integer.class);
         assertEquals(1, appliedV3);
+
+        Integer appliedV4 = jdbcTemplate.queryForObject("""
+                select count(*)
+                from flyway_schema_history
+                where version = '4' and success = true
+                """, Integer.class);
+        assertEquals(1, appliedV4);
 
         Integer beaconIdentityConstraint = jdbcTemplate.queryForObject("""
                 select count(*)
