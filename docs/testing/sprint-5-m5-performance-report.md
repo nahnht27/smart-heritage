@@ -6,8 +6,10 @@
 **Task ID:** S5-M5-02  
 **Task Name:** API Performance & Reliability Testing  
 **Role:** M5 - QA / Analytics / Reliability  
-**Test Date:** November 12, 2026  
-**Test Environment:** Local Docker QA Environment  
+**Historical Test Date:** November 12, 2026\
+**Latest-Main Reproduction Date:** November 15, 2026\
+**Historical Test Environment:** Local Docker QA Environment\
+**Latest-Main Reproduction Environment:** WSL2 Linux, local Java 17 / PostgreSQL 16, host processes\
 **Testing Tools:** Grafana k6, Docker Stats, PostgreSQL
 
 ---
@@ -67,6 +69,11 @@ The results are used to establish a reproducible backend performance baseline an
 | Monitoring Tool | Docker Stats |
 | Test Execution | Docker-based |
 | Maximum Tested Virtual Users | 10 |
+
+The historical host CPU, RAM, kernel, Docker CPU/memory limits beyond the
+7.574 GiB value shown in the CSV, database row counts, and per-scenario
+wall-clock timestamps were not recorded. Those values are therefore not
+reconstructed here.
 
 ### 2.2 Test Isolation
 
@@ -146,7 +153,12 @@ These values are QA testing thresholds and do not represent verified production 
 
 ---
 
-## 4. Performance Test Execution Results
+## 4. Historical Performance Test Results (November 12, 2026)
+
+**Evidence level:** Recorded report values from the historical k6 terminal
+summaries. The original k6 summary files were not committed. Only PERF-07 has
+a raw resource CSV in the repository. The historical values below are not the
+November 15 reproduction; see section 12 for the separate local rerun.
 
 ### 4.1 Overall Test Results
 
@@ -249,7 +261,11 @@ The throughput differences are influenced by workload configuration, request mix
 
 **Observation:** All tested endpoints remained responsive under the configured gradual load. No HTTP request failures occurred.
 
-The k6 execution emitted a configuration warning about the placement of `gracefulRampDown`. The test still completed, but the exact ramp-down behavior followed the effective executor configuration rather than the intended top-level setting.
+The original historical execution emitted a warning because `gracefulRampDown`
+was placed at the top level. During LTJ-62 finalization the script was corrected
+to use a named `ramping-vus` scenario with `gracefulRampDown` inside that
+scenario. `k6 inspect performance/reliability.js` then completed without an
+unknown-field warning. The historical values above remain from the original run.
 
 ### 5.4 PERF-04 - Beacon Resolution Performance
 
@@ -447,7 +463,11 @@ The results provide useful resource-usage evidence for the QA baseline, but do n
 | k6 Under Load Results | Terminal output | 600 requests, 0 failures |
 | CPU/RAM Monitoring | `performance/results/docker-stats-under-load.csv` | Docker resource utilization samples |
 
-The original k6 terminal summaries should be retained as screenshots or exported logs when preparing the final evidence package.
+The historical k6 summary values are reported from terminal output; the raw
+terminal logs and exported summaries are not committed. The only raw historical
+resource file in the repository is the Docker Stats CSV for PERF-07. The
+November 15 local reproduction is recorded separately in
+`performance/results/ltj62-local-rerun-summary.json`.
 
 ### 8.3 Test Reproduction
 
@@ -462,7 +482,18 @@ The tests can be reproduced by running the corresponding k6 scripts inside the D
 | Analytics Authentication | ADMIN token supplied at runtime |
 | Test Database | `smart_heritage_test` |
 
-No passwords, authentication tokens, or sensitive environment variables should be committed to Git.
+No passwords, authentication tokens, or sensitive environment variables should
+be committed to Git. The scripts read `BASE_URL` and, for Analytics,
+`ADMIN_TOKEN` from the environment. Their default URL is the non-production
+Docker QA backend. Example:
+
+```bash
+BASE_URL=http://localhost:18081 k6 run performance/baseline.js
+BASE_URL=http://localhost:18081 ADMIN_TOKEN='<runtime-only-token>' \
+  k6 run performance/analytics-performance.js
+```
+
+Do not run these scripts against production.
 
 ---
 
@@ -478,10 +509,14 @@ No passwords, authentication tokens, or sensitive environment variables should b
 | LIM-06 | Failure recovery under infrastructure outages was not tested | Recovery behavior remains unverified |
 | LIM-07 | Resource monitoring samples included a wider collection interval | Peaks may include periods outside active load |
 | LIM-08 | Native Mobile UI E2E was not part of the performance workload | Device-level performance remains unverified |
+| LIM-09 | Historical raw k6 summaries/logs are not committed | Historical values cannot be independently recomputed from repository evidence |
+| LIM-10 | Historical host CPU/RAM and per-scenario timestamps were not recorded | Exact historical test-machine conditions cannot be reconstructed |
+| LIM-11 | Historical QA dataset row counts were not recorded | The historical dataset size cannot be reconstructed exactly |
+| LIM-12 | November 15 reproduction used a one-row local dataset and host processes | It is a reproducibility check, not an equivalent rerun of the Docker QA experiment |
 
 ---
 
-## 10. Final Test Summary
+## 10. Historical Test Summary
 
 ### 10.1 Test Case Summary
 
@@ -510,16 +545,63 @@ No passwords, authentication tokens, or sensitive environment variables should b
 | CPU/RAM Monitoring | Completed |
 | Overall S5-M5-02 Status | PASS for executed QA scenarios |
 
-## 11. Conclusion
+## 11. Historical Conclusion (November 12, 2026)
 
-The S5-M5-02 API Performance & Reliability Testing task successfully established an initial performance baseline for the Smart Heritage backend.
+The S5-M5-02 API Performance & Reliability Testing task established an initial
+historical performance baseline for the Smart Heritage backend.
 
-Seven performance test scenarios were executed using Grafana k6, producing a total of 3,143 successful HTTP requests with no recorded HTTP failures.
+Seven performance test scenarios were executed using Grafana k6, producing a
+recorded total of 3,143 successful HTTP requests with no recorded HTTP failures.
 
 The Beacon Resolution and Analytics Summary APIs returned correct responses during their respective load tests.
 
 CPU and RAM monitoring was also conducted during baseline testing, providing resource utilization measurements for the backend and PostgreSQL containers.
 
-**Final Assessment: S5-M5-02 — PASS for the configured and executed QA performance scenarios.**
+**Historical Assessment: S5-M5-02 — PASS for the configured and executed QA performance scenarios.**
 
-The results demonstrate reliability under the evaluated workloads. Further high-concurrency, long-duration, and production-like testing would be required before making conclusions about maximum system capacity.
+The historical results describe the evaluated workloads. Further high-concurrency,
+long-duration, and production-like testing would be required before making
+conclusions about maximum system capacity.
+
+## 12. Latest-Main Reproduction (November 15, 2026)
+
+This is a separate local reproducibility check, not a rerun of the historical
+Docker QA experiment. It used the latest-main code and the same five committed
+k6 scripts.
+
+| Item | Value |
+|---|---|
+| Latest main | `bd0c381dcd2d67a833bdccea3341285cf7ca4f6d` |
+| Run window | 19:39-19:42 Asia/Bangkok (UTC+07:00) |
+| Host | WSL2 Linux, 11th Gen Intel Core i5-1135G7, 8 logical CPUs, 5.7 GiB RAM |
+| k6 | v2.4.0 |
+| Java | Temurin 17.0.21 |
+| PostgreSQL | 16.13, local port 55434 |
+| Backend | `backend-0.0.1-SNAPSHOT.jar`, local port 18081 |
+| Docker | Unavailable; no Docker Stats rerun |
+| Dataset | 1 site, 1 artifact, 1 enabled beacon, 1 interaction in the Analytics window |
+| Scripts | 5 |
+| Total HTTP requests | 1,960 |
+| Failed requests | 0 |
+| Failure rate | 0% |
+
+| Scenario | Requests | Checks | Avg (ms) | p50 (ms) | p90 (ms) | p95 (ms) | p99 (ms) | Max (ms) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Smoke | 20 | 20/20 | 10.04 | 6.54 | 19.47 | 25.05 | N/A | 51.83 |
+| Baseline | 600 | 600/600 | 5.78 | 5.34 | 9.51 | 11.47 | 15.19 | 23.73 |
+| Reliability | 1,040 | 1,040/1,040 | 2.90 | 2.89 | 4.21 | 4.60 | 5.83 | 10.57 |
+| Beacon | 150 | 300/300 | 6.60 | 5.24 | 6.52 | 7.26 | 43.14 | 43.68 |
+| Analytics | 150 | 300/300 | 14.23 | 9.79 | 13.49 | 15.86 | 131.10 | 131.76 |
+
+All five scripts exited successfully. The highest reproduced p95 was 25.05 ms
+for Smoke; the highest p99 was 131.10 ms for Analytics. These local values are
+not directly comparable with the historical 3,143-request run because the
+dataset, deployment topology, and number of scenarios differ.
+
+Evidence: `performance/results/ltj62-local-rerun-summary.json`. The original
+per-scenario k6 summary exports were used to produce that file but are not
+committed.
+
+The `reliability.js` script was also validated with `k6 inspect` after moving
+`gracefulRampDown` into the named `ramping-vus` scenario; no unknown-field
+warning was emitted.

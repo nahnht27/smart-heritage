@@ -6,9 +6,11 @@
 **Task ID:** S5-M5-01  
 **Task:** Full-Stack End-to-End Regression  
 **Role:** M5 - QA / Analytics / Reliability  
-**Test Date:** November 14, 2026  
-**Git Branch:** LTJ-62  
-**Environment:** Windows, Docker QA, PostgreSQL, Physical Android Device
+**Historical Test Date:** November 14, 2026\
+**Latest-Main Verification Date:** November 15, 2026\
+**Git Branch:** LTJ-62\
+**Historical Environment:** Windows, Docker QA, PostgreSQL, Physical Android Device\
+**Latest-Main Environment:** WSL2 Linux, local Java 17 / PostgreSQL 16, Vitest/Jest/Maven
 
 ---
 
@@ -16,7 +18,11 @@
 
 Verify critical Smart Heritage workflows across Backend APIs, PostgreSQL, and the Android Mobile application.
 
-This report documents test activities executed on November 14, 2026, including security validation, anonymous visitor interactions, idempotency, Multimedia integration, and Mobile UI regression.
+This report documents the historical manual test activities executed on
+November 14, 2026, including security validation, anonymous visitor
+interactions, idempotency, Multimedia integration, and Mobile UI regression.
+It also records the November 15, 2026 latest-main automated verification and
+DEF-001 retest.
 
 ---
 
@@ -294,6 +300,9 @@ Physical BLE hardware validation is assigned to M3.
 
 **Endpoint:** GET /api/beacons/resolve
 
+**Latest-Main Retest Date:** November 15, 2026\
+**Latest Main:** `bd0c381dcd2d67a833bdccea3341285cf7ca4f6d`
+
 ### Test Input
 
 | Parameter | Value |
@@ -307,15 +316,19 @@ Physical BLE hardware validation is assigned to M3.
 | Test Step | Expected Result | Actual Result | Status |
 |---|---|---|---|
 | Invalid Beacon major | HTTP 400 | HTTP 500 | FAIL |
+| Valid-range unknown Beacon control | HTTP 404 | HTTP 404 | PASS |
 | Review GlobalExceptionHandler | Validation exception handling | No specific ConstraintViolationException handler found | INVESTIGATED |
 
-The inspected source did not contain a dedicated handler for `ConstraintViolationException`. This is a possible explanation for the observed HTTP 500.
-
-The running Docker QA image was not independently confirmed to contain every latest source change.
+The latest-main run used a local Java 17 backend built from
+`bd0c381dcd2d67a833bdccea3341285cf7ca4f6d` against PostgreSQL 16. The response
+was `{"success":false,"message":"An unexpected error occurred",...}`. The
+Backend source applies `@Min(0)` / `@Max(65535)` to the Resolve parameters, but
+the current exception handling still maps the validation failure to HTTP 500.
 
 **DEF-001 Status: OPEN**
 
 The Backend team must investigate and fix the issue before QA can close the defect.
+Follow-up task: **S5-M2-02 — Beacon Resolution Integrity & Performance**.
 
 ---
 
@@ -343,13 +356,13 @@ The Backend team must investigate and fix the issue before QA can close the defe
 | Heritage Map UI | Placeholder screen displayed |
 | Bluetooth | Enabled |
 | Location Permission | Permission prompt displayed |
-| DEF-001 Retest | HTTP 500 - FAIL |
+| DEF-001 Retest (latest main) | HTTP 500 - FAIL, OPEN |
 
 ---
 
 ## 10. Final Assessment
 
-The November 14, 2026 QA execution successfully verified:
+The historical November 14, 2026 QA execution verified:
 
 - HTTP 401 authentication protection.
 - HTTP 409 resource conflict protection.
@@ -361,7 +374,26 @@ The November 14, 2026 QA execution successfully verified:
 - Favorites, History, Feedback, and Map screen rendering.
 - Bluetooth activation and Android location permission prompt.
 
-**Overall Result:** Completed test scenarios passed within their verified scope.
+**Overall Result:** Completed historical test scenarios passed within their verified scope.
+
+The November 15 latest-main verification reran the automated suites: 104
+frontend, 81 mobile, 135 backend, and 55 PostgreSQL integration tests passed.
+It also reproduced DEF-001 as HTTP 500. DEF-001 remains OPEN.
+
+## 11. Evidence Classification and Limitations
+
+| Item | Status |
+|---|---|
+| Historical manual Android/API checks | Retained from November 14, 2026; no device screenshots or network traces committed |
+| Latest-main automated suites | Executed November 15, 2026; 375/375 passed |
+| Latest-main DEF-001 retest | Reproduced HTTP 500; OPEN |
+| Automated browser E2E | NOT PERFORMED |
+| Physical BLE hardware detection | NOT VERIFIED |
+| Heritage Map | Placeholder UI only |
+| Historical Docker QA image | Not independently rebuilt during LTJ-62 finalization; Docker daemon was unavailable locally |
+
+Manual mobile and API observations are historical evidence and are not
+presented as latest-main automated E2E results.
 
 
 

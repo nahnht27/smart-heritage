@@ -5,9 +5,10 @@
 **Task ID:** S5-M5-01  
 **Task Name:** Full-Stack End-to-End Regression  
 **Role:** M5 - QA / Analytics / Reliability  
-**Test Date:** November 13, 2026  
-**Environment:** Docker Backend QA  
-**Backend URL:** http://localhost:8081
+**Historical Test Date:** November 13, 2026\
+**Latest-Main Retest Date:** November 15, 2026\
+**Environment:** Docker Backend QA (historical) / local Java 17 + PostgreSQL 16 (latest-main retest)
+**Backend URL:** http://localhost:8081 (historical) / http://localhost:18081 (latest-main retest)
 
 ---
 
@@ -117,6 +118,33 @@ Requests containing values outside the allowed range should produce HTTP 400 ins
 
 The QA team should rerun regression testing after the issue is corrected.
 
+Follow-up owner: **S5-M2-02 — Beacon Resolution Integrity & Performance**.
+No separate M2 Jira defect identifier was found in the repository, so none is
+invented here.
+
+### 2.10 Latest-Main Retest (November 15, 2026)
+
+The defect was retested against latest main
+`bd0c381dcd2d67a833bdccea3341285cf7ca4f6d` using a local Java 17 backend
+against PostgreSQL 16. No backend application code was modified for LTJ-62.
+
+| Item | Result |
+|---|---|
+| Endpoint | `GET /api/beacons/resolve` |
+| UUID | `11111111-2222-4333-8444-555555555555` |
+| major | `70000` |
+| minor | `1` |
+| Expected | HTTP 400 Bad Request with validation error |
+| Actual | HTTP 500 Internal Server Error |
+| Actual response | `{"success":false,"message":"An unexpected error occurred",...}` |
+| Valid-range control | HTTP 404 for an unknown beacon with major `100` |
+| DEF-001 status | **OPEN** |
+
+The latest-main retest confirms that the defect is still reproducible. The
+backend does apply `@Min(0)` / `@Max(65535)` to the Resolve parameters, but the
+current exception handling returns the generic 500 response when validation
+fails.
+
 ---
 
 ## 3. Defect Evidence
@@ -126,6 +154,7 @@ The QA team should rerun regression testing after the issue is corrected.
 | Invalid Beacon API Response | HTTP 500 |
 | Valid Beacon API Response | HTTP 200 |
 | Backend QA Regression Retest | HTTP 500 |
+| Latest-Main Retest (November 15, 2026) | HTTP 500 |
 | Reproduction Command | Documented |
 | Expected vs Actual Result | Documented |
 

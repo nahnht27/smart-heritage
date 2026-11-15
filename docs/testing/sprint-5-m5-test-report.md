@@ -5,9 +5,11 @@
 **Task ID:** S5-M5-01  
 **Task Name:** Full-Stack End-to-End Regression  
 **Role:** M5 - QA / Analytics / Reliability  
-**Test Date:** November 13, 2026  
-**Git Branch:** LTJ-62  
-**Test Environment:** Windows, Docker QA, PostgreSQL, Admin Web, Physical Android Device
+**Historical Test Date:** November 13, 2026\
+**Latest-Main Verification Date:** November 15, 2026\
+**Git Branch:** LTJ-62\
+**Historical Test Environment:** Windows, Docker QA, PostgreSQL, Admin Web, Physical Android Device\
+**Latest-Main Verification Environment:** WSL2 Linux, local Java 17 / PostgreSQL 16, Node.js, Jest/Vitest
 
 ---
 
@@ -38,33 +40,64 @@ Confirmed defects are documented separately in `sprint-5-m5-defect-log.md`.
 | Browser | Google Chrome |
 | Version Control | Git / GitHub |
 
-All Backend integration tests were executed against the QA environment.
+The historical Backend integration tests were executed against the Docker QA
+environment. The November 15 verification used local Java 17 and PostgreSQL 16.
 
 ---
 
 ## 3. Automated Regression Testing
 
-### 3.1 Test Execution Results
+### 3.1 Latest-Main Verification (November 15, 2026)
 
-| Test Suite | Passed | Failed | Status |
-|---|---:|---:|---|
-| Frontend Vitest | 58 | 0 | PASS |
-| Mobile Jest | 81 | 0 | PASS |
-| Backend Maven | 134 | 0 | PASS |
-| PostgreSQL Integration | 22 | 0 | PASS |
-| **TOTAL** | **295** | **0** | **PASS** |
+The LTJ-62 branch already contained the latest `origin/main` commit
+`bd0c381dcd2d67a833bdccea3341285cf7ca4f6d`. `git merge origin/main`
+reported `Already up to date`, so no additional integration merge commit
+was required.
 
-### 3.2 Result
+| Test Suite | Type | Command | Passed | Failed | Status |
+|---|---|---|---:|---:|---|
+| Frontend Vitest | React component/unit | `npm test -- --run` | 104 | 0 | PASS |
+| Mobile Jest | Mobile service/unit | `npm test -- --ci` | 81 | 0 | PASS |
+| Backend Maven | Unit/controller/service | `./mvnw -B test` | 135 | 0 | PASS |
+| PostgreSQL Integration | Database integration | `./mvnw -B -Ppostgres-integration verify` | 55 | 0 | PASS |
+| **TOTAL** |  |  | **375** | **0** | **PASS** |
 
-All 295 automated regression and integration tests passed in the recorded executions.
+Frontend `npx tsc -b`, `npm run lint`, and `npm run build` also passed.
+Mobile `npx tsc --noEmit` and `npm run lint` passed.
 
-These results verify existing automated test coverage. Mobile Jest testing is separate from physical Android E2E testing.
+The PostgreSQL total is 22 `VisitorInteractionPostgresIT`, 12
+`DatabaseMigrationIT`, 16 `SchemaDetectorIT`, and 5
+`ArtifactQueryOptimizationIT` cases.
+
+These are automated unit, component, controller, and integration test cases.
+They are **not** 375 E2E tests. Mobile Jest results are service/unit coverage
+and are separate from the historical physical Android-device checks.
+
+### 3.2 Latest-Main Coverage Added
+
+| Area | Latest-Main Coverage |
+|---|---|
+| LTJ-56 artifact query optimization | 5 PostgreSQL `ArtifactQueryOptimizationIT` cases |
+| LTJ-60 Beacon Management | 22 `BeaconsPage` component tests and 8 `beaconService` tests |
+| LTJ-61 Analytics CSV export | `DashboardPage` and `analyticsCsv` frontend tests |
+| Authentication / authorization | Frontend auth/API tests, backend controller and security tests |
+| Beacon Resolve / CRUD | `BeaconControllerTest`, `BeaconServiceTest`, and beacon frontend tests |
+| Flyway / schema validation | 28 PostgreSQL migration and schema-detector tests |
+
+The previous 58/81/134/22 counts were historical. They have been replaced by
+the actual latest-main execution counts above.
 
 **Automated Regression: PASS**
 
 ---
 
 ## 4. Admin Web Functional Testing
+
+**Evidence classification:** The Admin Web results in this section are
+historical manual QA observations recorded on November 13, 2026. Browser
+screenshots, automation traces, and network captures are not committed to the
+repository. These checks were not rerun as automated browser E2E testing during
+the November 15 latest-main verification.
 
 ### 4.1 Test Summary
 
@@ -320,6 +353,11 @@ This execution used direct Backend API requests rather than native Mobile-origin
 
 ## 11. Physical Android Application Testing
 
+**Evidence classification:** These results are historical manual observations
+from a physical Android device. The Expo EAS build URL is retained as build
+evidence. They were not rerun during the November 15 latest-main verification.
+Physical BLE hardware detection remains **NOT VERIFIED**.
+
 **Test Case ID:** M5-MOB-01
 
 | Test Scenario | Actual Result | Status |
@@ -359,10 +397,11 @@ https://expo.dev/accounts/thuhong/projects/app_temp/builds/fa9e5957-60f4-48b7-ac
 
 | Evidence | Verified Result |
 |---|---|
-| Frontend Vitest | 58/58 PASS |
+| Frontend Vitest | 104/104 PASS |
 | Mobile Jest | 81/81 PASS |
-| Backend Maven | 134/134 PASS |
-| PostgreSQL Integration | 22/22 PASS |
+| Backend Maven | 135/135 PASS |
+| PostgreSQL Integration | 55/55 PASS |
+| Automated total | 375/375 PASS |
 | Heritage Site Management | 4/4 PASS |
 | Artifact Management | 4/4 PASS |
 | Multimedia Management | 3/3 PASS |
@@ -382,7 +421,7 @@ The results above summarize verified executions. Screenshots and terminal output
 
 | Testing Area | Final Result |
 |---|---|
-| Automated Regression | 295/295 PASS |
+| Automated Regression | 375/375 PASS (latest main) |
 | Admin Login / Logout | PASS |
 | Heritage Site CRUD | 4/4 PASS |
 | Artifact CRUD | 4/4 PASS |
@@ -401,14 +440,34 @@ The results above summarize verified executions. Screenshots and terminal output
 
 The completed S5-M5-01 regression activities successfully verified automated tests, Admin Web functionality, authentication, authorization, network reliability, Backend API integration, PostgreSQL persistence, and Analytics consistency.
 
-All 295 automated tests passed.
+All 375 automated unit, component, controller, and integration test cases passed
+on the latest-main verification. They are not all E2E tests.
 
-The Admin Web successfully completed the tested Heritage Site, Artifact, Multimedia, and Beacon management workflows.
+The historical Admin Web execution successfully completed the tested Heritage
+Site, Artifact, Multimedia, and Beacon management workflows.
 
-The Visitor Interaction API successfully recorded Interaction ID 464, and PostgreSQL data matched the Admin Dashboard analytics total.
+The historical Visitor Interaction API execution recorded Interaction ID 464,
+and PostgreSQL data matched the Admin Dashboard analytics total.
 
-The Android QA APK was successfully built, installed, and launched on a physical device.
+The historical Android QA APK was successfully built, installed, and launched
+on a physical device. Physical BLE detection was not independently verified.
 
 **Report Scope: Completed and verified test executions only.**
 
 This report does not claim that every acceptance criterion of S5-M5-01 has been completed.
+
+## 16. Evidence Classification and Limitations
+
+| Item | Status |
+|---|---|
+| Latest-main automated tests | Executed November 15, 2026; 375/375 passed |
+| Historical manual Admin Web checks | Retained from November 13, 2026; no screenshots/browser traces committed |
+| Historical physical Android checks | Retained from November 13-14, 2026; EAS build URL retained |
+| Physical BLE hardware detection | NOT VERIFIED |
+| Interactive Heritage Map | Placeholder only; not implemented |
+| Manual browser E2E rerun on latest main | NOT PERFORMED |
+| Latest-main performance rerun | Performed separately on a local one-row dataset; not equivalent to the historical Docker QA run |
+
+Manual browser and physical-device observations are not used to support the
+automated test totals. No simulator-only result is presented as proof of
+physical BLE behavior.

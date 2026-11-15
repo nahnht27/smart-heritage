@@ -2,13 +2,19 @@ import http from "k6/http";
 import { check, sleep } from "k6";
 
 export const options = {
-    stages: [
-        { duration: "10s", target: 2 },
-        { duration: "20s", target: 5 },
-        { duration: "20s", target: 10 },
-        { duration: "10s", target: 0 }
-    ],
-    gracefulRampDown: "5s",
+    scenarios: {
+        reliability: {
+            executor: "ramping-vus",
+            startVUs: 0,
+            stages: [
+                { duration: "10s", target: 2 },
+                { duration: "20s", target: 5 },
+                { duration: "20s", target: 10 },
+                { duration: "10s", target: 0 }
+            ],
+            gracefulRampDown: "5s"
+        }
+    },
     summaryTrendStats: [
         "avg", "min", "med", "max",
         "p(90)", "p(95)", "p(99)"
