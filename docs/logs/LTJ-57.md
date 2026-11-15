@@ -401,3 +401,49 @@ Kết quả xác nhận thay đổi truy vấn không làm ảnh hưởng các t
 ### 16.5. Đánh giá.
 - Truy vấn Beacon Resolution đã giảm từ 3 SELECT xuống 1 SELECT trong trường hợp Beacon có mapping hợp lệ.
 - Không cần bổ sung index hoặc migration. `EXPLAIN` xác nhận index identity hiện tại được sử dụng cho truy vấn resolve.
+
+## 17. Hoàn thiện S5-M2-02 — Validation, Integrity và Performance
+
+### 17.1. Phạm vi hoàn thiện
+- Giữ nguyên mô hình định danh Beacon `proximity_uuid + major + minor` và unique constraint `uk_beacon_identity`.
+- Bổ sung `@NotNull` cho `uuid`, `major`, `minor` tại `BeaconController`, kết hợp giới hạn `@Min(0)` / `@Max(65535)`.
+- Thu hẹp xử lý `DataIntegrityViolationException`: chỉ constraint đã biết (`uk_beacon_identity`, `uk_visitor_interaction_event_id`) trả HTTP 409; constraint khác trả HTTP 500 và được ghi log.
+- Không thêm migration mới: V3 và V4 đã xác nhận unique, check range, foreign key và index cần thiết trên PostgreSQL.
+
+### 17.2. Kết quả sửa DEF-001
+- `GET /api/beacons/resolve` với `major=70000`, `minor=1` trả HTTP 400.
+- `minor` ngoài khoảng, giá trị không phải số, giá trị rỗng và tham số bị thiếu đều trả HTTP 400.
+- Các giá trị biên `0` và `65535` được chấp nhận.
+- Request không hợp lệ không gọi `BeaconService` và không tạo `VisitorInteraction`.
+- Nguyên nhân gốc: `ConstraintViolationException` không có handler riêng nên rơi vào handler tổng quát và trả HTTP 500. Handler mới trả HTTP 400 với cấu trúc `ApiResponse`.
+
+### 17.3. Bằng chứng PostgreSQL
+- Flyway áp dụng thành công 4 migrations V1–V4; schema ở version 4.
+- `uk_beacon_identity` tồn tại dưới dạng unique constraint và unique index.
+- `ck_beacon_major_range`, `ck_beacon_minor_range`, `fk_beacon_artifact`, `idx_beacon_artifact_id` đều tồn tại.
+- Cùng một UUID với các cặp Major/Minor khác nhau được lưu và resolve độc lập.
+- Hai luồng tạo cùng định danh đồng thời chỉ tạo đúng một Beacon; luồng còn lại nhận xung đột.
+- Cập nhật Artifact mapping đồng thời với resolve không trả về Artifact/HeritageSite không nhất quán.
+
+### 17.4. Bằng chứng hiệu năng
+- Đo trực tiếp trên PostgreSQL integration test với Beacon có Artifact và HeritageSite:
+  - Luồng cũ: 3 SELECT (Beacon, Artifact, HeritageSite).
+  - Luồng tối ưu: 1 SELECT với `LEFT JOIN FETCH`.
+  - Giảm 2 SELECT, tương đương 66,7%.
+- Kế hoạch truy vấn đại diện trên fixture tổng hợp 5.000 Beacon:
+  - `Index Scan` sử dụng `uk_beacon_identity`.
+  - `Actual Rows = 1`; `Planning Time = 0.287 ms`; `Execution Time = 0.107 ms`.
+- Fixture 5.000 dòng chỉ dùng để kiểm tra khả năng chọn index và không đại diện cho benchmark production.
+
+### 17.5. Kết quả kiểm thử cuối
+| Test suite | Tests | Failures | Errors | Skipped |
+|---|---:|---:|---:|---:|
+| Backend Surefire | 154 | 0 | 0 | 0 |
+| PostgreSQL Failsafe | 70 | 0 | 0 | 0 |
+| `BeaconResolutionIntegrityIT` | 15 | 0 | 0 | 0 |
+| `BeaconResolveValidationTest` | 18 | 0 | 0 | 0 |
+
+- Tổng backend đã chạy: 224 tests (154 unit + 70 PostgreSQL integration).
+- CI gate PostgreSQL bổ sung `BeaconResolutionIntegrityIT` với ngưỡng 15 tests.
+- `BUILD SUCCESS`, exit code 0.
+- DEF-001 đã được xác minh là FIXED; không còn test nào của M2 thất bại.

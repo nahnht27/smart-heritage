@@ -16,13 +16,13 @@
 
 | Defect ID | Module | Description | Severity | Status |
 |---|---|---|---|---|
-| DEF-001 | Backend Beacon Resolution | Invalid Beacon major returns HTTP 500 instead of HTTP 400 | Medium | OPEN |
+| DEF-001 | Backend Beacon Resolution | Invalid Beacon major returned HTTP 500 instead of HTTP 400 | Medium | FIXED |
 
 **Confirmed Defects:** 1  
-**Open Defects:** 1  
-**Closed Defects:** 0
+**Open Defects:** 0
+**Closed Defects:** 1
 
-The defect has been reproduced and documented successfully.
+The defect was reproduced and documented, then fixed and verified under S5-M2-02.
 
 ---
 
@@ -38,7 +38,7 @@ The defect has been reproduced and documented successfully.
 | API | GET /api/beacons/resolve |
 | Classification | Functional Defect |
 | Severity | Medium |
-| Status | OPEN |
+| Status | FIXED (verified under S5-M2-02) |
 | Environment | Docker QA Backend |
 | Responsible Module | Backend Request Validation |
 
@@ -138,12 +138,12 @@ against PostgreSQL 16. No backend application code was modified for LTJ-62.
 | Actual | HTTP 500 Internal Server Error |
 | Actual response | `{"success":false,"message":"An unexpected error occurred",...}` |
 | Valid-range control | HTTP 404 for an unknown beacon with major `100` |
-| DEF-001 status | **OPEN** |
+| DEF-001 status at retest time | **OPEN (pre-fix)** |
 
-The latest-main retest confirms that the defect is still reproducible. The
-backend does apply `@Min(0)` / `@Max(65535)` to the Resolve parameters, but the
-current exception handling returns the generic 500 response when validation
-fails.
+The latest-main retest confirmed that the defect was still reproducible before
+S5-M2-02. At that time, the backend applied `@Min(0)` / `@Max(65535)` to the
+Resolve parameters, but exception handling returned the generic 500 response
+when validation failed.
 
 ---
 
@@ -154,7 +154,9 @@ fails.
 | Invalid Beacon API Response | HTTP 500 |
 | Valid Beacon API Response | HTTP 200 |
 | Backend QA Regression Retest | HTTP 500 |
-| Latest-Main Retest (November 15, 2026) | HTTP 500 |
+| Latest-Main Retest (November 15, 2026) | HTTP 500 (pre-fix) |
+| S5-M2-02 automated PostgreSQL retest | HTTP 400 — PASS |
+| Invalid-request interaction count | Unchanged — PASS |
 | Reproduction Command | Documented |
 | Expected vs Actual Result | Documented |
 
@@ -165,12 +167,44 @@ fails.
 | Metric | Result |
 |---|---|
 | Confirmed Defects | 1 |
-| Open Defects | 1 |
-| Resolved Defects | 0 |
-| Closed Defects | 0 |
+| Open Defects | 0 |
+| Resolved Defects | 1 |
+| Closed Defects | 1 |
 | QA Reproduction | COMPLETED |
-| Backend Fix | NOT CONFIRMED |
+| Backend Fix | CONFIRMED |
+| Regression Verification | PASS |
 
-**DEF-001 Status: OPEN**
+**DEF-001 Status: FIXED**
 
-The defect identification, reproduction, and documentation activities are complete. The backend issue itself has not been resolved.
+The defect was fixed under S5-M2-02 and verified by automated backend and PostgreSQL tests.
+
+---
+
+## 5. DEF-001 Resolution Verification (S5-M2-02)
+
+### 5.1 Fix Summary
+- Added `@NotNull` to the public Beacon Resolve parameters.
+- Added a dedicated `ConstraintViolationException` handler returning HTTP 400.
+- Kept `@Min(0)` / `@Max(65535)` range validation.
+- Narrowed unknown `DataIntegrityViolationException` handling to HTTP 500 instead of returning a misleading 409.
+- No migration was required; existing PostgreSQL constraints already enforce Beacon identity and ranges.
+
+### 5.2 Verification Results
+| Test Case | Expected | Actual | Status |
+|---|---|---|---|
+| `major=70000` | HTTP 400 | HTTP 400 | PASS |
+| `minor=70000` | HTTP 400 | HTTP 400 | PASS |
+| Negative and `65536` values | HTTP 400 | HTTP 400 | PASS |
+| Non-integer and empty values | HTTP 400 | HTTP 400 | PASS |
+| Missing required parameters | HTTP 400 | HTTP 400 | PASS |
+| Boundary values `0` and `65535` | Accepted | Accepted | PASS |
+| Invalid request creates no VisitorInteraction | Count unchanged | Count unchanged | PASS |
+
+### 5.3 Evidence
+- `BeaconResolveValidationTest`: 18 tests, 0 failures.
+- `BeaconResolutionIntegrityIT`: 15 tests, 0 failures.
+- Full backend Surefire: 154 tests, 0 failures.
+- Full PostgreSQL Failsafe: 70 tests, 0 failures.
+- CI PostgreSQL gate now includes `BeaconResolutionIntegrityIT` with a minimum of 15 tests.
+
+**DEF-001 is FIXED and ready for QA closure.**

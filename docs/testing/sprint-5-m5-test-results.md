@@ -68,7 +68,7 @@ All tests used the dedicated QA environment.
 | M5-MOB-13 | Heritage Map Screen | UI PASS |
 | M5-MOB-14 | Bluetooth Activation | PASS |
 | M5-MOB-15 | Location Permission Dialog | PASS |
-| DEF-001 | Invalid Beacon Parameter Validation | FAIL - OPEN |
+| DEF-001 | Invalid Beacon Parameter Validation | FIXED - S5-M2-02 |
 
 Additional Mobile test IDs (M5-MOB-08 to M5-MOB-15) are QA reporting identifiers and are not confirmed Jira task IDs.
 
@@ -294,7 +294,7 @@ Physical BLE hardware validation is assigned to M3.
 
 ---
 
-## 8. DEF-001 Regression Retest
+## 8. DEF-001 Historical Regression Retest (pre-fix)
 
 **Defect:** Invalid Beacon parameter returns HTTP 500 instead of HTTP 400.
 
@@ -322,12 +322,13 @@ Physical BLE hardware validation is assigned to M3.
 The latest-main run used a local Java 17 backend built from
 `bd0c381dcd2d67a833bdccea3341285cf7ca4f6d` against PostgreSQL 16. The response
 was `{"success":false,"message":"An unexpected error occurred",...}`. The
-Backend source applies `@Min(0)` / `@Max(65535)` to the Resolve parameters, but
-the current exception handling still maps the validation failure to HTTP 500.
+Backend source applied `@Min(0)` / `@Max(65535)` to the Resolve parameters, but
+the exception handling at that time mapped the validation failure to HTTP 500.
 
-**DEF-001 Status: OPEN**
+**DEF-001 Status: FIXED (verified under S5-M2-02)**
 
-The Backend team must investigate and fix the issue before QA can close the defect.
+The pre-fix retest above is retained as historical evidence. S5-M2-02 added the missing validation exception handling and verified HTTP 400 for `major=70000`, with no database writes. The Backend team has fixed the issue and QA can close the defect.
+
 Follow-up task: **S5-M2-02 — Beacon Resolution Integrity & Performance**.
 
 ---
@@ -356,7 +357,8 @@ Follow-up task: **S5-M2-02 — Beacon Resolution Integrity & Performance**.
 | Heritage Map UI | Placeholder screen displayed |
 | Bluetooth | Enabled |
 | Location Permission | Permission prompt displayed |
-| DEF-001 Retest (latest main) | HTTP 500 - FAIL, OPEN |
+| DEF-001 Historical Retest (latest main, pre-fix) | HTTP 500 - FAIL, OPEN |
+| DEF-001 Fix Verification (S5-M2-02) | HTTP 400 - PASS, FIXED |
 
 ---
 
@@ -376,17 +378,22 @@ The historical November 14, 2026 QA execution verified:
 
 **Overall Result:** Completed historical test scenarios passed within their verified scope.
 
-The November 15 latest-main verification reran the automated suites: 104
-frontend, 81 mobile, 135 backend, and 55 PostgreSQL integration tests passed.
-It also reproduced DEF-001 as HTTP 500. DEF-001 remains OPEN.
+The November 15 pre-fix verification reran 104 frontend, 81 mobile, 135 backend,
+and 55 PostgreSQL integration tests. It reproduced DEF-001 as HTTP 500.
+
+S5-M2-02 subsequently added the validation regression suite and expanded the
+PostgreSQL integrity suite. Current backend verification is 154 Surefire tests
+and 70 PostgreSQL Failsafe tests, all passing. DEF-001 is FIXED.
 
 ## 11. Evidence Classification and Limitations
 
 | Item | Status |
 |---|---|
 | Historical manual Android/API checks | Retained from November 14, 2026; no device screenshots or network traces committed |
-| Latest-main automated suites | Executed November 15, 2026; 375/375 passed |
-| Latest-main DEF-001 retest | Reproduced HTTP 500; OPEN |
+| Pre-fix automated suites | Executed November 15, 2026; 375/375 passed |
+| S5-M2-02 automated suites | 104 frontend + 81 mobile + 154 backend + 70 PostgreSQL = 409 passed |
+| Pre-fix DEF-001 retest | Reproduced HTTP 500; historical evidence |
+| DEF-001 fix verification | HTTP 400; PASS, FIXED |
 | Automated browser E2E | NOT PERFORMED |
 | Physical BLE hardware detection | NOT VERIFIED |
 | Heritage Map | Placeholder UI only |

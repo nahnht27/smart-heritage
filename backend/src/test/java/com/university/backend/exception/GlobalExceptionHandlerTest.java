@@ -26,14 +26,26 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void handleDataIntegrityViolation_otherConstraintReturnsGenericMessage() {
+    void handleDataIntegrityViolation_beaconIdentityConstraintReturnsDuplicateMessage() {
         DataIntegrityViolationException ex = new DataIntegrityViolationException(
-                "Unique index or primary key violation: \"UK_OTHER_CONSTRAINT\" ON PUBLIC.OTHER_TABLE(COLUMN)",
+                "ERROR: duplicate key value violates unique constraint \"uk_beacon_identity\"",
                 null);
         ResponseEntity<ApiResponse<Void>> res = handler.handleDataIntegrityViolation(ex, new MockHttpServletRequest());
         assertEquals(HttpStatus.CONFLICT, res.getStatusCode());
         assertNotNull(res.getBody());
         assertFalse(res.getBody().isSuccess());
-        assertEquals("Lỗi toàn vẹn dữ liệu. Vui lòng kiểm tra lại dữ liệu gửi lên.", res.getBody().getMessage());
+        assertEquals("A beacon with the same UUID, major and minor already exists.", res.getBody().getMessage());
+    }
+
+    @Test
+    void handleDataIntegrityViolation_otherConstraintReturnsInternalServerError() {
+        DataIntegrityViolationException ex = new DataIntegrityViolationException(
+                "Unique index or primary key violation: \"UK_OTHER_CONSTRAINT\" ON PUBLIC.OTHER_TABLE(COLUMN)",
+                null);
+        ResponseEntity<ApiResponse<Void>> res = handler.handleDataIntegrityViolation(ex, new MockHttpServletRequest());
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, res.getStatusCode());
+        assertNotNull(res.getBody());
+        assertFalse(res.getBody().isSuccess());
+        assertEquals("An unexpected error occurred", res.getBody().getMessage());
     }
 }

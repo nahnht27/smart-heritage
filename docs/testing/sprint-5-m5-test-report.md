@@ -47,7 +47,7 @@ environment. The November 15 verification used local Java 17 and PostgreSQL 16.
 
 ## 3. Automated Regression Testing
 
-### 3.1 Latest-Main Verification (November 15, 2026)
+### 3.1 Pre-Fix Latest-Main Verification (November 15, 2026)
 
 The LTJ-62 branch already contained the latest `origin/main` commit
 `bd0c381dcd2d67a833bdccea3341285cf7ca4f6d`. `git merge origin/main`
@@ -73,6 +73,10 @@ These are automated unit, component, controller, and integration test cases.
 They are **not** 375 E2E tests. Mobile Jest results are service/unit coverage
 and are separate from the historical physical Android-device checks.
 
+These counts are the pre-fix baseline. S5-M2-02 later added 1 backend exception
+handler test, 18 Beacon validation tests, and 6 PostgreSQL integrity/performance
+tests. The post-fix counts are in Section 3.3.
+
 ### 3.2 Latest-Main Coverage Added
 
 | Area | Latest-Main Coverage |
@@ -88,6 +92,27 @@ The previous 58/81/134/22 counts were historical. They have been replaced by
 the actual latest-main execution counts above.
 
 **Automated Regression: PASS**
+
+### 3.3 S5-M2-02 Post-Fix Verification
+
+S5-M2-02 fixed DEF-001 and expanded Beacon validation, PostgreSQL integrity, and
+query-performance coverage.
+
+| Test Suite | Type | Passed | Failed | Status |
+|---|---|---:|---:|---|
+| Frontend Vitest | React component/unit | 104 | 0 | PASS |
+| Mobile Jest | Mobile service/unit | 81 | 0 | PASS |
+| Backend Surefire | Unit/controller/service | 154 | 0 | PASS |
+| PostgreSQL Failsafe | Database integration | 70 | 0 | PASS |
+| **TOTAL** |  | **409** | **0** | **PASS** |
+
+The PostgreSQL total is 22 `VisitorInteractionPostgresIT`, 12
+`DatabaseMigrationIT`, 16 `SchemaDetectorIT`, 5
+`ArtifactQueryOptimizationIT`, and 15 `BeaconResolutionIntegrityIT` cases.
+
+DEF-001 regression result: `major=70000` returns HTTP 400; invalid requests
+create no `VisitorInteraction`; boundary values `0` and `65535` are accepted.
+
 
 ---
 
@@ -399,9 +424,12 @@ https://expo.dev/accounts/thuhong/projects/app_temp/builds/fa9e5957-60f4-48b7-ac
 |---|---|
 | Frontend Vitest | 104/104 PASS |
 | Mobile Jest | 81/81 PASS |
-| Backend Maven | 135/135 PASS |
-| PostgreSQL Integration | 55/55 PASS |
-| Automated total | 375/375 PASS |
+| Backend Maven (pre-fix) | 135/135 PASS |
+| PostgreSQL Integration (pre-fix) | 55/55 PASS |
+| Automated total (pre-fix) | 375/375 PASS |
+| Backend Surefire (S5-M2-02) | 154/154 PASS |
+| PostgreSQL Failsafe (S5-M2-02) | 70/70 PASS |
+| Automated total (S5-M2-02) | 409/409 PASS |
 | Heritage Site Management | 4/4 PASS |
 | Artifact Management | 4/4 PASS |
 | Multimedia Management | 3/3 PASS |
@@ -421,7 +449,7 @@ The results above summarize verified executions. Screenshots and terminal output
 
 | Testing Area | Final Result |
 |---|---|
-| Automated Regression | 375/375 PASS (latest main) |
+| Automated Regression | 375/375 pre-fix; 409/409 after S5-M2-02 |
 | Admin Login / Logout | PASS |
 | Heritage Site CRUD | 4/4 PASS |
 | Artifact CRUD | 4/4 PASS |
@@ -440,8 +468,10 @@ The results above summarize verified executions. Screenshots and terminal output
 
 The completed S5-M5-01 regression activities successfully verified automated tests, Admin Web functionality, authentication, authorization, network reliability, Backend API integration, PostgreSQL persistence, and Analytics consistency.
 
-All 375 automated unit, component, controller, and integration test cases passed
-on the latest-main verification. They are not all E2E tests.
+The pre-fix verification passed all 375 automated unit, component, controller,
+and integration test cases. After S5-M2-02, 409 automated cases pass, including
+the DEF-001 regression and Beacon integrity/performance coverage. They are not
+all E2E tests.
 
 The historical Admin Web execution successfully completed the tested Heritage
 Site, Artifact, Multimedia, and Beacon management workflows.
@@ -460,7 +490,8 @@ This report does not claim that every acceptance criterion of S5-M5-01 has been 
 
 | Item | Status |
 |---|---|
-| Latest-main automated tests | Executed November 15, 2026; 375/375 passed |
+| Pre-fix latest-main automated tests | Executed November 15, 2026; 375/375 passed |
+| S5-M2-02 post-fix automated tests | 409/409 passed; DEF-001 FIXED |
 | Historical manual Admin Web checks | Retained from November 13, 2026; no screenshots/browser traces committed |
 | Historical physical Android checks | Retained from November 13-14, 2026; EAS build URL retained |
 | Physical BLE hardware detection | NOT VERIFIED |

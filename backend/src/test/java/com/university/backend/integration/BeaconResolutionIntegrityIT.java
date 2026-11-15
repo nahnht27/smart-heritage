@@ -6,6 +6,10 @@ import com.university.backend.entity.HeritageSite;
 import com.university.backend.repository.ArtifactRepository;
 import com.university.backend.repository.BeaconRepository;
 import com.university.backend.repository.HeritageSiteRepository;
+import com.university.backend.repository.VisitorInteractionRepository;
+import jakarta.persistence.EntityManagerFactory;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,8 +17,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.university.backend.dto.BeaconRequest;
 import com.university.backend.dto.BeaconResponse;
@@ -42,6 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("postgres-test")
+@TestPropertySource(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 class BeaconResolutionIntegrityIT {
 
     private static final int MAJOR = 123;
@@ -62,6 +71,18 @@ class BeaconResolutionIntegrityIT {
 
     @Autowired
     private HeritageSiteRepository heritageSiteRepository;
+
+    @Autowired
+    private VisitorInteractionRepository visitorInteractionRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private final List<Integer> createdBeaconIds = new ArrayList<>();
 
@@ -388,20 +409,248 @@ class BeaconResolutionIntegrityIT {
 
     @Test
     void publicResolveRejectsMajorAndMinorOutsideValidRange() throws Exception {
-        int[] invalidValues = {-1, 65536};
+        int[] invalidValues = {-1, 65536, 70000};
 
         for (int value : invalidValues) {
             mockMvc.perform(get("/api/beacons/resolve")
                             .param("uuid", beaconUuid.toString())
                             .param("major", String.valueOf(value))
                             .param("minor", String.valueOf(MINOR)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false));
 
             mockMvc.perform(get("/api/beacons/resolve")
                             .param("uuid", beaconUuid.toString())
                             .param("major", String.valueOf(MAJOR))
                             .param("minor", String.valueOf(value)))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false));
+        }
+    }
+
+    @Test
+    void publicResolveRejectsNonIntegerAndEmptyMajorMinorValues()
+            throws Exception {
+
+        String[] invalidValues = {"not-a-number", "1.5", ""};
+
+        for (String value : invalidValues) {
+            mockMvc.perform(get("/api/beacons/resolve")
+                            .param("uuid", beaconUuid.toString())
+                            .param("major", value)
+                            .param("minor", String.valueOf(MINOR)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false));
+
+            mockMvc.perform(get("/api/beacons/resolve")
+                            .param("uuid", beaconUuid.toString())
+                            .param("major", String.valueOf(MAJOR))
+                            .param("minor", value))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false));
+        }
+    }
+
+    @Test
+    void publicResolveAcceptsBoundaryValuesAndSeparatesDifferentIdentities()
+            throws Exception {
+
+        int[][] identities = {{0, 0}, {0, 1}, {1, 0}, {65535, 65535}};
+
+        for (int[] identity : identities) {
+            createBeacon(beaconUuid, identity[0], identity[1], true, true);
+
+            mockMvc.perform(get("/api/beacons/resolve")
+                            .param("uuid", beaconUuid.toString())
+                            .param("major", String.valueOf(identity[0]))
+                            .param("minor", String.valueOf(identity[1])))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.artifactId").value(artifactId));
+        }
+    }
+
+    @Test
+    void publicResolveDoesNotRecordInteractionsForRejectedRequests()
+            throws Exception {
+
+        createBeacon(beaconUuid, MAJOR, MINOR, false, true);
+        long interactionCount = visitorInteractionRepository.count();
+
+        mockMvc.perform(get("/api/beacons/resolve")
+                        .param("uuid", beaconUuid.toString())
+                        .param("major", "70000")
+                        .param("minor", String.valueOf(MINOR)))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(get("/api/beacons/resolve")
+                        .param("uuid", "invalid-uuid")
+                        .param("major", String.valueOf(MAJOR))
+                        .param("minor", String.valueOf(MINOR)))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(get("/api/beacons/resolve")
+                        .param("uuid", UUID.randomUUID().toString())
+                        .param("major", String.valueOf(MAJOR))
+                        .param("minor", String.valueOf(MINOR)))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/beacons/resolve")
+                        .param("uuid", beaconUuid.toString())
+                        .param("major", String.valueOf(MAJOR))
+                        .param("minor", String.valueOf(MINOR)))
+                .andExpect(status().isNotFound());
+
+        assertEquals(interactionCount, visitorInteractionRepository.count());
+    }
+
+    @Test
+    void postgresEnforcesBeaconIdentityAndProvidesResolutionIndex() {
+        assertEquals(
+                "uk_beacon_identity",
+                jdbcTemplate.queryForObject(
+                        "SELECT indexname FROM pg_indexes "
+                                + "WHERE schemaname = 'public' "
+                                + "AND tablename = 'beacon' "
+                                + "AND indexname = 'uk_beacon_identity'",
+                        String.class));
+
+        assertEquals(
+                "u",
+                jdbcTemplate.queryForObject(
+                        "SELECT contype::text FROM pg_constraint "
+                                + "WHERE conname = 'uk_beacon_identity' "
+                                + "AND conrelid = 'public.beacon'::regclass",
+                        String.class));
+
+        assertEquals(
+                Integer.valueOf(2),
+                jdbcTemplate.queryForObject(
+                        "SELECT count(*) FROM pg_constraint "
+                                + "WHERE conrelid = 'public.beacon'::regclass "
+                                + "AND contype = 'c' "
+                                + "AND conname IN "
+                                + "('ck_beacon_major_range', 'ck_beacon_minor_range')",
+                        Integer.class));
+
+        assertEquals(
+                "fk_beacon_artifact",
+                jdbcTemplate.queryForObject(
+                        "SELECT conname FROM pg_constraint "
+                                + "WHERE conrelid = 'public.beacon'::regclass "
+                                + "AND contype = 'f' "
+                                + "AND conname = 'fk_beacon_artifact'",
+                        String.class));
+
+        assertEquals(
+                "idx_beacon_artifact_id",
+                jdbcTemplate.queryForObject(
+                        "SELECT indexname FROM pg_indexes "
+                                + "WHERE schemaname = 'public' "
+                                + "AND tablename = 'beacon' "
+                                + "AND indexname = 'idx_beacon_artifact_id'",
+                        String.class));
+    }
+
+    @Test
+    void resolveUsesOneSelectInsteadOfLazyThreeSelects() {
+        Beacon beacon = createBeacon(
+                beaconUuid, MAJOR, MINOR, true, true);
+
+        Statistics statistics = entityManagerFactory
+                .unwrap(SessionFactory.class)
+                .getStatistics();
+
+        TransactionTemplate transactionTemplate =
+                new TransactionTemplate(transactionManager);
+
+        statistics.clear();
+        transactionTemplate.executeWithoutResult(status -> {
+            Beacon legacy = beaconRepository
+                    .findByProximityUuidAndMajorAndMinor(
+                            beaconUuid, MAJOR, MINOR)
+                    .orElseThrow();
+
+            assertEquals(
+                    "LTJ-57 Integration Artifact " + beaconUuid,
+                    legacy.getArtifact().getName());
+            assertEquals(
+                    "LTJ-57 Integration Site " + beaconUuid,
+                    legacy.getArtifact().getHeritageSite().getName());
+        });
+        long legacySelects = statistics.getPrepareStatementCount();
+
+        statistics.clear();
+        BeaconResponse response =
+                beaconService.resolveBeacon(beaconUuid, MAJOR, MINOR);
+        long optimizedSelects = statistics.getPrepareStatementCount();
+
+        System.out.println(
+                "Beacon resolve SQL selects: legacy=" + legacySelects
+                        + ", optimized=" + optimizedSelects);
+
+        assertEquals(3, legacySelects);
+        assertEquals(1, optimizedSelects);
+        assertEquals(beacon.getBeaconId(), response.beaconId());
+        assertEquals(artifactId, response.artifactId());
+        assertEquals(siteId, response.siteId());
+    }
+
+    @Test
+    void representativeResolvePlanUsesBeaconIdentityIndex() {
+        String fixtureName = "LTJ-57 Plan Fixture";
+        UUID targetUuid = UUID.randomUUID();
+        int targetMajor = 12345;
+        int targetMinor = 54321;
+
+        List<Object[]> fixtureRows = new ArrayList<>();
+        fixtureRows.add(new Object[]{
+                fixtureName, targetUuid, targetMajor, targetMinor});
+
+        for (int i = 0; i < 4999; i++) {
+            fixtureRows.add(new Object[]{
+                    fixtureName,
+                    UUID.randomUUID(),
+                    i % 65536,
+                    i / 65536});
+        }
+
+        try {
+            jdbcTemplate.batchUpdate(
+                    "INSERT INTO beacon "
+                            + "(name, proximity_uuid, major, minor, enabled) "
+                            + "VALUES (?, ?, ?, ?, true)",
+                    fixtureRows);
+            jdbcTemplate.execute("ANALYZE public.beacon");
+
+            String plan = jdbcTemplate.queryForObject(
+                    "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "
+                            + "SELECT b.beacon_id, b.name, b.proximity_uuid, "
+                            + "b.major, b.minor, b.enabled, b.artifact_id, "
+                            + "a.artifact_id, a.name, a.site_id, "
+                            + "h.site_id, h.name "
+                            + "FROM beacon b "
+                            + "LEFT JOIN artifact a "
+                            + "ON a.artifact_id = b.artifact_id "
+                            + "LEFT JOIN heritage_site h "
+                            + "ON h.site_id = a.site_id "
+                            + "WHERE b.proximity_uuid = ? "
+                            + "AND b.major = ? "
+                            + "AND b.minor = ?",
+                    String.class,
+                    targetUuid,
+                    targetMajor,
+                    targetMinor);
+
+            System.out.println(
+                    "Beacon resolve representative plan: " + plan);
+
+            assertTrue(
+                    plan.toLowerCase().contains("uk_beacon_identity"),
+                    "Representative plan should use the Beacon identity index");
+        } finally {
+            jdbcTemplate.update(
+                    "DELETE FROM beacon WHERE name = ?", fixtureName);
         }
     }
 

@@ -86,14 +86,22 @@ public class GlobalExceptionHandler {
                 "uk_visitor_interaction_event_id");
         boolean isDuplicateBeacon = normalizedMessage.contains(
                 "uk_beacon_identity");
-        String userMessage;
-        if (isDuplicateEvent) {
-            userMessage = "The submitted eventId has already been recorded.";
-        } else if (isDuplicateBeacon) {
-            userMessage = "A beacon with the same UUID, major and minor already exists.";
-        } else {
-            userMessage = "Lỗi toàn vẹn dữ liệu. Vui lòng kiểm tra lại dữ liệu gửi lên.";
+
+        if (!isDuplicateEvent && !isDuplicateBeacon) {
+            log.error(
+                    "Unhandled data integrity violation on {}",
+                    request.getRequestURI(),
+                    ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error(
+                            "An unexpected error occurred",
+                            request.getRequestURI()));
         }
+
+        String userMessage = isDuplicateEvent
+                ? "The submitted eventId has already been recorded."
+                : "A beacon with the same UUID, major and minor already exists.";
+
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(
                 userMessage, request.getRequestURI()));
     }
