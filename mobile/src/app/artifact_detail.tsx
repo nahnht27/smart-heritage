@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useIsFocused, useLocalSearchParams } from 'expo-router';
 import {
   heritageApi,
   isUsableMediaUrl,
@@ -20,9 +20,14 @@ export default function ArtifactDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isMultimediaLoading, setIsMultimediaLoading] = useState(false);
+  const [multimediaError, setMultimediaError] = useState<string | null>(null);
+  const [multimediaRefreshKey, setMultimediaRefreshKey] = useState(0);
+  const [activeMediaId, setActiveMediaId] = useState<number | null>(null);
   const recordedArtifactId = useRef<string | null>(null);
 
   const artifactId = Array.isArray(id) ? id[0] : id;
+  const isFocused = useIsFocused();
 
   useEffect(() => {
     let mounted = true;
@@ -36,6 +41,9 @@ export default function ArtifactDetailScreen() {
 
       setIsLoading(true);
       setError(null);
+      setMultimedia([]);
+      setMultimediaError(null);
+      setActiveMediaId(null);
       try {
         const artifactResult = await heritageApi.getArtifactById(artifactId);
         if (!mounted) return;
@@ -45,12 +53,6 @@ export default function ArtifactDetailScreen() {
           return;
         }
         setArtifact(artifactResult.data);
-
-        const multimediaResult = await heritageApi.getArtifactMultimedia(artifactId);
-        if (!mounted) return;
-        if (multimediaResult.ok && multimediaResult.data) {
-          setMultimedia(multimediaResult.data);
-        }
       } catch {
         if (mounted) {
           setError('Lỗi kết nối mạng. Vui lòng thử lại.');
@@ -65,6 +67,55 @@ export default function ArtifactDetailScreen() {
       mounted = false;
     };
   }, [artifactId, refreshKey]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadMultimedia = async () => {
+      if (!artifactId) {
+        setMultimedia([]);
+        setMultimediaError(null);
+        setIsMultimediaLoading(false);
+        setActiveMediaId(null);
+        return;
+      }
+
+      setIsMultimediaLoading(true);
+      setMultimediaError(null);
+      setMultimedia([]);
+      setActiveMediaId(null);
+
+      try {
+        const result = await heritageApi.getArtifactMultimedia(artifactId);
+        if (!mounted) return;
+
+        if (!result.ok || !result.data) {
+          setMultimediaError(
+            result.status === 404
+              ? 'Không tìm thấy nội dung multimedia cho hiện vật này.'
+              : 'Không tải được nội dung multimedia. Vui lòng kiểm tra kết nối và thử lại.',
+          );
+          return;
+        }
+
+        setMultimedia(result.data);
+      } catch {
+        if (mounted) {
+          setMultimediaError('Lỗi kết nối mạng. Vui lòng thử lại.');
+        }
+      } finally {
+        if (mounted) {
+          setIsMultimediaLoading(false);
+        }
+      }
+    };
+
+    void loadMultimedia();
+
+    return () => {
+      mounted = false;
+    };
+  }, [artifactId, multimediaRefreshKey, refreshKey]);
 
   useEffect(() => {
     if (!artifact) {
@@ -104,10 +155,19 @@ export default function ArtifactDetailScreen() {
     });
   }, [artifact]);
 
+  const handleActivateMedia = useCallback((item: Multimedia) => {
+    setActiveMediaId(item.id);
+  }, []);
+
   const handleRetry = () => {
     setError(null);
     setIsLoading(true);
     setRefreshKey((prev) => prev + 1);
+  };
+
+  const handleRetryMultimedia = () => {
+    setMultimediaError(null);
+    setMultimediaRefreshKey((prev) => prev + 1);
   };
 
   if (isLoading) {
@@ -132,12 +192,9 @@ export default function ArtifactDetailScreen() {
   const multimediaImages = multimedia.filter(
     (m) => m.type === 'IMAGE' && isUsableMediaUrl(m.url),
   );
-  const multimediaAudio = multimedia.filter(
-    (m) => m.type === 'AUDIO' && isUsableMediaUrl(m.url),
-  );
-  const multimediaVideo = multimedia.filter(
-    (m) => m.type === 'VIDEO' && isUsableMediaUrl(m.url),
-  );
+  const multimediaAudio = multimedia.filter((m) => m.type === 'AUDIO');
+  const multimediaVideo = multimedia.filter((m) => m.type === 'VIDEO');
+  const multimediaOther = multimedia.filter((m) => m.type === 'UNKNOWN');
   const heroImageUrl = multimediaImages.length > 0 ? multimediaImages[0].url : null;
 
   return (
@@ -147,6 +204,28 @@ export default function ArtifactDetailScreen() {
         style={styles.heroImage}
         accessibilityLabel={artifact.name}
       />
+
+      {isMultimediaLoading && (
+        <View style={styles.multimediaStatusRow}>
+          <ActivityIndicator size="small" color="#D97706" />
+          <Text style={styles.multimediaStatusText}>
+            Đang tải nội dung multimedia...
+          </Text>
+        </View>
+      )}
+
+      {multimediaError && (
+        <View style={styles.multimediaStatusBox}>
+          <Text style={styles.multimediaErrorText}>{multimediaError}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={handleRetryMultimedia}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.retryButtonText}>Thử lại</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {multimediaImages.length > 0 && (
         <View style={styles.multimediaSection}>
@@ -178,6 +257,11 @@ export default function ArtifactDetailScreen() {
                 key={m.id}
                 item={m}
                 onAudioPlay={handleAudioPlay}
+                onActivate={handleActivateMedia}
+                isActive={
+                  activeMediaId === null || activeMediaId === m.id
+                }
+                shouldPause={!isFocused}
               />
             ))}
           </View>
@@ -189,6 +273,25 @@ export default function ArtifactDetailScreen() {
           <Text style={styles.multimediaTitle}>Video tư liệu</Text>
           <View style={styles.mediaList}>
             {multimediaVideo.map((m) => (
+              <MultimediaPlayer
+                key={m.id}
+                item={m}
+                onActivate={handleActivateMedia}
+                isActive={
+                  activeMediaId === null || activeMediaId === m.id
+                }
+                shouldPause={!isFocused}
+              />
+            ))}
+          </View>
+        </View>
+      )}
+
+      {multimediaOther.length > 0 && (
+        <View style={styles.multimediaSection}>
+          <Text style={styles.multimediaTitle}>Nội dung khác</Text>
+          <View style={styles.mediaList}>
+            {multimediaOther.map((m) => (
               <MultimediaPlayer key={m.id} item={m} />
             ))}
           </View>
@@ -228,6 +331,29 @@ const styles = StyleSheet.create({
   multimediaSection: {
     paddingHorizontal: 16,
     marginVertical: 12,
+  },
+  multimediaStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginTop: 12,
+  },
+  multimediaStatusBox: {
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginTop: 12,
+  },
+  multimediaStatusText: {
+    color: '#64748B',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  multimediaErrorText: {
+    color: '#B91C1C',
+    fontSize: 13,
+    fontWeight: '600',
   },
   multimediaTitle: {
     fontSize: 16,
