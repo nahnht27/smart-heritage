@@ -138,6 +138,9 @@ mobile/
 - Home có toggle “Khám phá bằng beacon”; khi bật, app xin quyền Bluetooth/vị trí, quét iBeacon và resolve qua `GET /api/beacons/resolve`.
 - Banner trong app cho phép mở chi tiết hiện vật; app ghi `BEACON_TRIGGER` với `beaconId`.
 - Native permissions được cấu hình bởi `plugins/with-beacon-permissions.js`.
+- Scanner chỉ chạy khi toggle bật, Home đang focus và app ở foreground; rời màn hình/background sẽ dừng và cleanup.
+- Cooldown 60 giây cho mỗi beacon ngăn resolve/ghi `BEACON_TRIGGER` trùng khi pause/resume hoặc quay lại màn hình.
+- Thay đổi Bluetooth/vị trí/quyền khi đang quét được phản ánh thành trạng thái lỗi rõ ràng và tắt toggle.
 - Background scanning và foreground service **chưa triển khai**.
 - Native build/device verification **chưa chạy** trong môi trường hiện tại; không dùng Expo Go để kết luận beacon hoạt động.
 - Chi tiết: [`docs/features/ibeacon-mobile-integration.md`](../docs/features/ibeacon-mobile-integration.md).

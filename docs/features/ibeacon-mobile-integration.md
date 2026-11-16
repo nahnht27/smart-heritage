@@ -2,11 +2,12 @@
 
 ## 1. Trạng thái
 
-- Branch: `feat/mobile-ibeacon-discovery`
-- Base: `origin/main` @ `e0ef5388f4e41d4e64d2764780185d524a30224d`
+- Branch kiểm chứng: `LTJ-58` (trên nền implementation Wave 4)
+- Base Wave 4: `origin/main` @ `e0ef5388f4e41d4e64d2764780185d524a30224d`
 - Phạm vi: foreground iBeacon discovery, beacon → artifact mapping, `BEACON_TRIGGER` interaction.
 - Background scanning: **DEFERRED**. Chưa triển khai foreground service hoặc background location.
-- Native build/device verification: **CHƯA CHẠY** trong môi trường phát triển này. Không có kết quả phần cứng nào được khẳng định trong tài liệu này.
+- Native build/device verification: **CHƯA CHẠY** trong môi trường phát triển này (không có Android SDK/ADB/Gradle, không có macOS/Xcode, không có beacon vật lý). Không có kết quả phần cứng nào được khẳng định trong tài liệu này.
+- LTJ-58 bổ sung: cooldown chống ghi trùng, dừng scanner khi rời màn hình, xử lý thay đổi Bluetooth/vị trí/quyền khi đang quét. API contract backend không đổi.
 
 ## 2. Mục tiêu
 
@@ -75,6 +76,7 @@ Home toggle
 | Entry confirmation | `2000 ms` |
 | Exit confirmation | `3000 ms` |
 | Stale reset | `3000 ms` |
+| Trigger cooldown | `60000 ms` (mỗi beacon) |
 | Banner auto-dismiss | `8000 ms` |
 
 Quy tắc:
@@ -83,7 +85,9 @@ Quy tắc:
 - Không trigger lặp khi người dùng vẫn ở trong vùng.
 - State chỉ reset sau khi RSSI dưới ngưỡng liên tục đủ `exitDelayMs`.
 - Mỗi beacon được track độc lập bằng key `uuid:major:minor`.
-- Mỗi lần trigger tạo một `eventId` mới; retry của cùng lần ghi phải dùng lại `eventId`.
+- **Cooldown** `cooldownMs` chặn trigger thứ hai cho cùng beacon trong 60 giây. Cooldown **không** bị xoá bởi `reset()`, nên app vào nền / rời màn hình rồi quay lại khi vẫn đứng cạnh beacon sẽ không resolve lại và không ghi thêm `BEACON_TRIGGER`.
+- Cooldown được giữ theo từng instance controller (một phiên app). Tắt rồi bật lại toggle trong cùng phiên vẫn nằm trong cooldown.
+- Mỗi lần trigger mới tạo một `eventId` mới; backend deduplicate theo `eventId`, nên retry cùng một event phải dùng lại `eventId`.
 
 ### 4.2. Permission và native config
 
@@ -113,6 +117,36 @@ npx expo config --type introspect
 ```
 
 Kết quả introspection đã xác nhận các permission Android và Info.plist iOS ở trên được áp dụng.
+
+### 4.3. Vòng đời scanner (LTJ-58)
+
+Scanner chỉ chạy khi **đồng thời**:
+
+1. Người dùng bật toggle “Khám phá bằng beacon”.
+2. Màn hình Home đang được focus.
+3. App đang ở trạng thái `active`.
+4. Quyền Bluetooth/vị trí và môi trường Bluetooth/vị trí đều sẵn sàng.
+
+Scanner dừng và giải phóng subscription/timer khi:
+
+- Người dùng tắt toggle (`disable`).
+- Home mất focus (push sang `artifact_detail`/màn hình khác). Home vẫn mounted trong navigation stack, nên `useFocusEffect` là cơ chế dừng thực tế; cleanup chỉ theo unmount là không đủ.
+- App vào background; khi quay lại foreground và Home còn focus thì tự khởi động lại.
+- Component unmount.
+
+Thay đổi môi trường khi đang quét được xử lý qua `Beacon.onScannerStateChanged`:
+
+- Bluetooth bị tắt → dừng quét, toggle tắt, trạng thái `bluetooth_off`.
+- Dịch vụ vị trí bị tắt → dừng quét, toggle tắt, trạng thái `location_off`.
+- Quyền bị thu hồi → dừng quét, toggle tắt, trạng thái `permission_denied`.
+
+`canScanInForeground` được dùng để kiểm tra quyền thay vì `permissionsGranted`, vì `permissionsGranted` của thư viện có bao gồm `ACCESS_BACKGROUND_LOCATION` — permission mà bản foreground-only này chủ động không xin.
+
+Khi resolve beacon:
+
+- HTTP `404` → thông báo “không tìm thấy hiện vật cho beacon này”.
+- Lỗi mạng/timeout/5xx → thông báo “không thể kết nối máy chủ để xác định hiện vật”.
+- Nhiều beacon trigger gần nhau: chỉ response mới nhất được cập nhật banner; mỗi trigger hợp lệ vẫn được ghi interaction (không bị response cũ “nuốt” mất).
 
 ## 5. Backend
 
@@ -208,7 +242,7 @@ Quy tắc:
 
 ## 6. Kiểm chứng
 
-### 6.1. Backend
+### 6.1. Backend (bằng chứng Wave 4, không chạy lại trong LTJ-58)
 
 | Check | Kết quả |
 |---|---|
@@ -216,6 +250,8 @@ Quy tắc:
 | Unit tests | PASS — 120 tests |
 | PostgreSQL integration tests | PASS — 22 tests |
 | Flyway V3 trên PostgreSQL 16 | PASS |
+
+Lưu ý: working tree hiện tại có một test **untracked** (`InteractionControllerTest.java`) không compile được; xem 6.3. Không có kết luận nào ở bảng trên được chạy lại trong LTJ-58 ngoài phần Docker verification bên dưới.
 
 Lệnh đã dùng:
 
@@ -235,13 +271,59 @@ docker run --rm --network host \
 
 | Check | Kết quả |
 |---|---|
-| TypeScript `npx tsc --noEmit` | PASS |
+| `npm ci --legacy-peer-deps` | PASS — khôi phục đúng lockfile (trước đó `expo-crypto`, `react-native-beacon-kit`, `react-native-permissions` chưa được cài) |
+| Source TypeScript (`tsc` chỉ trên `src/**`) | PASS |
+| `npx tsc --noEmit` toàn repo | FAIL do 3 lỗi từ file Playwright **untracked** (`playwright.config.ts`, `tests/e2e/...`) thiếu `@playwright/test`; không liên quan LTJ-58 |
 | `npm run lint` | PASS |
-| Jest | PASS — 9 suites, 81 tests |
-| Expo config plugin introspection | PASS |
-| `npx expo-doctor` | 18/21 checks pass; 2 cảnh báo dependency có sẵn, không do Wave 4 |
+| Jest | PASS — 9 suites, 84 tests |
+| Expo config plugin introspection | PASS — `ACCESS_FINE_LOCATION`, `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`, các permission background/FGS bị remove |
+| `npx expo-doctor` | 19/21 checks pass; 2 cảnh báo dependency có sẵn (`expo-asset` peer của `expo-audio`, version drift), không do LTJ-58 |
 
-### 6.3. Native/device verification
+Không upgrade Expo/React Native/dependency nào. `react-native-beacon-kit@0.12.0` khai báo peer `react-native: "*"` và được build với RN 0.83.x; project dùng RN 0.86.3, nên khả năng tương thích native vẫn **cần native build xác minh**.
+
+### 6.3. Backend + Docker verification (LTJ-58)
+
+Dev stack hiện có volume PostgreSQL bị lệch schema (`duration_seconds` là `int4` trong DB nhưng entity mong đợi `bigint`), nên backend restart loop. Không xoá volume dev; thay vào đó kiểm chứng bằng một Compose project cô lập, volume mới:
+
+```bash
+cd /home/td041/coding/smart-heritage
+cat > /tmp/ltj58-names.yml <<'YAML'
+services:
+  postgres:
+    container_name: ltj58-db
+  backend:
+    container_name: ltj58-backend
+YAML
+BACKEND_PORT=18080 POSTGRES_PORT=15432 \
+  docker compose -p ltj58 -f docker-compose.yml -f /tmp/ltj58-names.yml \
+  up -d --build --wait --wait-timeout 420
+```
+
+Kết quả thực tế:
+
+| Check | Kết quả |
+|---|---|
+| `GET http://localhost:18080/api/health` | `200`, body `{"status":"UP"}` |
+| `GET /api/beacons/resolve?...` với beacon không tồn tại | `404`, `"Beacon not found or disabled"` |
+| Seed site/artifact/beacon rồi resolve đúng UUID/major/minor | `200`, trả đúng `beaconId`, `artifactId`, `artifactName`, `siteId`, `siteName` |
+| `POST /api/interactions` với `BEACON_TRIGGER` | `201` |
+| Gửi lại cùng `eventId` | `200` (`"Interaction event was already recorded"`) |
+| Đếm row theo `eventId` | 1 row — idempotency đúng |
+
+Lưu ý: trong working tree hiện tại có file **untracked** `backend/src/test/java/com/university/backend/controller/InteractionControllerTest.java` gọi `findByEventIdWithRelations(...)` không tồn tại, làm `mvn package` (và do đó `docker compose build`) fail. File này không thuộc LTJ-58 và không bị sửa. Khi build kiểm chứng, file được tạm thời di chuyển ra ngoài rồi khôi phục nguyên trạng.
+
+### 6.4. Native build verification (LTJ-58)
+
+**KHÔNG CHẠY ĐƯỢC trong môi trường hiện tại.**
+
+- `ANDROID_HOME` / `ANDROID_SDK_ROOT` trống.
+- Không có `adb`, `gradle`, Android SDK, Android Studio.
+- Không có macOS/Xcode cho iOS.
+- `mobile/android` và `mobile/ios` không tồn tại (Continuous Native Generation); muốn build phải `npx expo prebuild`/`npx expo run:android` trên máy có SDK.
+
+Vì vậy **native build result: NOT VERIFIED**. Không có kết luận nào về việc native module load thành công trên thiết bị.
+
+### 6.5. Native/device verification
 
 **Chưa thực hiện.** Không có:
 
@@ -272,6 +354,43 @@ npx expo run:android
 8. Đi ra xa ít nhất 3 giây rồi quay lại, kiểm tra trigger mới.
 9. Kiểm tra các trường hợp: Bluetooth tắt, vị trí tắt, quyền bị từ chối, beacon chưa gán hiện vật, app vào background.
 
+### 7.1. Checklist thiết bị vật lý (chưa chạy)
+
+Checklist demo 2 beacon đầy đủ (setup, API, Android, media, analytics, evidence):
+[`docs/testing/sprint-5-beacon-physical-demo-checklist.md`](../testing/sprint-5-beacon-physical-demo-checklist.md).
+
+Admin Web `/beacons` hiện vẫn là `PlaceholderPage`; cấu hình beacon cho demo phải
+dùng Admin API (hoặc SQL).
+
+Tất cả mục dưới đây đang là **NOT YET PHYSICALLY VERIFIED** trong môi trường hiện tại.
+
+```text
+[ ] Android development build succeeds
+[ ] App launches on device
+[ ] Native iBeacon/BLE module loads
+[ ] Bluetooth enabled
+[ ] Bluetooth disabled
+[ ] Permission granted
+[ ] Permission denied
+[ ] Permission revoked while app inactive
+[ ] Scanner starts
+[ ] Scanner stops
+[ ] Navigate away from Home and verify cleanup
+[ ] Background application
+[ ] Return to foreground
+[ ] Detect a real iBeacon
+[ ] Verify UUID
+[ ] Verify Major
+[ ] Verify Minor
+[ ] Unknown beacon (404)
+[ ] Beacon without artifact mapping
+[ ] Network failure during resolution
+[ ] Repeated detection packets do not resolve twice
+[ ] RSSI fluctuations do not retrigger while inside
+[ ] No duplicate interaction event after background/foreground
+[ ] iOS build + scan (UNVERIFIED, no macOS)
+```
+
 ## 8. Rủi ro và giới hạn
 
 1. `react-native-beacon-kit@0.12.0` chưa được xác minh trên thiết bị/Expo SDK 57.
@@ -282,6 +401,9 @@ npx expo run:android
 6. iOS cần kiểm tra riêng vì môi trường phát triển hiện tại không có macOS.
 7. `ACCESS_FINE_LOCATION` vẫn cần trên Android cũ; trên Android 12+ cần Bluetooth runtime permissions.
 8. Nếu beacon bị xóa, interaction cũ giữ `beacon_id = NULL` do `ON DELETE SET NULL`.
+9. Cooldown 60 giây là heuristic cho foreground visit; cần hiệu chỉnh sau khi có beacon thật và đo hành vi người dùng.
+10. `permissionsGranted` của thư viện bao gồm `ACCESS_BACKGROUND_LOCATION`; code dùng `canScanInForeground` để tránh false-negative trong bản foreground-only.
+11. Android manifest merge của thư viện (bao gồm các permission bị remove) chỉ được xác minh thật sự khi chạy Gradle native build.
 
 ## 9. Background decision
 
@@ -298,6 +420,9 @@ Background scanning được giữ ở trạng thái **DEFERRED** vì:
 - `mobile/src/services/beacon/trigger.ts`
 - `mobile/src/services/beacon/beaconService.ts`
 - `mobile/src/services/beacon/beaconApi.ts`
+- `mobile/src/services/__tests__/ibeacon.test.ts`
+- `mobile/src/services/__tests__/beaconTrigger.test.ts`
+- `mobile/src/services/__tests__/beaconApi.test.ts`
 - `mobile/src/hooks/use-beacon-discovery.ts`
 - `mobile/src/components/beacon-discovery-panel.tsx`
 - `mobile/src/services/interactionApi.ts`
@@ -313,8 +438,17 @@ Background scanning được giữ ở trạng thái **DEFERRED** vì:
 
 ## 11. Git delivery
 
+Wave 4:
+
 - Branch: `feat/mobile-ibeacon-discovery`
 - Base: `origin/main` @ `e0ef5388f4e41d4e64d2764780185d524a30224d`
 - Commit: `8f3b244` (`feat: add iBeacon visitor discovery flow`)
 - PR: https://github.com/nahnht27/smart-heritage/pull/25
 - Không tự merge; chờ maintainer review.
+
+LTJ-58:
+
+- Branch: `LTJ-58`
+- Phạm vi: cooldown chống ghi trùng, focus/blur lifecycle, scanner environment changes, làm rõ lỗi resolve, phục hồi dependency lockfile.
+- Không thay đổi API contract backend.
+- Native build + physical device verification: **NOT VERIFIED** (xem 6.4/6.5).
