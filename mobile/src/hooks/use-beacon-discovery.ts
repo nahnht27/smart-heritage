@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import * as Crypto from 'expo-crypto';
 import { interactionApi } from '../services/interactionApi';
 import {
@@ -14,6 +15,7 @@ import {
   stopBeaconRanging,
   subscribeToBeaconFailures,
   subscribeToBeaconRanging,
+  subscribeToScannerStateChanges,
 } from '../services/beacon/beaconService';
 import {
   createBeaconRegion,
@@ -55,6 +57,8 @@ export function useBeaconDiscovery(): UseBeaconDiscoveryResult {
 
   const enabledRef = useRef(false);
   const scanningRef = useRef(false);
+  const startingRef = useRef(false);
+  const focusedRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
   const mountedRef = useRef(true);
   const regionRef = useRef(createBeaconRegion());
@@ -82,35 +86,41 @@ export function useBeaconDiscovery(): UseBeaconDiscoveryResult {
       const requestId = ++resolveRequestRef.current;
       const result = await beaconApi.resolve(trigger.identity);
 
-      if (
-        !mountedRef.current ||
-        !enabledRef.current ||
-        requestId !== resolveRequestRef.current
-      ) {
+      if (!mountedRef.current || !enabledRef.current) {
         return;
       }
 
+      const isLatest = requestId === resolveRequestRef.current;
+
       if (!result.ok || !result.data) {
-        setStatusMessage(
-          'Không tìm thấy hiện vật cho beacon này. Hãy thử lại khi đến gần hơn.',
-        );
+        if (isLatest) {
+          setStatusMessage(
+            result.status === 404
+              ? 'Không tìm thấy hiện vật cho beacon này. Hãy thử lại khi đến gần hơn.'
+              : 'Không thể kết nối máy chủ để xác định hiện vật. Vui lòng thử lại.',
+          );
+        }
         return;
       }
 
       const resolved = result.data;
       if (!resolved.artifactId) {
-        setStatusMessage('Beacon này chưa được gán với hiện vật.');
+        if (isLatest) {
+          setStatusMessage('Beacon này chưa được gán với hiện vật.');
+        }
         return;
       }
 
-      setBanner(resolved);
-      setStatusMessage('Đã phát hiện hiện vật gần bạn.');
-      clearBannerTimer();
-      bannerTimerRef.current = setTimeout(() => {
-        if (mountedRef.current) {
-          setBanner(null);
-        }
-      }, 8000);
+      if (isLatest) {
+        setBanner(resolved);
+        setStatusMessage('Đã phát hiện hiện vật gần bạn.');
+        clearBannerTimer();
+        bannerTimerRef.current = setTimeout(() => {
+          if (mountedRef.current) {
+            setBanner(null);
+          }
+        }, 8000);
+      }
 
       const now = new Date().toISOString();
       void interactionApi.recordInteraction({
@@ -152,123 +162,134 @@ export function useBeaconDiscovery(): UseBeaconDiscoveryResult {
   }, []);
 
   const startScanning = useCallback(async () => {
-    if (scanningRef.current || !enabledRef.current) {
+    if (
+      scanningRef.current ||
+      startingRef.current ||
+      !enabledRef.current ||
+      !focusedRef.current
+    ) {
       return;
     }
 
-    setStatus('requesting_permission');
-    setStatusMessage('Đang xin quyền Bluetooth và vị trí...');
-
-    const permission = await requestBeaconPermissions();
-    if (!mountedRef.current || !enabledRef.current) {
-      return;
-    }
-    if (!permission.granted) {
-      enabledRef.current = false;
-      setEnabled(false);
-      setStatus('permission_denied');
-      setStatusMessage(
-        'Cần quyền Bluetooth và vị trí để quét beacon. Hãy bật lại và cấp quyền khi được hỏi.',
-      );
-      return;
-    }
-
-    const environment = await getBeaconEnvironmentState();
-    if (!mountedRef.current || !enabledRef.current) {
-      return;
-    }
-    if (!environment.bluetoothEnabled) {
-      enabledRef.current = false;
-      setEnabled(false);
-      setStatus('bluetooth_off');
-      setStatusMessage('Bluetooth đang tắt. Hãy bật Bluetooth rồi thử lại.');
-      return;
-    }
-    if (!environment.locationServicesEnabled) {
-      enabledRef.current = false;
-      setEnabled(false);
-      setStatus('location_off');
-      setStatusMessage('Dịch vụ vị trí đang tắt. Hãy bật định vị rồi thử lại.');
-      return;
-    }
-    if (!environment.canScanInForeground) {
-      enabledRef.current = false;
-      setEnabled(false);
-      setStatus('error');
-      setStatusMessage('Thiết bị chưa sẵn sàng để quét beacon.');
-      return;
-    }
-
-    if (appStateRef.current !== 'active') {
-      setStatus('paused');
-      setStatusMessage('Tạm dừng quét beacon khi ứng dụng ở nền.');
-      return;
-    }
-
-    configureBeaconScanner();
-    const region = regionRef.current;
-
-    rangingSubscriptionRef.current = subscribeToBeaconRanging((event) => {
-      if (
-        event.region.identifier !== region.identifier ||
-        event.region.uuid.toLowerCase() !== region.uuid.toLowerCase()
-      ) {
-        return;
-      }
-
-      const now = Date.now();
-      for (const nativeReading of event.beacons) {
-        const reading = parseNativeBeacon(nativeReading);
-        if (!reading) {
-          continue;
-        }
-        const trigger = controllerRef.current.observe(reading, now);
-        if (trigger) {
-          void resolveAndRecord(trigger);
-        }
-      }
-    });
-
-    failureSubscriptionRef.current = subscribeToBeaconFailures((event) => {
-      if (
-        event.region &&
-        event.region.identifier !== region.identifier
-      ) {
-        return;
-      }
-      setStatus('error');
-      setStatusMessage(event.message || 'Không thể quét beacon.');
-    });
+    startingRef.current = true;
 
     try {
-      await startBeaconRanging(region);
-    } catch (error) {
-      rangingSubscriptionRef.current?.remove();
-      rangingSubscriptionRef.current = null;
-      failureSubscriptionRef.current?.remove();
-      failureSubscriptionRef.current = null;
-      enabledRef.current = false;
-      setEnabled(false);
-      setStatus('error');
-      setStatusMessage(
-        error instanceof Error
-          ? error.message
-          : 'Không thể bắt đầu quét beacon.',
-      );
-      return;
-    }
+      setStatus('requesting_permission');
+      setStatusMessage('Đang xin quyền Bluetooth và vị trí...');
 
-    if (!mountedRef.current || !enabledRef.current) {
-      await stopScanning();
-      return;
-    }
+      const permission = await requestBeaconPermissions();
+      if (!mountedRef.current || !enabledRef.current || !focusedRef.current) {
+        return;
+      }
+      if (!permission.granted) {
+        enabledRef.current = false;
+        setEnabled(false);
+        setStatus('permission_denied');
+        setStatusMessage(
+          'Cần quyền Bluetooth và vị trí để quét beacon. Hãy bật lại và cấp quyền khi được hỏi.',
+        );
+        return;
+      }
 
-    scanningRef.current = true;
-    tickTimerRef.current = setInterval(() => {
-      controllerRef.current.tick(Date.now());
-    }, 1000);
-    setStatus('scanning');
-    setStatusMessage('Đang quét beacon gần bạn...');
+      const environment = await getBeaconEnvironmentState();
+      if (!mountedRef.current || !enabledRef.current || !focusedRef.current) {
+        return;
+      }
+      if (!environment.bluetoothEnabled) {
+        enabledRef.current = false;
+        setEnabled(false);
+        setStatus('bluetooth_off');
+        setStatusMessage('Bluetooth đang tắt. Hãy bật Bluetooth rồi thử lại.');
+        return;
+      }
+      if (!environment.locationServicesEnabled) {
+        enabledRef.current = false;
+        setEnabled(false);
+        setStatus('location_off');
+        setStatusMessage('Dịch vụ vị trí đang tắt. Hãy bật định vị rồi thử lại.');
+        return;
+      }
+      if (!environment.canScanInForeground) {
+        enabledRef.current = false;
+        setEnabled(false);
+        setStatus('error');
+        setStatusMessage('Thiết bị chưa sẵn sàng để quét beacon.');
+        return;
+      }
+
+      if (appStateRef.current !== 'active') {
+        setStatus('paused');
+        setStatusMessage('Tạm dừng quét beacon khi ứng dụng ở nền.');
+        return;
+      }
+
+      configureBeaconScanner();
+      const region = regionRef.current;
+
+      rangingSubscriptionRef.current = subscribeToBeaconRanging((event) => {
+        if (
+          event.region.identifier !== region.identifier ||
+          event.region.uuid.toLowerCase() !== region.uuid.toLowerCase()
+        ) {
+          return;
+        }
+
+        const now = Date.now();
+        for (const nativeReading of event.beacons) {
+          const reading = parseNativeBeacon(nativeReading);
+          if (!reading) {
+            continue;
+          }
+          const trigger = controllerRef.current.observe(reading, now);
+          if (trigger) {
+            void resolveAndRecord(trigger);
+          }
+        }
+      });
+
+      failureSubscriptionRef.current = subscribeToBeaconFailures((event) => {
+        if (
+          !enabledRef.current ||
+          (event.region && event.region.identifier !== region.identifier)
+        ) {
+          return;
+        }
+        setStatus('error');
+        setStatusMessage(event.message || 'Không thể quét beacon.');
+      });
+
+      try {
+        await startBeaconRanging(region);
+      } catch (error) {
+        rangingSubscriptionRef.current?.remove();
+        rangingSubscriptionRef.current = null;
+        failureSubscriptionRef.current?.remove();
+        failureSubscriptionRef.current = null;
+        enabledRef.current = false;
+        setEnabled(false);
+        setStatus('error');
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : 'Không thể bắt đầu quét beacon.',
+        );
+        return;
+      }
+
+      if (!mountedRef.current || !enabledRef.current || !focusedRef.current) {
+        await stopScanning();
+        return;
+      }
+
+      scanningRef.current = true;
+      tickTimerRef.current = setInterval(() => {
+        controllerRef.current.tick(Date.now());
+      }, 1000);
+      setStatus('scanning');
+      setStatusMessage('Đang quét beacon gần bạn...');
+    } finally {
+      startingRef.current = false;
+    }
   }, [resolveAndRecord, stopScanning]);
 
   const enable = useCallback(async () => {
@@ -294,17 +315,74 @@ export function useBeaconDiscovery(): UseBeaconDiscoveryResult {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      focusedRef.current = false;
       resolveRequestRef.current += 1;
       clearBannerTimer();
       void stopScanning();
     };
   }, [clearBannerTimer, stopScanning]);
 
+  useFocusEffect(
+    useCallback(() => {
+      focusedRef.current = true;
+      if (enabledRef.current && appStateRef.current === 'active') {
+        void startScanning();
+      }
+
+      return () => {
+        focusedRef.current = false;
+        if (enabledRef.current) {
+          void stopScanning();
+          setStatus('paused');
+          setStatusMessage('Tạm dừng quét beacon khi rời màn hình.');
+        }
+      };
+    }, [startScanning, stopScanning]),
+  );
+
+  useEffect(() => {
+    const subscription = subscribeToScannerStateChanges((state) => {
+      if (!enabledRef.current) {
+        return;
+      }
+
+      if (!state.bluetoothEnabled) {
+        enabledRef.current = false;
+        setEnabled(false);
+        void stopScanning();
+        setStatus('bluetooth_off');
+        setStatusMessage('Bluetooth đang tắt. Hãy bật Bluetooth rồi thử lại.');
+        return;
+      }
+
+      if (!state.locationServicesEnabled) {
+        enabledRef.current = false;
+        setEnabled(false);
+        void stopScanning();
+        setStatus('location_off');
+        setStatusMessage('Dịch vụ vị trí đang tắt. Hãy bật định vị rồi thử lại.');
+        return;
+      }
+
+      if (!state.canScanInForeground) {
+        enabledRef.current = false;
+        setEnabled(false);
+        void stopScanning();
+        setStatus('permission_denied');
+        setStatusMessage(
+          'Cần quyền Bluetooth và vị trí để quét beacon. Hãy bật lại và cấp quyền khi được hỏi.',
+        );
+      }
+    });
+
+    return () => subscription.remove();
+  }, [stopScanning]);
+
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       appStateRef.current = nextState;
       if (nextState === 'active') {
-        if (enabledRef.current) {
+        if (enabledRef.current && focusedRef.current) {
           void startScanning();
         }
         return;

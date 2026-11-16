@@ -82,3 +82,9 @@ export function subscribeToBeaconFailures(
 ) {
   return Beacon.onRangingFailed(callback);
 }
+
+export function subscribeToScannerStateChanges(
+  callback: (state: BeaconEnvironmentState) => void,
+) {
+  return Beacon.onScannerStateChanged(callback);
+}
