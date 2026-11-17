@@ -2,6 +2,7 @@ import {
   canRetryMediaSource,
   getMediaErrorMessage,
   isMediaLoading,
+  MediaRetryGate,
   shouldActivateMediaSession,
   shouldPauseMediaPlayback,
   shouldReportAudioPlayback,
@@ -57,6 +58,19 @@ describe('media playback helpers', () => {
       expect(isMediaLoading(false, false)).toBe(true);
       expect(isMediaLoading(false, true)).toBe(false);
       expect(isMediaLoading(true, false)).toBe(false);
+    });
+  });
+
+  describe('MediaRetryGate', () => {
+    it('chặn các lần thử lại chồng lấn và mở lại sau khi hoàn tất', () => {
+      const gate = new MediaRetryGate();
+
+      expect(gate.tryStart()).toBe(true);
+      expect(gate.tryStart()).toBe(false);
+      expect(gate.tryStart()).toBe(false);
+
+      gate.finish();
+      expect(gate.tryStart()).toBe(true);
     });
   });
 

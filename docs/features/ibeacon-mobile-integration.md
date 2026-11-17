@@ -147,6 +147,8 @@ Khi resolve beacon:
 - HTTP `404` → thông báo “không tìm thấy hiện vật cho beacon này”.
 - Lỗi mạng/timeout/5xx → thông báo “không thể kết nối máy chủ để xác định hiện vật”.
 - Nhiều beacon trigger gần nhau: chỉ response mới nhất được cập nhật banner; mỗi trigger hợp lệ vẫn được ghi interaction (không bị response cũ “nuốt” mất).
+- Response resolve còn in-flight khi blur/background/disable bị bỏ qua theo scan-session token; không cập nhật banner và không ghi interaction của phiên cũ.
+- AppState `background` lặp lại chỉ dừng scanner một lần khi scanner đang thực sự chạy.
 
 ## 5. Backend
 
@@ -249,11 +251,11 @@ Quy tắc:
 | Check | Kết quả |
 |---|---|
 | Compile | PASS |
-| Unit tests | PASS — 120 tests |
-| PostgreSQL integration tests | PASS — 22 tests |
+| Unit tests | PASS — 154 tests (final M3 audit) |
+| PostgreSQL integration tests | `BeaconResolutionIntegrityIT` PASS — 17 tests; full suite requires Docker for migration suites |
 | Flyway V3 trên PostgreSQL 16 | PASS |
 
-Lưu ý: working tree hiện tại có một test **untracked** (`InteractionControllerTest.java`) không compile được; xem 6.3. Không có kết luận nào ở bảng trên được chạy lại trong LTJ-58 ngoài phần Docker verification bên dưới.
+Lưu ý: đây là bằng chứng lịch sử của Wave 4/LTJ-58. Final M3 audit chạy lại backend unit tests và `BeaconResolutionIntegrityIT`; xem mục 11 của `docs/logs/LTJ-58.md`.
 
 Lệnh đã dùng:
 
@@ -275,13 +277,13 @@ docker run --rm --network host \
 |---|---|
 | `npm ci --legacy-peer-deps` | PASS — khôi phục đúng lockfile (trước đó `expo-crypto`, `react-native-beacon-kit`, `react-native-permissions` chưa được cài) |
 | Source TypeScript (`tsc` chỉ trên `src/**`) | PASS |
-| `npx tsc --noEmit` toàn repo | FAIL do 3 lỗi từ file Playwright **untracked** (`playwright.config.ts`, `tests/e2e/...`) thiếu `@playwright/test`; không liên quan LTJ-58 |
+| `npx tsc --noEmit` toàn repo | PASS (final M3 audit) |
 | `npm run lint` | PASS |
-| Jest | PASS — 9 suites, 84 tests |
+| Jest | PASS — 12 suites, 108 tests (final M3 audit) |
 | Expo config plugin introspection | PASS — `ACCESS_FINE_LOCATION`, `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`, các permission background/FGS bị remove |
 | `npx expo-doctor` | 19/21 checks pass; 2 cảnh báo dependency có sẵn (`expo-asset` peer của `expo-audio`, version drift), không do LTJ-58 |
 
-Không upgrade Expo/React Native/dependency nào. `react-native-beacon-kit@0.12.0` khai báo peer `react-native: "*"` và được build với RN 0.83.x; project dùng RN 0.86.3, nên khả năng tương thích native vẫn **cần native build xác minh**.
+Không upgrade Expo/React Native/runtime dependency nào. Final M3 audit chỉ thêm `test-renderer@1.3.0` làm devDependency cho hook tests. `react-native-beacon-kit@0.12.0` khai báo peer `react-native: "*"` và được build với RN 0.83.x; project dùng RN 0.86.3, nên khả năng tương thích native vẫn **cần native build xác minh**.
 
 ### 6.3. Backend + Docker verification (LTJ-58)
 
@@ -312,7 +314,7 @@ Kết quả thực tế:
 | Gửi lại cùng `eventId` | `200` (`"Interaction event was already recorded"`) |
 | Đếm row theo `eventId` | 1 row — idempotency đúng |
 
-Lưu ý: trong working tree hiện tại có file **untracked** `backend/src/test/java/com/university/backend/controller/InteractionControllerTest.java` gọi `findByEventIdWithRelations(...)` không tồn tại, làm `mvn package` (và do đó `docker compose build`) fail. File này không thuộc LTJ-58 và không bị sửa. Khi build kiểm chứng, file được tạm thời di chuyển ra ngoài rồi khôi phục nguyên trạng.
+Lưu ý: đây là bằng chứng Docker lịch sử của Wave 4. Máy kiểm chứng final M3 audit không có Docker daemon, nên chỉ chạy được PostgreSQL cục bộ cho `BeaconResolutionIntegrityIT`; CI là nguồn xác nhận đầy đủ cho migration/schema suites.
 
 ### 6.4. Native build verification (LTJ-58)
 

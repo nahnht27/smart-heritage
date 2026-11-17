@@ -68,6 +68,7 @@ export function useBeaconDiscovery(): UseBeaconDiscoveryResult {
   const tickTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resolveRequestRef = useRef(0);
+  const scanSessionRef = useRef(0);
 
   const clearBannerTimer = useCallback(() => {
     if (bannerTimerRef.current) {
@@ -83,10 +84,15 @@ export function useBeaconDiscovery(): UseBeaconDiscoveryResult {
 
   const resolveAndRecord = useCallback(
     async (trigger: BeaconTriggerEvent) => {
+      const session = scanSessionRef.current;
       const requestId = ++resolveRequestRef.current;
       const result = await beaconApi.resolve(trigger.identity);
 
-      if (!mountedRef.current || !enabledRef.current) {
+      if (
+        !mountedRef.current ||
+        !enabledRef.current ||
+        session !== scanSessionRef.current
+      ) {
         return;
       }
 
@@ -138,6 +144,8 @@ export function useBeaconDiscovery(): UseBeaconDiscoveryResult {
 
   const stopScanning = useCallback(async () => {
     scanningRef.current = false;
+    scanSessionRef.current += 1;
+    resolveRequestRef.current += 1;
 
     if (tickTimerRef.current) {
       clearInterval(tickTimerRef.current);
@@ -228,6 +236,9 @@ export function useBeaconDiscovery(): UseBeaconDiscoveryResult {
 
       rangingSubscriptionRef.current = subscribeToBeaconRanging((event) => {
         if (
+          !enabledRef.current ||
+          !focusedRef.current ||
+          !scanningRef.current ||
           event.region.identifier !== region.identifier ||
           event.region.uuid.toLowerCase() !== region.uuid.toLowerCase()
         ) {
@@ -388,7 +399,7 @@ export function useBeaconDiscovery(): UseBeaconDiscoveryResult {
         return;
       }
 
-      if (enabledRef.current) {
+      if (enabledRef.current && scanningRef.current) {
         void stopScanning();
         setStatus('paused');
         setStatusMessage('Tạm dừng quét beacon khi ứng dụng ở nền.');

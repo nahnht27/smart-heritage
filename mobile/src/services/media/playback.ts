@@ -37,6 +37,22 @@ export function isMediaLoading(
   return !hasError && !isLoaded;
 }
 
+export class MediaRetryGate {
+  private inFlight = false;
+
+  tryStart(): boolean {
+    if (this.inFlight) {
+      return false;
+    }
+    this.inFlight = true;
+    return true;
+  }
+
+  finish(): void {
+    this.inFlight = false;
+  }
+}
+
 export function getMediaErrorMessage(type: PlayableMediaType): string {
   return type === 'AUDIO'
     ? 'Không phát được âm thanh. Vui lòng kiểm tra kết nối và thử lại.'

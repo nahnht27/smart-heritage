@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  AppState,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -15,10 +14,12 @@ import {
   canRetryMediaSource,
   getMediaErrorMessage,
   isMediaLoading,
+  MediaRetryGate,
   shouldActivateMediaSession,
   shouldPauseMediaPlayback,
   shouldReportAudioPlayback,
 } from '../services/media/playback';
+import { usePauseOnBackground } from '../hooks/use-pause-on-background';
 import { RemoteImage } from './remote-image';
 
 interface MultimediaPlayerProps {
@@ -27,22 +28,6 @@ interface MultimediaPlayerProps {
   onActivate?: (item: Multimedia) => void;
   isActive?: boolean;
   shouldPause?: boolean;
-}
-
-interface PausablePlayer {
-  pause: () => void;
-}
-
-function usePauseOnBackground(player: PausablePlayer) {
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState !== 'active') {
-        player.pause();
-      }
-    });
-
-    return () => subscription.remove();
-  }, [player]);
 }
 
 function InvalidMedia({ label }: { label: string }) {
@@ -92,6 +77,7 @@ function AudioPlayer({
   const reportedPlayback = useRef(false);
   const activated = useRef(false);
   const pendingActivation = useRef(false);
+  const retryGate = useRef(new MediaRetryGate()).current;
 
   usePauseOnBackground(player);
 
@@ -146,10 +132,16 @@ function AudioPlayer({
   };
 
   const handleRetry = () => {
+    if (!retryGate.tryStart()) {
+      return;
+    }
+
     try {
       player.replace(source);
     } catch {
       // Status updates keep the error state visible if reloading fails.
+    } finally {
+      retryGate.finish();
     }
   };
 
@@ -213,6 +205,7 @@ function VideoPlayer({
   const { isPlaying } = useEvent(player, 'playingChange', {
     isPlaying: player.playing,
   });
+  const retryGate = useRef(new MediaRetryGate()).current;
   const activated = useRef(false);
   const pendingActivation = useRef(false);
   const mounted = useRef(true);
@@ -222,6 +215,7 @@ function VideoPlayer({
   usePauseOnBackground(player);
 
   useEffect(() => {
+    mounted.current = true;
     return () => {
       mounted.current = false;
     };
@@ -269,6 +263,10 @@ function VideoPlayer({
     !hasError && (isRetrying || status === 'idle' || status === 'loading');
 
   const handleRetry = async () => {
+    if (!retryGate.tryStart()) {
+      return;
+    }
+
     setRetryFailed(false);
     setIsRetrying(true);
 
@@ -279,6 +277,7 @@ function VideoPlayer({
         setRetryFailed(true);
       }
     } finally {
+      retryGate.finish();
       if (mounted.current) {
         setIsRetrying(false);
       }

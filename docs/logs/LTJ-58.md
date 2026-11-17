@@ -128,14 +128,14 @@ Home toggle
 
 ### 4.5. Dependency
 
-- Chạy `npm ci --legacy-peer-deps` để cài đúng lockfile. Không thay đổi `package.json`/`package-lock.json`, không upgrade Expo/RN.
+- Chạy `npm ci --legacy-peer-deps` để cài đúng lockfile. Final M3 audit thêm `test-renderer@1.3.0` làm devDependency cho hook tests; không upgrade Expo/RN/runtime dependency.
 
 ## 5. Kiểm thử tự động
 
 | Check | Kết quả |
 |---|---|
 | `npm ci --legacy-peer-deps` | PASS |
-| Jest (`npx jest --ci --runInBand`) | PASS — 9 suites, 84 tests |
+| Jest (`npx jest --ci --runInBand`) | PASS — 12 suites, 108 tests (final M3 audit) |
 | Source TypeScript (`tsc` chỉ `src/**`) | PASS |
 | `npm run lint` | PASS |
 | Expo config introspection | PASS |
@@ -149,7 +149,7 @@ Tests mới trong `mobile/src/services/__tests__/beaconTrigger.test.ts`:
 
 Các test này **không** thay thế kiểm thử phần cứng.
 
-`npx tsc --noEmit` toàn repo còn 3 lỗi từ file Playwright **untracked** (`playwright.config.ts`, `tests/e2e/...`) thiếu `@playwright/test`; không liên quan thay đổi LTJ-58.
+`npx tsc --noEmit` toàn repo PASS trong final M3 audit.
 
 ## 6. Backend + Docker verification
 
@@ -181,7 +181,7 @@ Kết quả:
 | Gửi lại cùng `eventId` | 200, “already recorded” |
 | DB rows theo `eventId` | 1 |
 
-Lưu ý: file **untracked** `backend/src/test/java/com/university/backend/controller/InteractionControllerTest.java` gọi `findByEventIdWithRelations(...)` không tồn tại, làm `mvn package`/`docker compose build` fail. File không thuộc LTJ-58 và không bị sửa; khi build kiểm chứng đã tạm di chuyển ra ngoài rồi khôi phục.
+Lưu ý: đây là bằng chứng Docker lịch sử của Wave 4. Máy final M3 audit không có Docker daemon; xem mục 11.5 cho phạm vi chạy lại.
 
 ## 7. Native build và thiết bị vật lý
 
@@ -227,8 +227,9 @@ schema thật thay vì chỉ H2/unit test.
 
 ### 9.2. Test bổ sung
 
-File mới: `backend/src/test/java/com/university/backend/integration/BeaconPostgresIT.java`
-(profile `postgres-test`, PostgreSQL 16, Flyway thật).
+File ban đầu: `backend/src/test/java/com/university/backend/integration/BeaconPostgresIT.java`
+(profile `postgres-test`, PostgreSQL 16, Flyway thật). Trong final audit file này đã
+được hợp nhất vào `BeaconResolutionIntegrityIT` và xóa để tránh suite trùng; xem mục 11.
 
 - Schema: unique identity, check range, FK artifact/beacon, 3 index liên quan, migration V3.
 - Resolve enabled/disabled/unknown/unmapped.
@@ -258,11 +259,80 @@ Kết quả chạy:
 - `mobile/src/services/beacon/trigger.ts` — thêm cooldown per beacon.
 - `mobile/src/services/beacon/beaconService.ts` — thêm subscription `onScannerStateChanged`.
 - `mobile/src/hooks/use-beacon-discovery.ts` — focus lifecycle, scanner state handling, resolve error handling, start guard.
-- `mobile/src/services/__tests__/beaconTrigger.test.ts` — test cooldown.
+- `mobile/src/services/__tests__/beaconTrigger.test.ts` — cooldown tests, including same UUID/different major-minor.
+- `mobile/src/hooks/__tests__/use-beacon-discovery.test.tsx` — focus/AppState/stale-resolve lifecycle tests.
 - `mobile/README.md` — cập nhật mô tả foreground lifecycle/cooldown.
 - `docs/features/ibeacon-mobile-integration.md` — cập nhật trigger rules, lifecycle, verification evidence.
-- `backend/src/test/java/com/university/backend/integration/BeaconPostgresIT.java` — PostgreSQL integrity/performance tests.
+- `backend/src/test/java/com/university/backend/integration/BeaconResolutionIntegrityIT.java` — consolidated PostgreSQL integrity/performance coverage (duplicate `BeaconPostgresIT` removed).
 - `docs/testing/sprint-5-beacon-physical-demo-checklist.md` — checklist demo 2 beacon trên thiết bị thật.
 - `docs/logs/LTJ-58.md` — log này.
 
 Không thay đổi backend API contract, schema, hay hành vi Artifact/interaction.
+
+## 11. Final M3 audit, integration and hardening (2026-11-17)
+
+### 11.1. Integration
+
+- Merged `origin/main` @ `a4e20b3` into `LTJ-58` with a normal merge commit
+  `aa7af8d69a73c12541d5d2fbdf48494c66aac440`; no rebase/reset/force-push.
+- Auto-merged only `docs/features/ibeacon-mobile-integration.md`; no conflicts.
+- Existing M3 work preserved; no backend API/schema production change.
+
+### 11.2. Beacon lifecycle fixes
+
+- Added a scan-session token in `use-beacon-discovery.ts`. A resolve response that
+  arrives after blur/background/disable is ignored, so it cannot update the banner,
+  status, or record a stale interaction.
+- The ranging callback now checks `enabled`, `focused`, and `scanning` before doing
+  any work.
+- Repeated AppState `background` events no longer call stop repeatedly; stop runs
+  only while the scanner is actually active. Foreground/focus/start guards remain
+  idempotent.
+- Cooldown remains per canonical identity `UUID + Major + Minor`; `reset()` does not
+  clear cooldown. Beacon A and Beacon B can both trigger inside the same 60-second
+  window, while the same beacon cannot re-trigger after pause/resume.
+
+### 11.3. Regression tests
+
+- `mobile/src/services/__tests__/beaconTrigger.test.ts`: same UUID with different
+  `major/minor` has an independent cooldown; original identity remains suppressed.
+- `mobile/src/hooks/__tests__/use-beacon-discovery.test.tsx`: 6 tests covering
+  duplicate focus/start prevention, blur stop, background/foreground idempotency,
+  listener cleanup on unmount, Bluetooth unavailable, scanner-state revocation, and
+  stale in-flight resolve from a previous session.
+
+### 11.4. Backend test consolidation
+
+- Removed duplicate `BeaconPostgresIT` (8 tests) after comparing it with M2
+  `BeaconResolutionIntegrityIT`.
+- Preserved its unique coverage by adding to `BeaconResolutionIntegrityIT`:
+  direct-PostgreSQL rejection of out-of-range rows / unknown artifact, and
+  `ON DELETE SET NULL` behavior for `visitor_interaction.beacon_id`.
+- Added missing schema assertions for `fk_visitor_interaction_beacon`,
+  `idx_visitor_interaction_beacon_id`, and the `visitor_interaction.beacon_id`
+  column.
+- CI report threshold updated from 15 to 17 tests for this class.
+
+### 11.5. Verification run
+
+| Check | Result |
+|---|---|
+| Backend unit tests | PASS — 154 tests |
+| `BeaconResolutionIntegrityIT` on PostgreSQL 16 | PASS — 17 tests |
+| Full PostgreSQL suite locally | PARTIAL — `VisitorInteractionPostgresIT` 22, `BeaconResolutionIntegrityIT` 17, `ArtifactQueryOptimizationIT` 5 passed; `DatabaseMigrationIT`/`SchemaDetectorIT` require Docker/Testcontainers, unavailable locally |
+| Mobile Jest | PASS — 12 suites, 108 tests |
+| Mobile TypeScript (`npx tsc --noEmit`) | PASS |
+| Mobile lint (`npm run lint`) | PASS |
+| Native Android build/device | NOT VERIFIED — no Android SDK/ADB/Gradle/device |
+| iOS | UNVERIFIED — no macOS/Xcode/device |
+
+`test-renderer@1.3.0` was added as a mobile devDependency so hook lifecycle tests
+can run in the existing Jest setup; no production dependency changed.
+
+### 11.6. S5-M3-01 status
+
+- Software implementation, automated tests, source review, and permission audit:
+  PASS.
+- Native build, real BLE ranging, and physical-device behavior remain **NOT
+  VERIFIED**. S5-M3-01 stays **NOT FULLY ACCEPTED** until
+  `docs/testing/sprint-5-beacon-physical-demo-checklist.md` is executed on hardware.

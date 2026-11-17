@@ -129,10 +129,10 @@ Các pure function:
 
 | Check | Kết quả |
 |---|---|
-| Jest (`npx jest --ci --runInBand`) | **PASS** — 10 suites, 99 tests |
+| Jest (`npx jest --ci --runInBand`) | **PASS** — 12 suites, 108 tests (final M3 audit) |
 | `npm run lint` | **PASS** |
 | Source TypeScript (`tsc` chỉ `src/**`) | **PASS** |
-| `npx tsc --noEmit` toàn repo | **FAIL** — 3 lỗi từ file Playwright **untracked** thiếu `@playwright/test`; không liên quan LTJ-59 |
+| `npx tsc --noEmit` toàn repo | **PASS** (final M3 audit) |
 | Docker build backend | **PASS** (dùng image `ltj59-backend`) |
 
 Test mới `mobile/src/services/__tests__/mediaPlayback.test.ts`:
@@ -178,7 +178,7 @@ Seed site/artifact/multimedia gồm IMAGE, AUDIO, VIDEO, AUDIO URL lỗi và typ
 
 Compose project `ltj59` đã được `down -v`, không ảnh hưởng stack dev.
 
-Lưu ý: file untracked `backend/src/test/java/.../InteractionControllerTest.java` làm `mvn package` fail; khi build đã tạm move ra ngoài và khôi phục, không sửa file.
+Lưu ý: đây là bằng chứng Docker lịch sử của Wave 4; máy final M3 audit không có Docker daemon.
 
 ## 6. Physical verification checklist
 
@@ -208,13 +208,15 @@ Checklist cần chạy trên development build thật, không dùng Expo Go đ�
 5. Không có background audio/playback service; app chủ động pause khi vào background.
 6. Backend không validate media URL; client hiển thị trạng thái không khả dụng.
 7. Dev Docker volume vẫn lệch schema; cần repair/`down -v` riêng nếu muốn dùng lại stack dev.
-8. Full-repo `tsc` còn lỗi từ file Playwright untracked.
+8. Full-repo `tsc` đã PASS trong final M3 audit.
 
 ## 8. Files changed
 
 - `mobile/src/services/media/url.ts` — URL validation dùng chung.
-- `mobile/src/services/media/playback.ts` — playback/lifecycle helpers.
-- `mobile/src/services/__tests__/mediaPlayback.test.ts` — test helpers.
+- `mobile/src/services/media/playback.ts` — playback/lifecycle helpers, retry gate.
+- `mobile/src/hooks/use-pause-on-background.ts` — AppState pause hook extracted for lifecycle testing.
+- `mobile/src/services/__tests__/mediaPlayback.test.ts` — helper/retry-gate tests.
+- `mobile/src/hooks/__tests__/use-pause-on-background.test.tsx` — background pause/listener cleanup test.
 - `mobile/src/components/multimedia-player.tsx` — loading/error/retry, exclusive playback, background pause, unknown type.
 - `mobile/src/app/artifact_detail.tsx` — multimedia loading/error/retry, active media, focus pause, unknown section.
 - `mobile/src/services/heritageApi.ts` — re-export URL validation.
@@ -222,3 +224,45 @@ Checklist cần chạy trên development build thật, không dùng Expo Go đ�
 - `docs/logs/LTJ-59.md` — log này.
 
 Không thay đổi backend API contract, schema, navigation hay interaction contract.
+
+## 9. Final M3 audit and hardening (2026-11-17)
+
+### 9.1. Retry/lifecycle fixes
+
+- Added `MediaRetryGate` so overlapping audio/video retry taps cannot issue
+  duplicate `replace`/`replaceAsync` calls. The gate is released on both success
+  and failure.
+- Video retry now re-arms its mounted ref on mount and still suppresses state
+  updates after unmount.
+- Background pause was extracted to `usePauseOnBackground`; the AppState listener
+  pauses on `background`/`inactive`, does not auto-resume, and removes itself on
+  unmount.
+- Existing source switching behavior remains keyed by multimedia id; no media
+  library or API contract changed.
+
+### 9.2. Regression tests
+
+- `mediaPlayback.test.ts`: retry gate rejects overlapping starts and allows a new
+  retry after completion.
+- `use-pause-on-background.test.tsx`: background/inactive pause, active no-op, and
+  listener cleanup on unmount.
+- Existing helper tests continue to cover loading/error/activation/exclusive
+  playback decisions.
+
+### 9.3. Verification run
+
+| Check | Result |
+|---|---|
+| Mobile Jest | PASS — 12 suites, 108 tests |
+| `npx tsc --noEmit` | PASS |
+| `npm run lint` | PASS |
+| Android audio/video/lifecycle | NOT VERIFIED — no device/native build |
+| iOS audio/video/lifecycle | UNVERIFIED — no macOS/Xcode/device |
+
+### 9.4. Status
+
+- S5-M3-02 software implementation and automated regression coverage: PASS from
+  source review and tests.
+- Real playback, codec, audio focus, background behavior, and retry on a physical
+  device remain **NOT VERIFIED**; use the physical demo checklist before claiming
+  full acceptance.

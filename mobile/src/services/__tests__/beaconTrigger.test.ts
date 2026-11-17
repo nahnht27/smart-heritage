@@ -112,6 +112,23 @@ describe('BeaconTriggerController', () => {
     ).not.toBeNull();
   });
 
+  it('keeps cooldowns per canonical identity for the same UUID', () => {
+    const controller = new BeaconTriggerController();
+
+    controller.observe(reading(-70), 0);
+    expect(controller.observe(reading(-70), 2000)).not.toBeNull();
+    controller.reset();
+
+    controller.observe(reading(-70, { major: 1, minor: 2 }), 3000);
+    expect(
+      controller.observe(reading(-70, { major: 1, minor: 2 }), 5000),
+    ).not.toBeNull();
+
+    controller.reset();
+    controller.observe(reading(-70), 6000);
+    expect(controller.observe(reading(-70), 8000)).toBeNull();
+  });
+
   it('treats the configured threshold as inside', () => {
     const controller = new BeaconTriggerController({
       ...DEFAULT_BEACON_TRIGGER_OPTIONS,
