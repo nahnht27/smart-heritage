@@ -103,7 +103,7 @@ jobs:
               "DatabaseMigrationIT": 12,
               "SchemaDetectorIT": 16,
               "ArtifactQueryOptimizationIT": 5,
-              "BeaconResolutionIntegrityIT": 15,
+              "BeaconResolutionIntegrityIT": 17,
           }
           failed = False
           for class_name, minimum in expected.items():

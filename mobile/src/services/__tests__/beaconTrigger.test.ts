@@ -1,6 +1,7 @@
 import {
   BeaconTriggerController,
   DEFAULT_BEACON_TRIGGER_OPTIONS,
+  DEFAULT_TRIGGER_COOLDOWN_MS,
 } from '../beacon/trigger';
 import type { BeaconReading } from '../beacon/ibeacon';
 
@@ -55,7 +56,10 @@ describe('BeaconTriggerController', () => {
   });
 
   it('requires the exit delay before a beacon can trigger again', () => {
-    const controller = new BeaconTriggerController();
+    const controller = new BeaconTriggerController({
+      ...DEFAULT_BEACON_TRIGGER_OPTIONS,
+      cooldownMs: 0,
+    });
 
     controller.observe(reading(-70), 0);
     expect(controller.observe(reading(-70), 2000)).not.toBeNull();
@@ -65,6 +69,64 @@ describe('BeaconTriggerController', () => {
 
     expect(controller.observe(reading(-70), 7000)).toBeNull();
     expect(controller.observe(reading(-70), 9000)).not.toBeNull();
+  });
+
+  it('suppresses a second trigger for the same beacon inside the cooldown', () => {
+    const controller = new BeaconTriggerController();
+
+    controller.observe(reading(-70), 0);
+    expect(controller.observe(reading(-70), 2000)).not.toBeNull();
+
+    controller.reset();
+    expect(controller.size).toBe(0);
+
+    controller.observe(reading(-70), 3000);
+    expect(controller.observe(reading(-70), 5000)).toBeNull();
+    expect(controller.getState(`${UUID}:1:1`)).toBe('inside');
+  });
+
+  it('allows a new trigger once the cooldown expires', () => {
+    const controller = new BeaconTriggerController();
+
+    controller.observe(reading(-70), 0);
+    expect(controller.observe(reading(-70), 2000)).not.toBeNull();
+    controller.reset();
+
+    const retryAt = 2000 + DEFAULT_TRIGGER_COOLDOWN_MS;
+    controller.observe(reading(-70), retryAt);
+    expect(
+      controller.observe(reading(-70), retryAt + 2000),
+    ).not.toBeNull();
+  });
+
+  it('keeps cooldowns per beacon', () => {
+    const controller = new BeaconTriggerController();
+
+    controller.observe(reading(-70), 0);
+    expect(controller.observe(reading(-70), 2000)).not.toBeNull();
+    controller.reset();
+
+    controller.observe(reading(-70, { uuid: OTHER_UUID }), 3000);
+    expect(
+      controller.observe(reading(-70, { uuid: OTHER_UUID }), 5000),
+    ).not.toBeNull();
+  });
+
+  it('keeps cooldowns per canonical identity for the same UUID', () => {
+    const controller = new BeaconTriggerController();
+
+    controller.observe(reading(-70), 0);
+    expect(controller.observe(reading(-70), 2000)).not.toBeNull();
+    controller.reset();
+
+    controller.observe(reading(-70, { major: 1, minor: 2 }), 3000);
+    expect(
+      controller.observe(reading(-70, { major: 1, minor: 2 }), 5000),
+    ).not.toBeNull();
+
+    controller.reset();
+    controller.observe(reading(-70), 6000);
+    expect(controller.observe(reading(-70), 8000)).toBeNull();
   });
 
   it('treats the configured threshold as inside', () => {

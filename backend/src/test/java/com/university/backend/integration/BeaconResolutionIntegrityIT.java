@@ -29,6 +29,11 @@ import com.university.backend.dto.BeaconResponse;
 import com.university.backend.exception.DuplicateResourceException;
 import com.university.backend.service.BeaconService;
 
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,13 +41,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -85,6 +85,7 @@ class BeaconResolutionIntegrityIT {
     private PlatformTransactionManager transactionManager;
 
     private final List<Integer> createdBeaconIds = new ArrayList<>();
+    private final List<UUID> createdInteractionEventIds = new ArrayList<>();
 
     private UUID beaconUuid;
     private Integer artifactId;
@@ -117,6 +118,12 @@ class BeaconResolutionIntegrityIT {
 
     @AfterEach
     void cleanUp() {
+        for (UUID eventId : createdInteractionEventIds) {
+            jdbcTemplate.update(
+                    "DELETE FROM visitor_interaction WHERE event_id = ?::uuid",
+                    eventId.toString());
+        }
+
         if (!createdBeaconIds.isEmpty()) {
             beaconRepository.deleteAllById(createdBeaconIds);
         }
@@ -382,6 +389,72 @@ class BeaconResolutionIntegrityIT {
     }
 
     @Test
+    void postgresRejectsOutOfRangeBeaconRowsAndUnknownArtifact() {
+        UUID invalidUuid = UUID.randomUUID();
+
+        assertThrows(
+                DataIntegrityViolationException.class,
+                () -> jdbcTemplate.update(
+                        "INSERT INTO beacon "
+                                + "(name, proximity_uuid, major, minor, enabled, artifact_id) "
+                                + "VALUES ('Invalid major', ?::uuid, 65536, 1, true, ?)",
+                        invalidUuid.toString(),
+                        artifactId));
+
+        assertThrows(
+                DataIntegrityViolationException.class,
+                () -> jdbcTemplate.update(
+                        "INSERT INTO beacon "
+                                + "(name, proximity_uuid, major, minor, enabled, artifact_id) "
+                                + "VALUES ('Invalid minor', ?::uuid, 1, -1, true, ?)",
+                        invalidUuid.toString(),
+                        artifactId));
+
+        assertThrows(
+                DataIntegrityViolationException.class,
+                () -> jdbcTemplate.update(
+                        "INSERT INTO beacon "
+                                + "(name, proximity_uuid, major, minor, enabled, artifact_id) "
+                                + "VALUES ('Unknown artifact', ?::uuid, 2, 2, true, ?)",
+                        invalidUuid.toString(),
+                        Integer.MAX_VALUE - 1));
+    }
+
+    @Test
+    void deletingBeaconKeepsInteractionAndClearsBeaconReference() {
+        Beacon beacon = createBeacon(beaconUuid, MAJOR, MINOR, true, true);
+        UUID eventId = UUID.randomUUID();
+        createdInteractionEventIds.add(eventId);
+        Instant now = Instant.parse("2026-11-15T10:00:00Z");
+
+        jdbcTemplate.update(
+                "INSERT INTO visitor_interaction "
+                        + "(event_id, visitor_id, user_id, artifact_id, beacon_id, "
+                        + "interaction_type, language_code, started_at, ended_at, "
+                        + "duration_seconds, interacted_at) "
+                        + "VALUES (?::uuid, ?::uuid, null, ?, ?, "
+                        + "'BEACON_TRIGGER', 'vi', ?, ?, 30, ?)",
+                eventId.toString(),
+                UUID.randomUUID().toString(),
+                artifactId,
+                beacon.getBeaconId(),
+                Timestamp.from(now),
+                Timestamp.from(now.plusSeconds(30)),
+                Timestamp.from(now));
+
+        beaconService.deleteBeacon(beacon.getBeaconId());
+
+        assertTrue(beaconRepository.findById(beacon.getBeaconId()).isEmpty());
+        assertEquals(
+                Integer.valueOf(1),
+                jdbcTemplate.queryForObject(
+                        "SELECT count(*) FROM visitor_interaction "
+                                + "WHERE event_id = ?::uuid AND beacon_id IS NULL",
+                        Integer.class,
+                        eventId.toString()));
+    }
+
+    @Test
     void publicResolveRejectsInvalidUuid() throws Exception {
         mockMvc.perform(get("/api/beacons/resolve")
                         .param("uuid", "invalid-uuid")
@@ -550,6 +623,33 @@ class BeaconResolutionIntegrityIT {
                                 + "AND tablename = 'beacon' "
                                 + "AND indexname = 'idx_beacon_artifact_id'",
                         String.class));
+
+        assertEquals(
+                "fk_visitor_interaction_beacon",
+                jdbcTemplate.queryForObject(
+                        "SELECT conname FROM pg_constraint "
+                                + "WHERE conrelid = 'public.visitor_interaction'::regclass "
+                                + "AND contype = 'f' "
+                                + "AND conname = 'fk_visitor_interaction_beacon'",
+                        String.class));
+
+        assertEquals(
+                "idx_visitor_interaction_beacon_id",
+                jdbcTemplate.queryForObject(
+                        "SELECT indexname FROM pg_indexes "
+                                + "WHERE schemaname = 'public' "
+                                + "AND tablename = 'visitor_interaction' "
+                                + "AND indexname = 'idx_visitor_interaction_beacon_id'",
+                        String.class));
+
+        assertEquals(
+                Integer.valueOf(1),
+                jdbcTemplate.queryForObject(
+                        "SELECT count(*) FROM information_schema.columns "
+                                + "WHERE table_schema = 'public' "
+                                + "AND table_name = 'visitor_interaction' "
+                                + "AND column_name = 'beacon_id'",
+                        Integer.class));
     }
 
     @Test

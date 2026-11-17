@@ -8,12 +8,14 @@ export const DEFAULT_RSSI_THRESHOLD = -75;
 export const DEFAULT_ENTRY_DELAY_MS = 2000;
 export const DEFAULT_EXIT_DELAY_MS = 3000;
 export const DEFAULT_STALE_DELAY_MS = 3000;
+export const DEFAULT_TRIGGER_COOLDOWN_MS = 60_000;
 
 export interface BeaconTriggerOptions {
   rssiThreshold: number;
   entryDelayMs: number;
   exitDelayMs: number;
   staleDelayMs: number;
+  cooldownMs: number;
 }
 
 export const DEFAULT_BEACON_TRIGGER_OPTIONS: BeaconTriggerOptions = {
@@ -21,6 +23,7 @@ export const DEFAULT_BEACON_TRIGGER_OPTIONS: BeaconTriggerOptions = {
   entryDelayMs: DEFAULT_ENTRY_DELAY_MS,
   exitDelayMs: DEFAULT_EXIT_DELAY_MS,
   staleDelayMs: DEFAULT_STALE_DELAY_MS,
+  cooldownMs: DEFAULT_TRIGGER_COOLDOWN_MS,
 };
 
 export interface BeaconTriggerEvent {
@@ -42,6 +45,7 @@ interface BeaconState {
 
 export class BeaconTriggerController {
   private readonly states = new Map<string, BeaconState>();
+  private readonly lastTriggeredAt = new Map<string, number>();
 
   constructor(
     private readonly options: BeaconTriggerOptions =
@@ -75,6 +79,16 @@ export class BeaconTriggerController {
         ) {
           state.status = 'inside';
           this.states.set(key, state);
+
+          const lastTriggered = this.lastTriggeredAt.get(key);
+          if (
+            lastTriggered !== undefined &&
+            now - lastTriggered < this.options.cooldownMs
+          ) {
+            return null;
+          }
+
+          this.lastTriggeredAt.set(key, now);
           return {
             identity: {
               uuid: reading.uuid,

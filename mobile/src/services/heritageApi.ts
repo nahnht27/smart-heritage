@@ -17,6 +17,9 @@
  */
 
 import { apiClient } from './api';
+import { isUsableMediaUrl } from './media/url';
+
+export { isUsableMediaUrl } from './media/url';
 
 export interface HeritageSite {
   id: number;
@@ -65,16 +68,6 @@ export function normalizeMultimediaType(
   return (SUPPORTED_MULTIMEDIA_TYPES as string[]).includes(normalized)
     ? (normalized as MultimediaType)
     : 'UNKNOWN';
-}
-
-/**
- * Accept only absolute HTTP(S) URLs. `null`, empty strings, relative paths and
- * malformed values must never reach `<Image />`.
- */
-export function isUsableMediaUrl(
-  url: string | null | undefined,
-): url is string {
-  return typeof url === 'string' && /^https?:\/\/\S+$/i.test(url.trim());
 }
 
 /**

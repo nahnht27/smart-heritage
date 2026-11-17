@@ -138,9 +138,22 @@ mobile/
 - Home có toggle “Khám phá bằng beacon”; khi bật, app xin quyền Bluetooth/vị trí, quét iBeacon và resolve qua `GET /api/beacons/resolve`.
 - Banner trong app cho phép mở chi tiết hiện vật; app ghi `BEACON_TRIGGER` với `beaconId`.
 - Native permissions được cấu hình bởi `plugins/with-beacon-permissions.js`.
+- Scanner chỉ chạy khi toggle bật, Home đang focus và app ở foreground; rời màn hình/background sẽ dừng và cleanup.
+- Cooldown 60 giây cho mỗi beacon ngăn resolve/ghi `BEACON_TRIGGER` trùng khi pause/resume hoặc quay lại màn hình.
+- Thay đổi Bluetooth/vị trí/quyền khi đang quét được phản ánh thành trạng thái lỗi rõ ràng và tắt toggle.
 - Background scanning và foreground service **chưa triển khai**.
 - Native build/device verification **chưa chạy** trong môi trường hiện tại; không dùng Expo Go để kết luận beacon hoạt động.
 - Chi tiết: [`docs/features/ibeacon-mobile-integration.md`](../docs/features/ibeacon-mobile-integration.md).
+
+### Multimedia (Artifact Detail)
+- Ảnh, audio và video được tải từ `GET /api/multimedia?artifactId={id}`.
+- Audio/video có loading state, thông báo lỗi thân thiện và nút “Thử lại” tại chỗ.
+- Chỉ một audio/video phát tại một thời điểm; player khác tự pause khi media mới bắt đầu.
+- Player tự pause khi rời Artifact Detail hoặc app vào background; không tự phát lại khi foreground.
+- Player được Expo auto-release khi unmount; không release thủ công.
+- Chỉ URL `http(s)` được phát; audio/video URL lỗi hiển thị trạng thái không khả dụng, ảnh lỗi dùng placeholder. Media type lạ nằm trong section “Nội dung khác”.
+- Playback thực tế, codec và lifecycle trên thiết bị **chưa được kiểm chứng** trong môi trường hiện tại.
+- Chi tiết: [`docs/logs/LTJ-59.md`](../docs/logs/LTJ-59.md).
 
 ### Cấu trúc thư mục (bổ sung)
 ```
