@@ -152,7 +152,9 @@ Khi resolve beacon:
 
 ### 5.1. Schema
 
-Migration: `backend/src/main/resources/db/migration/V3__beacon_management.sql`.
+Migration: `backend/src/main/resources/db/migration/V3__beacon_management.sql`;
+`V4__normalize_legacy_schema.sql` chuẩn hoá index/check/default/FK cho database
+cũ do Hibernate tạo.
 
 Bảng `beacon`:
 
@@ -430,6 +432,7 @@ Background scanning được giữ ở trạng thái **DEFERRED** vì:
 - `mobile/plugins/with-beacon-permissions.js`
 - `mobile/app.json`
 - `backend/src/main/resources/db/migration/V3__beacon_management.sql`
+- `backend/src/main/resources/db/migration/V4__normalize_legacy_schema.sql`
 - `backend/src/main/java/com/university/backend/entity/Beacon.java`
 - `backend/src/main/java/com/university/backend/service/BeaconService.java`
 - `backend/src/main/java/com/university/backend/service/VisitorInteractionService.java`

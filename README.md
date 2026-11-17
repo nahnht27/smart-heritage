@@ -205,8 +205,14 @@ Compose development ở trên vẫn giữ nguyên cho local.
 - **Password**: `postgres`
 - **Port**: `5432`
 
-Docker tự tạo database khi chạy lần đầu. Data được lưu trong Docker volume
-`postgres_data`. Không dùng `docker compose down -v` nếu muốn giữ dữ liệu.
+Docker tự tạo database khi chạy lần đầu. Backend chạy Flyway migration V1–V4
+khi database trống, sau đó Hibernate chỉ `validate` schema. Data được lưu trong
+Docker volume `postgres_data`; không dùng `docker compose down -v` nếu muốn giữ
+dữ liệu.
+
+- Migration strategy: [`docs/database/migration-strategy.md`](docs/database/migration-strategy.md)
+- Baseline database cũ: [`docs/database/schema-baseline.md`](docs/database/schema-baseline.md)
+- Development setup: [`docs/database/development-setup.md`](docs/database/development-setup.md)
 
 ## Troubleshooting
 
