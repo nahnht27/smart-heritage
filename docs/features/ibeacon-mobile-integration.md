@@ -457,3 +457,88 @@ LTJ-58:
 - Phạm vi: cooldown chống ghi trùng, focus/blur lifecycle, scanner environment changes, làm rõ lỗi resolve, phục hồi dependency lockfile.
 - Không thay đổi API contract backend.
 - Native build + physical device verification: **NOT VERIFIED** (xem 6.4/6.5).
+
+## 12. Final native build/device acceptance attempt (2026-11-18)
+
+Phần này bổ sung kết quả sau khi PR #37 merge (`e2a012c`). Kết quả lịch sử “chưa
+build được” ở mục 6.4 vẫn được giữ nguyên; lần chạy này đã build được APK Android
+nhưng vẫn chưa có thiết bị hoặc beacon vật lý.
+
+### 12.1. Môi trường thực tế
+
+| Capability | Available | Evidence |
+|---|---|---|
+| Android SDK | Có | Command-line tools `11076708`, Platform 36, Build Tools 36.0.0 |
+| ADB | Có | `1.0.41` / platform-tools `37.0.1` |
+| Java/JDK | Có | Temurin OpenJDK `17.0.21` |
+| Connected Android device | Không | `adb devices -l` rỗng |
+| Physical iBeacon | Không | Không có hardware |
+| Backend test environment | Không chạy trong phiên device test | Không có device để gọi API |
+| Test media assets | Không kiểm chứng trên device | Không có device; URLs thật chưa xác minh |
+| iOS/Xcode | Không | Không có macOS/Xcode |
+
+### 12.2. Build result
+
+```bash
+cd mobile
+npx expo config --type public
+npx expo prebuild --platform android --no-install
+cd android
+CMAKE_BUILD_PARALLEL_LEVEL=2 ./gradlew assembleDebug \
+  --no-daemon --console=plain --max-workers=1 \
+  -PreactNativeArchitectures=arm64-v8a \
+  -Dorg.gradle.jvmargs='-Xmx1280m -XX:MaxMetaspaceSize=384m' \
+  -Pkotlin.daemon.jvmargs='-Xmx1024m'
+```
+
+- Result: **PASS**, `BUILD SUCCESSFUL in 8m 27s`.
+- APK: `/home/adminn/.cache/m3-tools/artifacts/smart-heritage-m3-arm64-debug.apk`
+- SHA-256: `4095a0a07ad439a59d54644da6364e44e14526e6d29628eb3aa36f29f4397328`
+- Size: `84,855,698` bytes; ABI `arm64-v8a`; minSdk `24`, target/compileSdk `36`.
+- Package: `com.anonymous.app_temp` (prebuild-generated temporary id; not committed).
+- `apksigner verify` PASS (APK Signature Scheme v2); `zipalign -c 4` PASS.
+- Autolinking có `com.reactnativebeacon.BeaconPackage`; DEX có
+  `com.reactnativebeacon.*`; native module compile/link thành công.
+- Manifest có `ACCESS_FINE_LOCATION`, `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`;
+  background location, advertising và foreground-service permissions bị remove.
+
+Lần build đầu bị daemon OOM trên máy 5.7 GiB RAM khi dùng heap 2048 MiB và build
+song song; lần chạy lại với một ABI/một worker/heap thấp hơn thành công.
+
+### 12.3. Physical verification status
+
+| Hạng mục | Trạng thái |
+|---|---|
+| Native Android build | **VERIFIED** |
+| Cài APK lên thiết bị | **NOT VERIFIED** — không có device |
+| BLE advertisement/detection thật | **NOT VERIFIED** |
+| Beacon → Resolve → Artifact → Interaction | **NOT VERIFIED** |
+| Cooldown A/B với hai beacon vật lý | **NOT VERIFIED** |
+| Permission grant/deny/revoke runtime | **NOT VERIFIED** |
+| Scanner lifecycle trên device | **NOT VERIFIED** |
+| Audio/video playback thật | **NOT VERIFIED** |
+| iOS build/device | **NOT VERIFIED** |
+
+Không có screenshot, log BLE hay bản ghi PostgreSQL từ device trong phiên này;
+không claim hardware success.
+
+### 12.4. Manual acceptance procedure còn lại
+
+1. Cài APK arm64 debug lên Android phone có BLE.
+2. Cấu hình beacon thật với UUID/Major/Minor; hiện Admin Web `/beacons` vẫn là
+   placeholder nên dùng Admin API hoặc SQL để tạo/map beacon với Artifact.
+3. Chạy backend + PostgreSQL, cấu hình backend URL trong app theo IP LAN.
+4. Cấp quyền Bluetooth/vị trí, bật Bluetooth, mở Home và bật quét beacon.
+5. Thực hiện Test A/B/C trong
+   `docs/testing/sprint-5-beacon-physical-demo-checklist.md`; lưu log đã redact,
+   screenshot và query PostgreSQL `BEACON_TRIGGER`.
+6. Chạy checklist audio/video và lifecycle trên cùng device; ghi rõ pass/fail.
+7. Chỉ cập nhật acceptance thành PASS khi có bằng chứng thiết bị thật.
+
+### 12.5. Kết luận
+
+- S5-M3-01: software + automated tests PASS; native Android build **VERIFIED**;
+  physical BLE **NOT VERIFIED** → **NOT FULLY ACCEPTED**.
+- S5-M3-02: software + automated tests PASS; native build PASS; real-device media
+  **NOT VERIFIED** → chưa fully accepted trên hardware.
+- iOS: **NOT VERIFIED**.

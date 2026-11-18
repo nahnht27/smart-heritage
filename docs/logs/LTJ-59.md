@@ -266,3 +266,47 @@ Không thay đổi backend API contract, schema, navigation hay interaction cont
 - Real playback, codec, audio focus, background behavior, and retry on a physical
   device remain **NOT VERIFIED**; use the physical demo checklist before claiming
   full acceptance.
+
+## 10. Final media device acceptance attempt (2026-11-18)
+
+### 10.1. Native build available
+
+Android arm64 debug APK đã build thành công từ PR #37 merge commit
+`e2a012cbb9274eb86d6d760a6bb60d506cb46bae`:
+
+- APK: `/home/adminn/.cache/m3-tools/artifacts/smart-heritage-m3-arm64-debug.apk`
+- SHA-256: `4095a0a07ad439a59d54644da6364e44e14526e6d29628eb3aa36f29f4397328`
+- Kích thước: `84,855,698` bytes
+- ABI: `arm64-v8a`
+- `adb devices -l`: rỗng, không có thiết bị để cài/chạy.
+
+### 10.2. Physical playback tests
+
+**NOT VERIFIED.** Không có thiết bị Android/iOS kết nối, nên chưa có bằng chứng
+thực tế cho:
+
+- Audio loading, sound output, pause khi navigate/background.
+- Video surface, native controls, fullscreen, audio/video exclusivity.
+- No-auto-resume sau foreground.
+- Network failure + retry thật.
+- Source release khi đổi Artifact, async callback cũ, duplicate player/retry.
+- Unmount cleanup và leak listener trên device.
+
+Jest dùng mocked player, không phải bằng chứng playback phần cứng.
+
+### 10.3. Regression
+
+| Check | Kết quả |
+|---|---|
+| Mobile Jest | PASS — 12 suites, 108 tests |
+| `npx tsc --noEmit` | PASS |
+| `npm run lint` | PASS |
+| Native Android build | PASS — arm64 debug APK |
+| Real audio/video playback | **NOT VERIFIED** |
+| iOS | **NOT VERIFIED** |
+
+### 10.4. Kết luận S5-M3-02
+
+Software implementation và automated regression: PASS. Native build: PASS.
+Real-device playback/lifecycle: **NOT VERIFIED**. S5-M3-02 chưa thể coi là fully
+accepted trên phần cứng cho đến khi chạy checklist media trên thiết bị thật.

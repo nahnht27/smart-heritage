@@ -336,3 +336,135 @@ can run in the existing Jest setup; no production dependency changed.
 - Native build, real BLE ranging, and physical-device behavior remain **NOT
   VERIFIED**. S5-M3-01 stays **NOT FULLY ACCEPTED** until
   `docs/testing/sprint-5-beacon-physical-demo-checklist.md` is executed on hardware.
+
+## 12. Final native build and device acceptance attempt (2026-11-18)
+
+Phần này ghi bổ sung kết quả chạy thực tế sau khi PR #37 đã merge. Không thay đổi
+các kết quả lịch sử ở trên: native build lúc đó chưa chạy được, còn lần này build
+Android đã chạy được nhưng vẫn không có thiết bị/BLE vật lý.
+
+### 12.1. Môi trường
+
+| Thành phần | Giá trị thực tế |
+|---|---|
+| Host | Linux x86_64 (WSL2), 8 CPU, 5.7 GiB RAM |
+| Node / npm | `v24.15.0` / `11.12.1` |
+| Java | Temurin OpenJDK `17.0.21` |
+| Android SDK | Command-line tools `11076708`; Platform 36; Build Tools 36.0.0 |
+| Gradle | Wrapper `9.3.1` |
+| ADB | `1.0.41` / platform-tools `37.0.1` |
+| Connected Android device | **Không có** — `adb devices -l` rỗng |
+| Physical iBeacon | **Không có** |
+| Backend/PostgreSQL live cho device test | **Không chạy** trong phiên này |
+| iOS/Xcode | **Không có** |
+
+Không có device serial, token, credential hoặc dữ liệu cá nhân trong tài liệu này.
+
+### 12.2. Native Android build
+
+Các bước đã chạy:
+
+```bash
+cd mobile
+npx expo config --type public
+npx expo prebuild --platform android --no-install
+
+# Generated project, ignored by git:
+# mobile/android/local.properties -> sdk.dir=<ANDROID_SDK>
+cd android
+CMAKE_BUILD_PARALLEL_LEVEL=2 ./gradlew assembleDebug \
+  --no-daemon --console=plain --max-workers=1 \
+  -PreactNativeArchitectures=arm64-v8a \
+  -Dorg.gradle.jvmargs='-Xmx1280m -XX:MaxMetaspaceSize=384m' \
+  -Pkotlin.daemon.jvmargs='-Xmx1024m'
+```
+
+Kết quả: **PASS** — `BUILD SUCCESSFUL in 8m 27s`, exit code `0`.
+
+| Thuộc tính | Giá trị |
+|---|---|
+| APK gốc | `mobile/android/app/build/outputs/apk/debug/app-debug.apk` |
+| Bản lưu ngoài repo | `/home/adminn/.cache/m3-tools/artifacts/smart-heritage-m3-arm64-debug.apk` |
+| Kích thước | `84,855,698` bytes |
+| SHA-256 | `4095a0a07ad439a59d54644da6364e44e14526e6d29628eb3aa36f29f4397328` |
+| ABI | `arm64-v8a` |
+| Package / version | `com.anonymous.app_temp` / `1.0.0` (package do prebuild sinh tạm) |
+| minSdk / targetSdk / compileSdk | `24` / `36` / `36` |
+| Debug signed | Có (debug keystore); `apksigner verify` PASS (v2), `zipalign -c 4` PASS |
+
+Xác minh native module:
+
+- `mobile/android/app/build/generated/autolinking/src/main/java/com/facebook/react/PackageList.java`
+  có `new com.reactnativebeacon.BeaconPackage()`.
+- DEX trong APK có `com.reactnativebeacon.BeaconModule`,
+  `BeaconPackage`, `BeaconConverter`, `EnvironmentMonitor`.
+- Gradle build có các task `:react-native-beacon-kit:*` và APK có
+  `lib/arm64-v8a/*` cho React Native/Expo modules.
+- Không dùng Expo Go cho BLE; APK là native debug build.
+
+Merged manifest của APK có:
+
+- `ACCESS_FINE_LOCATION`
+- `BLUETOOTH_SCAN`
+- `BLUETOOTH_CONNECT`
+- `android.hardware.bluetooth_le` (`required=false`)
+- Legacy `BLUETOOTH` / `BLUETOOTH_ADMIN`, `WAKE_LOCK`,
+  `RECEIVE_BOOT_COMPLETED`, `ACCESS_COARSE_LOCATION` do thư viện beacon merge.
+- Không còn `ACCESS_BACKGROUND_LOCATION`, `BLUETOOTH_ADVERTISE`,
+  `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`,
+  `FOREGROUND_SERVICE_LOCATION`, `POST_NOTIFICATIONS`.
+
+Lần build đầu bị Gradle daemon biến mất khi dùng heap 2048 MiB + parallel trên máy
+5.7 GiB RAM; lần chạy lại giới hạn một ABI, một worker và heap thấp hơn đã thành
+công. Đây là giới hạn môi trường build, không phải lỗi source.
+
+`app.json` và `package.json` thay đổi tạm do prebuild đã được revert; `mobile/android`
+là thư mục CNG bị ignore, không commit.
+
+### 12.3. Physical iBeacon verification
+
+**NOT VERIFIED.** Không có thiết bị Android kết nối và không có beacon vật lý.
+
+Vì vậy các mục sau chưa có bằng chứng phần cứng:
+
+- BLE advertisement thật với UUID/Major/Minor đã cấu hình.
+- Resolve API thật từ app trên device.
+- Banner/Artifact detail từ beacon thật.
+- Bản ghi `BEACON_TRIGGER` trong PostgreSQL từ device.
+- Cooldown A/B với hai beacon vật lý.
+- Permission flow runtime (grant/deny/permanently denied/revoke), Bluetooth off.
+- Scanner start/stop khi focus/background trên device.
+
+Không mô phỏng beacon thứ hai và không dùng mock làm bằng chứng hardware.
+
+### 12.4. Android permission verification
+
+| Hạng mục | Kết quả |
+|---|---|
+| Manifest permission cho Android 12+ | PASS ở mức build — có `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`, `ACCESS_FINE_LOCATION` |
+| Background/FGS permissions bị remove | PASS ở mức merged manifest |
+| Runtime grant/deny/permanently denied | **NOT VERIFIED** — không có device |
+| Bluetooth disabled / permission revoked khi app mở | **NOT VERIFIED** — không có device |
+
+`neverForLocation` vẫn không được thêm; iBeacon ranging cần giữ semantics hiện tại.
+
+### 12.5. Regression sau build
+
+| Check | Kết quả |
+|---|---|
+| Mobile Jest | PASS — 12 suites, 108 tests |
+| `npx tsc --noEmit` | PASS |
+| `npm run lint` | PASS |
+| Backend/PostgreSQL | Không đổi source backend; giữ kết quả CI gần nhất (154 unit, 72 PostgreSQL integration) |
+
+### 12.6. Kết luận S5-M3-01
+
+- Software implementation: PASS.
+- Automated tests: PASS.
+- Native Android build: **VERIFIED** (APK arm64 debug build thành công).
+- Physical BLE detection: **NOT VERIFIED**.
+- Permission runtime/lifecycle trên device: **NOT VERIFIED**.
+- iOS: **NOT VERIFIED**.
+
+S5-M3-01 vẫn **NOT FULLY ACCEPTED** cho đến khi checklist hardware được chạy trên
+thiết bị Android thật với beacon thật.
