@@ -24,8 +24,9 @@ Dùng Semantic Versioning `MAJOR.MINOR.PATCH`:
 Checklist bắt buộc:
 
 - [ ] Tất cả PR của phạm vi release đã merge vào `main`.
-- [ ] CI required checks PASS: `backend-test`, `frontend-checks`,
-      `mobile-tests`, `docker-build`, `integration-smoke`.
+- [ ] CI required checks PASS: `backend-test`, `postgres-integration`,
+      `frontend-checks`, `mobile-tests`, `docker-build`, `integration-smoke`,
+      `production-smoke`.
 - [ ] Backend tests PASS (`./mvnw -B test`).
 - [ ] Frontend lint + production build PASS.
 - [ ] Mobile Jest PASS (`npm ci --legacy-peer-deps && npm test -- --ci`).

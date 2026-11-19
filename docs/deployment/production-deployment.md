@@ -130,7 +130,8 @@ curl -fsS http://127.0.0.1:8080/api/health
 ```
 
 Kỳ vọng: `postgres`, `backend`, `frontend` đều `healthy`; `/api/health` trả
-`{"status":"UP",...}`.
+`{"status":"UP",...}`. Backend production chạy Spring profile `prod`, tắt
+`show-sql`/`open-in-view`, bật graceful shutdown và có `stop_grace_period: 30s`.
 
 Các lệnh `curl` trên dùng cổng mặc định `8080`; nếu đổi `APP_HTTP_PORT`, thay
 số cổng tương ứng.
@@ -197,6 +198,11 @@ Yêu cầu TLS:
 
 `depends_on` dùng `condition: service_healthy`; health check vẫn là nguồn xác
 nhận thật, không thay thế bằng thứ tự start.
+
+Backend dùng `server.shutdown=graceful` với timeout 25s
+(`application-prod.yml`), trong khi Compose cho container 30s trước `SIGKILL`.
+`docker compose stop backend` hoặc `up -d` khi đổi image sẽ cho request đang xử
+lý hoàn tất thay vì cắt ngang.
 
 Logging:
 

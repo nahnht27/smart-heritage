@@ -1,0 +1,11 @@
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 25s
+  jpa:
+    open-in-view: false
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+server:
+  shutdown: graceful
