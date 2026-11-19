@@ -335,8 +335,26 @@ jobs:
       - name: Verify backend and PostgreSQL ports are internal
         run: |
           set -euo pipefail
-          test -z "$(docker compose -f docker-compose.production.yml --env-file .env.production.example port backend 8080)"
-          test -z "$(docker compose -f docker-compose.production.yml --env-file .env.production.example port postgres 5432)"
+          docker compose -f docker-compose.production.yml --env-file .env.production.example config --format json > /tmp/production-compose.json
+          python3 - <<'PY'
+          import json
+
+          with open('/tmp/production-compose.json') as f:
+              services = json.load(f)['services']
+
+          for name in ('backend', 'postgres'):
+              ports = services[name].get('ports')
+              if ports:
+                  raise SystemExit(f'{name} publishes ports: {ports}')
+
+          frontend_ports = services['frontend'].get('ports', [])
+          if len(frontend_ports) != 1:
+              raise SystemExit(f'frontend must publish exactly one port: {frontend_ports}')
+          if frontend_ports[0].get('host_ip') != '127.0.0.1':
+              raise SystemExit(f'frontend must bind loopback: {frontend_ports[0]}')
+
+          print('Port exposure OK: backend/postgres internal, frontend loopback-only')
+          PY
 
       - name: Show container logs on failure
         if: failure()
