@@ -1,0 +1,469 @@
+﻿{
+    "version":  2,
+    "seedName":  "smart-heritage-demo",
+    "baseUrl":  "http://localhost:8080",
+    "createdAtUtc":  "2026-11-19T16:36:52.4524608Z",
+    "updatedAtUtc":  "2026-11-19T18:10:22.1149977Z",
+    "sites":  [
+                  {
+                      "key":  "site-thang-long",
+                      "id":  1,
+                      "name":  "Hoàng thành Thăng Long",
+                      "createdBySeed":  true
+                  },
+                  {
+                      "key":  "site-hue",
+                      "id":  2,
+                      "name":  "Đại Nội Huế",
+                      "createdBySeed":  true
+                  }
+              ],
+    "artifacts":  [
+                      {
+                          "key":  "tl-01",
+                          "id":  1,
+                          "name":  "Rồng đá thềm điện Kính Thiên",
+                          "siteId":  1,
+                          "createdBySeed":  true
+                      },
+                      {
+                          "key":  "tl-02",
+                          "id":  2,
+                          "name":  "Đồ gốm khai quật tại Hoàng thành Thăng Long",
+                          "siteId":  1,
+                          "createdBySeed":  true
+                      },
+                      {
+                          "key":  "tl-03",
+                          "id":  3,
+                          "name":  "Hình tượng phượng trên lá đề",
+                          "siteId":  1,
+                          "createdBySeed":  true
+                      },
+                      {
+                          "key":  "tl-04",
+                          "id":  4,
+                          "name":  "Bát gốm men trắng",
+                          "siteId":  1,
+                          "createdBySeed":  true
+                      },
+                      {
+                          "key":  "hue-01",
+                          "id":  5,
+                          "name":  "Cửu Đỉnh triều Nguyễn",
+                          "siteId":  2,
+                          "createdBySeed":  true
+                      },
+                      {
+                          "key":  "hue-02",
+                          "id":  6,
+                          "name":  "Cửu vị thần công",
+                          "siteId":  2,
+                          "createdBySeed":  true
+                      },
+                      {
+                          "key":  "hue-03",
+                          "id":  7,
+                          "name":  "Chuông đồng tại khu vực Ngọ Môn",
+                          "siteId":  2,
+                          "createdBySeed":  true
+                      },
+                      {
+                          "key":  "hue-04",
+                          "id":  8,
+                          "name":  "Phù điêu đá trang trí kiến trúc",
+                          "siteId":  2,
+                          "createdBySeed":  true
+                      }
+                  ],
+    "multimedia":  [
+                       {
+                           "key":  "tl-01",
+                           "id":  1,
+                           "artifactId":  1,
+                           "url":  "/demo-media/artifacts/artifact_01_01_kinh_thien_stone_dragon.jpg",
+                           "createdBySeed":  true
+                       },
+                       {
+                           "key":  "tl-02",
+                           "id":  2,
+                           "artifactId":  2,
+                           "url":  "/demo-media/artifacts/artifact_01_02_thang_long_ancient_ceramics.jpg",
+                           "createdBySeed":  true
+                       },
+                       {
+                           "key":  "tl-03",
+                           "id":  3,
+                           "artifactId":  3,
+                           "url":  "/demo-media/artifacts/artifact_01_03_ly_phoenix_bodhi_leaf.jpg",
+                           "createdBySeed":  true
+                       },
+                       {
+                           "key":  "tl-04",
+                           "id":  4,
+                           "artifactId":  4,
+                           "url":  "/demo-media/artifacts/artifact_01_04_early_le_white_dragon_bowl.jpg",
+                           "createdBySeed":  true
+                       },
+                       {
+                           "key":  "hue-01",
+                           "id":  5,
+                           "artifactId":  5,
+                           "url":  "/demo-media/artifacts/artifact_02_01_hue_nine_dynastic_urns.jpg",
+                           "createdBySeed":  true
+                       },
+                       {
+                           "key":  "hue-02",
+                           "id":  6,
+                           "artifactId":  6,
+                           "url":  "/demo-media/artifacts/artifact_02_02_nguyen_dynasty_nine_holy_cannons.jpg",
+                           "createdBySeed":  true
+                       },
+                       {
+                           "key":  "hue-03",
+                           "id":  7,
+                           "artifactId":  7,
+                           "url":  "/demo-media/artifacts/artifact_02_03_minh_mang_ngo_mon_bell.jpg",
+                           "createdBySeed":  true
+                       },
+                       {
+                           "key":  "hue-04",
+                           "id":  8,
+                           "artifactId":  8,
+                           "url":  "/demo-media/artifacts/artifact_02_04_minh_mang_stone_relief.jpg",
+                           "createdBySeed":  true
+                       }
+                   ],
+    "beacons":  [
+                    {
+                        "key":  "beacon-tl-01",
+                        "id":  1,
+                        "uuid":  "10000000-0000-4000-8000-000000000001",
+                        "major":  100,
+                        "minor":  1,
+                        "artifactId":  1,
+                        "createdBySeed":  true
+                    },
+                    {
+                        "key":  "beacon-tl-02",
+                        "id":  2,
+                        "uuid":  "10000000-0000-4000-8000-000000000002",
+                        "major":  100,
+                        "minor":  2,
+                        "artifactId":  3,
+                        "createdBySeed":  true
+                    },
+                    {
+                        "key":  "beacon-hue-01",
+                        "id":  3,
+                        "uuid":  "10000000-0000-4000-8000-000000000003",
+                        "major":  200,
+                        "minor":  1,
+                        "artifactId":  5,
+                        "createdBySeed":  true
+                    },
+                    {
+                        "key":  "beacon-hue-02",
+                        "id":  4,
+                        "uuid":  "10000000-0000-4000-8000-000000000004",
+                        "major":  200,
+                        "minor":  2,
+                        "artifactId":  6,
+                        "createdBySeed":  true
+                    }
+                ],
+    "interactions":  [
+                         {
+                             "startedAt":  "2026-11-01T08:15:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000001",
+                             "languageCode":  "vi",
+                             "key":  "30000000-0000-4000-8000-000000000001",
+                             "endedAt":  "2026-11-01T08:16:30.0000000+00:00",
+                             "interactionType":  "VIEW",
+                             "interactedAt":  "2026-11-01T08:16:30.0000000+00:00",
+                             "artifactId":  1,
+                             "eventId":  "30000000-0000-4000-8000-000000000001",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-02T08:30:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000002",
+                             "languageCode":  "en",
+                             "key":  "30000000-0000-4000-8000-000000000002",
+                             "endedAt":  "2026-11-02T08:31:30.0000000+00:00",
+                             "interactionType":  "SCAN",
+                             "interactedAt":  "2026-11-02T08:31:30.0000000+00:00",
+                             "artifactId":  1,
+                             "eventId":  "30000000-0000-4000-8000-000000000002",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-03T08:45:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000003",
+                             "languageCode":  "vi",
+                             "key":  "30000000-0000-4000-8000-000000000003",
+                             "endedAt":  "2026-11-03T08:46:30.0000000+00:00",
+                             "interactionType":  "BEACON_TRIGGER",
+                             "beaconId":  1,
+                             "interactedAt":  "2026-11-03T08:46:30.0000000+00:00",
+                             "artifactId":  1,
+                             "eventId":  "30000000-0000-4000-8000-000000000003",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-04T09:00:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000004",
+                             "languageCode":  "en",
+                             "key":  "30000000-0000-4000-8000-000000000004",
+                             "endedAt":  "2026-11-04T09:01:30.0000000+00:00",
+                             "interactionType":  "VIEW",
+                             "interactedAt":  "2026-11-04T09:01:30.0000000+00:00",
+                             "artifactId":  2,
+                             "eventId":  "30000000-0000-4000-8000-000000000004",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-05T09:15:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000005",
+                             "languageCode":  "vi",
+                             "key":  "30000000-0000-4000-8000-000000000005",
+                             "endedAt":  "2026-11-05T09:16:30.0000000+00:00",
+                             "interactionType":  "SCAN",
+                             "interactedAt":  "2026-11-05T09:16:30.0000000+00:00",
+                             "artifactId":  2,
+                             "eventId":  "30000000-0000-4000-8000-000000000005",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-06T09:30:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000006",
+                             "languageCode":  "en",
+                             "key":  "30000000-0000-4000-8000-000000000006",
+                             "endedAt":  "2026-11-06T09:31:30.0000000+00:00",
+                             "interactionType":  "AUDIO_PLAY",
+                             "interactedAt":  "2026-11-06T09:31:30.0000000+00:00",
+                             "artifactId":  2,
+                             "eventId":  "30000000-0000-4000-8000-000000000006",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-07T09:45:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000007",
+                             "languageCode":  "vi",
+                             "key":  "30000000-0000-4000-8000-000000000007",
+                             "endedAt":  "2026-11-07T09:46:30.0000000+00:00",
+                             "interactionType":  "VIEW",
+                             "interactedAt":  "2026-11-07T09:46:30.0000000+00:00",
+                             "artifactId":  3,
+                             "eventId":  "30000000-0000-4000-8000-000000000007",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-08T10:00:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000008",
+                             "languageCode":  "en",
+                             "key":  "30000000-0000-4000-8000-000000000008",
+                             "endedAt":  "2026-11-08T10:01:30.0000000+00:00",
+                             "interactionType":  "SCAN",
+                             "interactedAt":  "2026-11-08T10:01:30.0000000+00:00",
+                             "artifactId":  3,
+                             "eventId":  "30000000-0000-4000-8000-000000000008",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-01T10:15:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000001",
+                             "languageCode":  "vi",
+                             "key":  "30000000-0000-4000-8000-000000000009",
+                             "endedAt":  "2026-11-01T10:16:30.0000000+00:00",
+                             "interactionType":  "BEACON_TRIGGER",
+                             "beaconId":  2,
+                             "interactedAt":  "2026-11-01T10:16:30.0000000+00:00",
+                             "artifactId":  3,
+                             "eventId":  "30000000-0000-4000-8000-000000000009",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-02T10:30:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000002",
+                             "languageCode":  "en",
+                             "key":  "30000000-0000-4000-8000-000000000010",
+                             "endedAt":  "2026-11-02T10:31:30.0000000+00:00",
+                             "interactionType":  "VIEW",
+                             "interactedAt":  "2026-11-02T10:31:30.0000000+00:00",
+                             "artifactId":  4,
+                             "eventId":  "30000000-0000-4000-8000-000000000010",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-03T10:45:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000003",
+                             "languageCode":  "vi",
+                             "key":  "30000000-0000-4000-8000-000000000011",
+                             "endedAt":  "2026-11-03T10:46:30.0000000+00:00",
+                             "interactionType":  "SCAN",
+                             "interactedAt":  "2026-11-03T10:46:30.0000000+00:00",
+                             "artifactId":  4,
+                             "eventId":  "30000000-0000-4000-8000-000000000011",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-04T11:00:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000004",
+                             "languageCode":  "en",
+                             "key":  "30000000-0000-4000-8000-000000000012",
+                             "endedAt":  "2026-11-04T11:01:30.0000000+00:00",
+                             "interactionType":  "AUDIO_PLAY",
+                             "interactedAt":  "2026-11-04T11:01:30.0000000+00:00",
+                             "artifactId":  4,
+                             "eventId":  "30000000-0000-4000-8000-000000000012",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-05T11:15:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000005",
+                             "languageCode":  "vi",
+                             "key":  "30000000-0000-4000-8000-000000000013",
+                             "endedAt":  "2026-11-05T11:16:30.0000000+00:00",
+                             "interactionType":  "VIEW",
+                             "interactedAt":  "2026-11-05T11:16:30.0000000+00:00",
+                             "artifactId":  5,
+                             "eventId":  "30000000-0000-4000-8000-000000000013",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-06T11:30:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000006",
+                             "languageCode":  "en",
+                             "key":  "30000000-0000-4000-8000-000000000014",
+                             "endedAt":  "2026-11-06T11:31:30.0000000+00:00",
+                             "interactionType":  "SCAN",
+                             "interactedAt":  "2026-11-06T11:31:30.0000000+00:00",
+                             "artifactId":  5,
+                             "eventId":  "30000000-0000-4000-8000-000000000014",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-07T11:45:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000007",
+                             "languageCode":  "vi",
+                             "key":  "30000000-0000-4000-8000-000000000015",
+                             "endedAt":  "2026-11-07T11:46:30.0000000+00:00",
+                             "interactionType":  "BEACON_TRIGGER",
+                             "beaconId":  3,
+                             "interactedAt":  "2026-11-07T11:46:30.0000000+00:00",
+                             "artifactId":  5,
+                             "eventId":  "30000000-0000-4000-8000-000000000015",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-08T12:00:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000008",
+                             "languageCode":  "en",
+                             "key":  "30000000-0000-4000-8000-000000000016",
+                             "endedAt":  "2026-11-08T12:01:30.0000000+00:00",
+                             "interactionType":  "VIEW",
+                             "interactedAt":  "2026-11-08T12:01:30.0000000+00:00",
+                             "artifactId":  6,
+                             "eventId":  "30000000-0000-4000-8000-000000000016",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-01T12:15:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000001",
+                             "languageCode":  "vi",
+                             "key":  "30000000-0000-4000-8000-000000000017",
+                             "endedAt":  "2026-11-01T12:16:30.0000000+00:00",
+                             "interactionType":  "SCAN",
+                             "interactedAt":  "2026-11-01T12:16:30.0000000+00:00",
+                             "artifactId":  6,
+                             "eventId":  "30000000-0000-4000-8000-000000000017",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-02T12:30:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000002",
+                             "languageCode":  "en",
+                             "key":  "30000000-0000-4000-8000-000000000018",
+                             "endedAt":  "2026-11-02T12:31:30.0000000+00:00",
+                             "interactionType":  "BEACON_TRIGGER",
+                             "beaconId":  4,
+                             "interactedAt":  "2026-11-02T12:31:30.0000000+00:00",
+                             "artifactId":  6,
+                             "eventId":  "30000000-0000-4000-8000-000000000018",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-03T12:45:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000003",
+                             "languageCode":  "vi",
+                             "key":  "30000000-0000-4000-8000-000000000019",
+                             "endedAt":  "2026-11-03T12:46:30.0000000+00:00",
+                             "interactionType":  "VIEW",
+                             "interactedAt":  "2026-11-03T12:46:30.0000000+00:00",
+                             "artifactId":  7,
+                             "eventId":  "30000000-0000-4000-8000-000000000019",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-04T13:00:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000004",
+                             "languageCode":  "en",
+                             "key":  "30000000-0000-4000-8000-000000000020",
+                             "endedAt":  "2026-11-04T13:01:30.0000000+00:00",
+                             "interactionType":  "SCAN",
+                             "interactedAt":  "2026-11-04T13:01:30.0000000+00:00",
+                             "artifactId":  7,
+                             "eventId":  "30000000-0000-4000-8000-000000000020",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-05T13:15:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000005",
+                             "languageCode":  "vi",
+                             "key":  "30000000-0000-4000-8000-000000000021",
+                             "endedAt":  "2026-11-05T13:16:30.0000000+00:00",
+                             "interactionType":  "AUDIO_PLAY",
+                             "interactedAt":  "2026-11-05T13:16:30.0000000+00:00",
+                             "artifactId":  7,
+                             "eventId":  "30000000-0000-4000-8000-000000000021",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-06T13:30:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000006",
+                             "languageCode":  "en",
+                             "key":  "30000000-0000-4000-8000-000000000022",
+                             "endedAt":  "2026-11-06T13:31:30.0000000+00:00",
+                             "interactionType":  "VIEW",
+                             "interactedAt":  "2026-11-06T13:31:30.0000000+00:00",
+                             "artifactId":  8,
+                             "eventId":  "30000000-0000-4000-8000-000000000022",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-07T13:45:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000007",
+                             "languageCode":  "vi",
+                             "key":  "30000000-0000-4000-8000-000000000023",
+                             "endedAt":  "2026-11-07T13:46:30.0000000+00:00",
+                             "interactionType":  "SCAN",
+                             "interactedAt":  "2026-11-07T13:46:30.0000000+00:00",
+                             "artifactId":  8,
+                             "eventId":  "30000000-0000-4000-8000-000000000023",
+                             "createdBySeed":  true
+                         },
+                         {
+                             "startedAt":  "2026-11-08T14:00:00.0000000+00:00",
+                             "visitorId":  "20000000-0000-4000-8000-000000000008",
+                             "languageCode":  "en",
+                             "key":  "30000000-0000-4000-8000-000000000024",
+                             "endedAt":  "2026-11-08T14:01:30.0000000+00:00",
+                             "interactionType":  "AUDIO_PLAY",
+                             "interactedAt":  "2026-11-08T14:01:30.0000000+00:00",
+                             "artifactId":  8,
+                             "eventId":  "30000000-0000-4000-8000-000000000024",
+                             "createdBySeed":  true
+                         }
+                     ]
+}

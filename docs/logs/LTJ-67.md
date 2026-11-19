@@ -51,7 +51,6 @@
 
 
 ### Xác minh truy cập Demo Media trên Docker Backend
-
 - Đã rebuild image `laptrinh-java-backend` sau khi cập nhật `SecurityConfig`.
 - Đã khởi động lại service backend bằng Docker Compose.
 - Đã kiểm tra GET trực tiếp toàn bộ 10 ảnh trong `demo-media/sites/` và `demo-media/artifacts/`.
@@ -60,7 +59,6 @@
 - Chưa xác minh nguồn gốc và giấy phép sử dụng của từng ảnh; cần hoàn tất việc này trước khi công bố dữ liệu demo.
 
 ### Đối chiếu Schema và DTO phục vụ Demo Seed
-
 - Đã kiểm tra trực tiếp các migration V1, V2, V3 và V4.
 - Xác nhận quan hệ khóa ngoại HeritageSite → Artifact → Multimedia.
 - Xác nhận VisitorInteraction hỗ trợ khách ẩn danh với user_id có thể NULL và visitor_id bắt buộc.
@@ -86,6 +84,7 @@
 - Đã kiểm tra application.yml: Flyway được bật, baseline-on-migrate=false, Hibernate ddl-auto=validate và Flyway clean-disabled=true.
 - Chưa tìm thấy seed script hoặc initializer riêng trong src/main qua kiểm tra tên file.
 - Định hướng triển khai seed độc lập, chạy chủ động, không tự động nạp dữ liệu khi Backend khởi động và không ảnh hưởng môi trường production.
+
 ### Kiểm tra vị trí đặt Demo Seed Script
 - Đã kiểm tra thư mục backend/scripts/ tại thời điểm thực hiện.
 - Kết quả: thư mục chưa tồn tại, chưa có seed script tại vị trí này.
@@ -101,3 +100,142 @@
 - Xác nhận CHECK constraint Major/Minor trong khoảng 0–65535.
 - Không phát hiện trigger trên 5 bảng HeritageSite, Artifact, Multimedia, Beacon và VisitorInteraction.
 - Chưa tạo seed script và chưa ghi dữ liệu demo vào PostgreSQL.
+
+### Khởi tạo và xác minh tài khoản ADMIN
+- Đã đăng ký tài khoản quản trị thông qua POST `/api/auth/register`.
+- Đã xác minh userId = 1, username = admin và email = admin@gmail.com trong PostgreSQL.
+- Đã tạo role ADMIN và nâng quyền đúng tài khoản userId = 1.
+- Đã truy vấn lại PostgreSQL, xác nhận tài khoản có role ADMIN.
+- Đã đăng nhập lại qua POST `/api/auth/login`, nhận JWT mới với tokenType = Bearer và thời hạn 86400 giây.
+- Đã sử dụng JWT gọi GET `/api/admin/beacons`.
+- Kết quả: HTTP 200, thông báo Beacons retrieved successfully; danh sách Beacon hiện đang rỗng.
+- Không ghi mật khẩu hoặc giá trị JWT vào nhật ký hay mã nguồn.
+- Chưa ghi dữ liệu demo vào các bảng nghiệp vụ.
+
+## Triển khai Demo Seed Script và PostgreSQL Verification
+
+### Triển khai Demo Seed Script
+- Đã tạo `backend/scripts/seed-demo-data.ps1`.
+- Script hỗ trợ các chế độ:
+  - `-Seed`: tạo các dữ liệu demo còn thiếu.
+  - `-Seed -WhatIf`: kiểm tra kế hoạch Seed mà không ghi database.
+  - `-Verify`: kiểm tra dữ liệu thông qua API, manifest, media và PostgreSQL.
+  - `-Cleanup -Confirm`: xóa dữ liệu thuộc quyền sở hữu của Seed sau khi xác minh.
+- Không tự động Seed khi Backend khởi động.
+- Không lưu thông tin đăng nhập hoặc JWT vào manifest.
+
+### Chuẩn bị Demo Dataset
+Đã triển khai bộ dữ liệu demo gồm:
+
+| Entity | Số lượng |
+|---|---:|
+| HeritageSite | 2 |
+| Artifact | 8 |
+| Multimedia | 8 |
+| Beacon | 4 |
+| VisitorInteraction | 24 |
+| Anonymous visitor | 8 |
+
+- Hai HeritageSite: Hoàng thành Thăng Long và Đại Nội Huế.
+- Tám Artifact được phân bổ cho hai HeritageSite.
+- Tám Multimedia được liên kết với Artifact tương ứng.
+- Bốn Beacon được ánh xạ tới Artifact.
+- Các Beacon sử dụng Proximity UUID, Major và Minor riêng biệt.
+- VisitorInteraction sử dụng eventId và visitorId ổn định.
+- Timestamp được chuẩn hóa theo UTC.
+
+### Manifest quản lý dữ liệu Seed
+- Đã tạo `backend/scripts/demo-seed-manifest.json`.
+- Manifest lưu thông tin các bản ghi do Seed quản lý.
+- Đã cập nhật manifest tương ứng với dữ liệu thực tế sau quá trình Seed.
+- Manifest hiện quản lý 2 Sites, 8 Artifacts, 8 Multimedia, 4 Beacons và 24 Interactions.
+- Manifest được sử dụng để đối chiếu dữ liệu và xác định quyền sở hữu khi Cleanup.
+
+### Xử lý lỗi trong quá trình triển khai
+- Điều chỉnh cách đọc phản hồi API để xử lý dữ liệu UTF-8 và tiếng Việt chính xác.
+- Đối chiếu PostgreSQL trước khi khôi phục thông tin bản ghi vào manifest sau lần Seed bị gián đoạn.
+- Điều chỉnh xử lý thuộc tính `beaconId` vì thuộc tính này chỉ áp dụng cho `BEACON_TRIGGER`.
+- Điều chỉnh `Invoke-PostgresSql` để thu thập stderr riêng và kiểm tra exit code của Docker Compose, tránh coi cảnh báo Compose là lỗi truy vấn SQL.
+- Đã kiểm tra cú pháp PowerShell sau các chỉnh sửa.
+
+### Kết quả chạy Seed
+Đã chạy Seed thành công sau khi xử lý các bản ghi còn lại từ lần chạy bị gián đoạn.
+Kết quả:
+    SMART HERITAGE DEMO SEED COMPLETED
+    HeritageSite      : 2
+    Artifact          : 8
+    Multimedia        : 8
+    Beacon            : 4
+    VisitorInteraction: 24
+
+### PostgreSQL Verification
+
+Đã chạy lệnh:
+
+```powershell
+.\backend\scripts\seed-demo-data.ps1 -Verify
+```
+
+Kết quả thực tế:
+
+```text
+VERIFY SUCCESS
+2 Sites
+8 Artifacts
+8 Multimedia
+4 Beacons
+24 Interactions
+8 unique anonymous visitors
+Beacon mapping and timestamps valid.
+```
+
+- Đã xác minh số lượng dữ liệu trên PostgreSQL thực tế.
+- Đã xác minh Beacon mapping và timestamp.
+
+### Acceptance Criteria — Trạng thái hiện tại
+
+| Tiêu chí | Trạng thái |
+|---|---|
+| Site → Artifact → Multimedia | Đã triển khai và Verify |
+| Beacon mapping | Đã triển khai và Verify |
+| Beacon identity | Đã tạo dữ liệu và Verify |
+| VisitorInteraction demo data | Đã tạo 24 bản ghi |
+| Timestamp và timezone | Đã Verify |
+| Seed dry-run | Đã chạy thành công |
+| Seed dataset | Đã chạy thành công |
+| PostgreSQL verification | Đã chạy thành công |
+| Idempotency sau khi dataset hoàn chỉnh | Đã kiểm thử thành công trên PostgreSQL |
+| Cleanup và ownership validation | Đã kiểm tra ownership và WhatIf; Cleanup thật chưa kiểm thử |
+| Tài liệu setup/seed/cleanup | Đã tạo docs/database/demo-seed-setup.md |
+| Nguồn gốc, giấy phép media | Chưa xác minh đầy đủ |
+| Commit/PR/CI evidence | Chưa cập nhật |
+
+### Bằng chứng kiểm thử Idempotency
+
+- Đã chạy lại `.\backend\scripts\seed-demo-data.ps1 -Seed -Confirm` trên dataset đã đầy đủ.
+- 2 HeritageSite, 8 Artifact, 8 Multimedia và 4 Beacon đều được nhận diện là `EXISTS`.
+- 24 VisitorInteraction đều được nhận diện là `REPLAYED` theo eventId.
+- Đã đối chiếu PostgreSQL trước và sau lần Seed thứ hai: số lượng của cả 5 bảng không thay đổi.
+- Đã chạy lại `.\backend\scripts\seed-demo-data.ps1 -Verify` và nhận kết quả `VERIFY SUCCESS`.
+
+Kết quả PostgreSQL sau lần Seed thứ hai:
+
+| Bảng | Số lượng |
+|---|---:|
+| heritage_site | 2 |
+| artifact | 8 |
+| multimedia | 8 |
+| beacon | 4 |
+| visitor_interaction | 24 |
+### Cleanup WhatIf Verification
+
+- Đã chạy `.\backend\scripts\seed-demo-data.ps1 -Cleanup -Confirm -WhatIf`.
+- Script mô phỏng 23 thao tác: 1 PostgreSQL, 8 Multimedia, 4 Beacon, 8 Artifact và 2 HeritageSite.
+- Manifest không bị thay đổi.
+- Đã kiểm tra PostgreSQL sau mô phỏng; số lượng vẫn giữ nguyên: 2 HeritageSite, 8 Artifact, 8 Multimedia, 4 Beacon và 24 VisitorInteraction.
+- Chưa thực hiện Cleanup thật; chưa xác nhận kết quả xóa dữ liệu thực tế.
+### Kết luận tiến độ
+
+Phần triển khai cốt lõi của S6-M2-01 đã hoàn thành: Seed Script, Demo Dataset, Manifest và PostgreSQL Verification.
+
+Task chưa được đánh dấu hoàn thành toàn bộ. Các công việc còn lại gồm kiểm thử Cleanup thật, xác minh giấy phép media và cập nhật bằng chứng commit/CI.
