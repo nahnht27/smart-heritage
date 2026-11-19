@@ -252,7 +252,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Validate Compose configuration
+      - name: Validate development Compose configuration
         env:
           POSTGRES_DB: smart_heritage_ci
           POSTGRES_USER: ci_placeholder
@@ -260,7 +260,16 @@ jobs:
           JWT_SECRET: ci_placeholder_secret_at_least_256_bits_long_000000
         run: docker compose config --quiet
 
-      - name: Build Docker images
+      - name: Validate production Compose configuration
+        env:
+          POSTGRES_DB: smart_heritage_ci
+          POSTGRES_USER: ci_placeholder
+          POSTGRES_PASSWORD: ci_placeholder
+          JWT_SECRET: ci_placeholder_secret_at_least_256_bits_long_000000
+          CORS_ALLOWED_ORIGINS: http://127.0.0.1:18080
+        run: docker compose -f docker-compose.production.yml --env-file .env.production.example config --quiet
+
+      - name: Build development Docker images
         run: docker compose build
 
   # Ephemeral public-only smoke test. It never receives credentials and does not
@@ -293,3 +302,64 @@ jobs:
       - name: Tear down ephemeral stack
         if: always()
         run: docker compose down -v --remove-orphans
+
+  production-smoke:
+    name: production-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      APP_VERSION: ci
+      APP_BIND_ADDRESS: 127.0.0.1
+      APP_HTTP_PORT: "18080"
+      POSTGRES_DB: smart_heritage_ci
+      POSTGRES_USER: ci_placeholder
+      POSTGRES_PASSWORD: ci_placeholder
+      JWT_SECRET: ci_placeholder_secret_at_least_256_bits_long_000000
+      CORS_ALLOWED_ORIGINS: http://127.0.0.1:18080
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Start production stack
+        run: docker compose -f docker-compose.production.yml --env-file .env.production.example up -d --build --wait --wait-timeout 300
+
+      - name: Verify frontend, proxy, and public API
+        run: |
+          set -euo pipefail
+          test "$(curl -fsS http://127.0.0.1:18080/healthz)" = "ok"
+          curl -fsS http://127.0.0.1:18080/api/health | grep -q '"status":"UP"'
+          curl -fsS http://127.0.0.1:18080/ | grep -q '<div id="root"></div>'
+          test "$(curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/dashboard)" = "200"
+          curl -fsS http://127.0.0.1:18080/api/heritage-sites | grep -q '"success":true'
+
+      - name: Verify backend and PostgreSQL ports are internal
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.production.yml --env-file .env.production.example config --format json > /tmp/production-compose.json
+          python3 - <<'PY'
+          import json
+
+          with open('/tmp/production-compose.json') as f:
+              services = json.load(f)['services']
+
+          for name in ('backend', 'postgres'):
+              ports = services[name].get('ports')
+              if ports:
+                  raise SystemExit(f'{name} publishes ports: {ports}')
+
+          frontend_ports = services['frontend'].get('ports', [])
+          if len(frontend_ports) != 1:
+              raise SystemExit(f'frontend must publish exactly one port: {frontend_ports}')
+          if frontend_ports[0].get('host_ip') != '127.0.0.1':
+              raise SystemExit(f'frontend must bind loopback: {frontend_ports[0]}')
+
+          print('Port exposure OK: backend/postgres internal, frontend loopback-only')
+          PY
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.production.yml --env-file .env.production.example logs --no-color
+
+      - name: Tear down production smoke stack
+        if: always()
+        run: docker compose -f docker-compose.production.yml --env-file .env.production.example down -v --remove-orphans

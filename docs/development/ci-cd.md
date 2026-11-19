@@ -15,11 +15,12 @@ workflow_dispatch   ─┘
                         ├── mobile-tests               (required)
                         ├── mobile-static-analysis     (advisory)
                         ├── docker-build               (required)
-                        └── integration-smoke          (required sau khi ổn định)
+                        ├── integration-smoke          (public-only)
+                        └── production-smoke           (production Compose)
 ```
 
-Các job chạy song song trên `ubuntu-latest` và độc lập với nhau, trừ
-`integration-smoke` tự dựng stack riêng.
+Các job chạy song song trên `ubuntu-latest` và độc lập với nhau; mỗi job smoke
+tự dựng stack riêng.
 
 ### Trigger
 
@@ -46,8 +47,9 @@ Các job chạy song song trên `ubuntu-latest` và độc lập với nhau, tr�
 | `frontend-checks` | **Required** | `npm ci`, `npm run lint`, `npm run build` | `build` chạy `tsc -b && vite build` |
 | `mobile-tests` | **Required** | `npm ci`, `npm test -- --ci --coverage` | Upload coverage artifact |
 | `mobile-static-analysis` | **Advisory** | `npx tsc --noEmit`, `npm run lint` | `continue-on-error: true`; technical debt có sẵn |
-| `docker-build` | **Required** | `docker compose config --quiet`, `docker compose build` | Compose V2; chỉ build image backend (Compose hiện chỉ có backend) |
-| `integration-smoke` | **Required sau khi ổn định** | `docker compose up -d --build --wait`, smoke public-only | Stack ephemeral, teardown `down -v` |
+| `docker-build` | **Required** | `docker compose config --quiet`, production config, `docker compose build` | Compose V2; validate cả dev và production, build image dev |
+| `integration-smoke` | **Required** | `docker compose up -d --build --wait`, smoke public-only | Stack dev ephemeral, teardown `down -v` |
+| `production-smoke` | **Required** | `docker compose -f docker-compose.production.yml ... up -d --build --wait` | Build backend + frontend production, verify Nginx/SPA/proxy/health, teardown `down -v` |
 
 ### Backend
 
@@ -94,20 +96,23 @@ Các job chạy song song trên `ubuntu-latest` và độc lập với nhau, tr�
 
 ### Docker
 
-- `docker compose config --quiet` kiểm tra cú pháp Compose với biến môi trường
-  placeholder an toàn.
-- `docker compose build` build image backend và kiểm tra Dockerfile/dependency.
-- Không push registry, không deploy trong Task 3.
-- Frontend chưa có Dockerfile/Compose service — thuộc phạm vi Task 4, không tự
-  thêm ở đây.
+- `docker compose config --quiet` kiểm tra Compose dev với biến placeholder.
+- `docker compose -f docker-compose.production.yml --env-file
+  .env.production.example config --quiet` kiểm tra Compose production.
+- `docker compose build` build image backend dev và kiểm tra Dockerfile.
+- `production-smoke` build backend + frontend production, chạy stack cô lập trên
+  cổng `18080`, xác nhận Nginx serve SPA, proxy `/api`, `/healthz`, `/api/health`
+  và backend/PostgreSQL không publish cổng.
+- Không push registry, không deploy production thật.
 
 ### Integration smoke
 
-- Stack PostgreSQL + backend ephemeral ngay trên runner.
+- `integration-smoke` dựng PostgreSQL + backend ephemeral ngay trên runner.
 - Chỉ chạy **public-only** (health, public content, invalid login); không truyền
   credentials, không bật `ENABLE_INTERACTION_WRITE`.
 - Authenticated/write scenarios hiển thị `SKIP` đúng thiết kế.
-- `docker compose down -v --remove-orphans` luôn chạy ở cuối job.
+- `production-smoke` không nhận credentials và chỉ kiểm tra health/public API.
+- `docker compose down -v --remove-orphans` luôn chạy ở cuối mỗi job.
 - Full authenticated/write smoke vẫn chạy thủ công theo
   [`scripts/integration/README.md`](../../scripts/integration/README.md).
 
@@ -120,7 +125,8 @@ Required checks đề xuất cho `main`:
 - `frontend-checks`
 - `mobile-tests`
 - `docker-build`
-- `integration-smoke` (sau khi job này chạy ổn định)
+- `integration-smoke`
+- `production-smoke`
 
 **Không** đặt `mobile-static-analysis` làm required cho tới khi technical debt
 TypeScript/ESLint được xử lý.
@@ -187,11 +193,19 @@ cd mobile && npx tsc --noEmit && npm run lint
 
 # Docker
 docker compose config --quiet && docker compose build
+docker compose -f docker-compose.production.yml --env-file .env.production.example config --quiet
 
 # Smoke public-only
 docker compose up -d --build --wait
 python3 scripts/integration/smoke-test.py
 docker compose down -v
+
+# Production stack smoke (cổng 18080, teardown xoá volume)
+APP_HTTP_PORT=18080 APP_VERSION=ci \
+  docker compose -f docker-compose.production.yml --env-file .env.production.example up -d --build --wait
+curl -fsS http://127.0.0.1:18080/healthz
+curl -fsS http://127.0.0.1:18080/api/health
+docker compose -f docker-compose.production.yml --env-file .env.production.example down -v
 ```
 
 Máy chỉ có Compose legacy dùng `docker-compose` tương đương; ưu tiên Compose V2.
@@ -218,8 +232,9 @@ cho tới khi config được đưa vào Git một cách chủ động.
 
 ## 7. Giới hạn hiện tại
 
-- Chưa deploy, chưa push image registry.
-- Chưa có frontend Dockerfile/Compose service (Task 4).
+- Chưa deploy production thật, chưa push image registry.
+- `production-smoke` chạy stack ephemeral trên runner; không thay thế deploy có
+  TLS/domain/credentials thật.
 - Smoke CI chỉ public-only; full write smoke cần fixture an toàn và chạy thủ công.
 - Mobile static analysis chưa phải quality gate.
 - Branch protection phải cấu hình thủ công bởi maintainer.
