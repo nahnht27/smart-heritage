@@ -239,3 +239,146 @@ Kết quả PostgreSQL sau lần Seed thứ hai:
 Phần triển khai cốt lõi của S6-M2-01 đã hoàn thành: Seed Script, Demo Dataset, Manifest và PostgreSQL Verification.
 
 Task chưa được đánh dấu hoàn thành toàn bộ. Các công việc còn lại gồm kiểm thử Cleanup thật, xác minh giấy phép media và cập nhật bằng chứng commit/CI.
+
+## Cập nhật LTJ-67 — Mở rộng Demo Dataset 
+
+### 1. Mở rộng Demo Dataset
+Đã mở rộng bộ dữ liệu demo từ phiên bản ban đầu gồm 2 HeritageSite, 8 Artifact và 24 VisitorInteraction lên bộ dữ liệu hiện tại:
+
+| Entity | Số lượng hiện tại |
+|---|---:|
+| HeritageSite | 4 |
+| Artifact | 20 |
+| Multimedia | 20 |
+| Beacon | 4 |
+| VisitorInteraction | 60 |
+| Anonymous visitor | 8 |
+
+Các HeritageSite hiện có:
+- Hoàng thành Thăng Long.
+- Đại Nội Huế.
+- Văn Miếu – Quốc Tử Giám.
+- Thành nhà Hồ.
+
+Đã bổ sung các Artifact và Multimedia tương ứng, đồng thời duy trì quan hệ giữa HeritageSite, Artifact và Multimedia.
+Bốn Beacon được duy trì với định danh riêng biệt và ánh xạ tới Artifact tương ứng.
+VisitorInteraction được mở rộng lên 60 sự kiện, sử dụng eventId và visitorId ổn định. Các sự kiện được phân bổ theo Artifact, bao gồm VIEW, SCAN, AUDIO_PLAY và BEACON_TRIGGER tùy theo cấu hình Beacon.
+
+### 2. Điều chỉnh thứ tự tạo VisitorInteraction
+- Phát hiện thứ tự khai báo Artifact trong script không hoàn toàn trùng với thứ tự ID Artifact được tạo trong PostgreSQL.
+- Điều chỉnh `New-InteractionDefinitions` để sắp xếp Artifact theo ID thực tế trước khi tạo định nghĩa Interaction.
+- Đối chiếu các sự kiện bị lệch giữa Manifest và PostgreSQL.
+- Đã kiểm tra dữ liệu trước khi điều chỉnh các bản ghi liên quan.
+- Đã cập nhật 3 VisitorInteraction có eventId tương ứng 025–027 để liên kết đúng Artifact ID 9.
+- Đã xác minh lại tổng số Interaction theo từng Artifact: mỗi Artifact có 3 Interaction, tổng cộng 60 bản ghi.
+- Đã đồng bộ lại thông tin 15 Interaction liên quan trong Manifest, bao gồm artifactId, interactionType và beaconId.
+- Đã tạo bản sao lưu Manifest trước khi cập nhật.
+
+### 3. Xử lý lỗi đọc UTF-8 trong Windows PowerShell 5.1
+- Phát hiện `Load-Manifest` sử dụng `Get-Content -Raw` mà không chỉ định encoding.
+- Trong Windows PowerShell 5.1, cách đọc này có thể giải mã sai nội dung tiếng Việt của file UTF-8 không BOM.
+- Đã kiểm tra file Manifest hiện tại và bản backup bằng `System.IO.File.ReadAllText` với `Encoding.UTF8`.
+- Xác nhận cả hai file đều chứa chính xác tên tiếng Việt của 4 HeritageSite.
+- Đã điều chỉnh `Load-Manifest` để đọc UTF-8 tường minh:
+
+```powershell
+$manifestJson = [System.IO.File]::ReadAllText(
+    $ManifestPath,
+    [System.Text.Encoding]::UTF8
+)
+
+$manifest = $manifestJson | ConvertFrom-Json
+```
+- Không cần khôi phục Manifest từ backup vì dữ liệu trong file hiện tại vẫn chính xác khi được đọc bằng UTF-8 đúng cách.
+
+### 4. PostgreSQL Verification — Kết quả mới nhất
+Đã chạy:
+```powershell
+.\backend\scripts\seed-demo-data.ps1 -Verify
+```
+
+Kết quả thực tế:
+```text
+======================================
+SMART HERITAGE VERIFY SUCCESS
+======================================
+HeritageSite      : 4
+Artifact          : 20
+Multimedia        : 20
+Beacon            : 4
+VisitorInteraction: 60
+Unique Visitors   : 8
+API records       : Valid
+Media files       : Valid
+PostgreSQL data   : Matched
+Beacon mapping    : Valid
+Anonymous visitor : Valid
+```
+
+Kết quả xác nhận:
+- Số lượng bản ghi giữa API, Manifest và PostgreSQL khớp nhau.
+- Media files được xác minh hợp lệ.
+- Beacon mapping hợp lệ.
+- VisitorInteraction sử dụng visitor ẩn danh hợp lệ.
+- Có 8 visitorId duy nhất.
+- Dữ liệu PostgreSQL đã khớp với Manifest và dữ liệu API theo các kiểm tra của script.
+
+### 5. Seed Dry-run — Kết quả mới nhất
+Đã chạy:
+```powershell
+.\backend\scripts\seed-demo-data.ps1 -Seed -WhatIf
+```
+
+Kết quả thực tế:
+
+```text
+DRY RUN - không gọi API và không ghi database.
+4 HeritageSite
+20 Artifact
+20 Multimedia
+4 Beacon
+60 VisitorInteraction
+DRY RUN COMPLETE.
+```
+
+Xác nhận:
+
+- Script hoàn thành chế độ Dry-run.
+- Số lượng dữ liệu dự kiến đúng với bộ Demo Dataset hiện tại.
+- Không gọi API.
+- Không ghi dữ liệu vào PostgreSQL trong quá trình Dry-run.
+
+### 6. Acceptance Criteria — Cập nhật trạng thái
+| Tiêu chí | Trạng thái |
+|---|---|
+| Site → Artifact → Multimedia | Đã Verify với 4 Site, 20 Artifact, 20 Multimedia |
+| Beacon identity | Đã Verify |
+| Beacon mapping | Đã Verify |
+| VisitorInteraction demo data | Đã Verify 60 bản ghi |
+| Anonymous visitor | Đã Verify 8 visitorId |
+| Timestamp và timezone | Đã Verify theo kiểm tra của script |
+| Manifest consistency | Đã Verify |
+| API và PostgreSQL consistency | Đã Verify |
+| Media files | Đã Verify |
+| Seed dry-run với dataset hiện tại | Đã chạy thành công |
+| Seed thực tế với dataset hiện tại | Đã có dữ liệu và Verify; chưa kiểm thử chạy Seed lặp lại sau lần mở rộng gần nhất |
+| Idempotency | Đã kiểm thử thành công trên dataset phiên bản ban đầu; cần kiểm thử lại với dataset hiện tại |
+| Cleanup WhatIf | Đã kiểm thử trên dataset phiên bản trước; cần chạy lại với dataset hiện tại |
+| Cleanup thật | Chưa kiểm thử |
+| Nguồn gốc và giấy phép media | Chưa xác minh đầy đủ |
+| Commit/PR/CI evidence | Chưa cập nhật |
+
+### 7. Kết luận tiến độ cập nhật
+Đã mở rộng thành công Demo Dataset của LTJ-67 lên 4 HeritageSite, 20 Artifact, 20 Multimedia, 4 Beacon và 60 VisitorInteraction.
+Hai bước kiểm tra mới nhất đều thành công:
+- PostgreSQL Verification: `SMART HERITAGE VERIFY SUCCESS`.
+- Seed Dry-run: `DRY RUN COMPLETE`.
+
+Các kiểm tra xác nhận dữ liệu API, Manifest, PostgreSQL, Media và Beacon mapping đang nhất quán.
+Task đã hoàn thành phần chuẩn bị dữ liệu, mở rộng dataset và xác minh hiện trạng. Chưa đánh dấu hoàn thành toàn bộ vì còn các công việc cần kiểm thử hoặc bổ sung bằng chứng:
+1. Kiểm thử idempotency lại với dataset 4/20/20/4/60.
+2. Kiểm thử Cleanup WhatIf lại với dataset hiện tại.
+3. Chỉ thực hiện Cleanup thật khi có yêu cầu và đã xác nhận phạm vi xóa.
+4. Xác minh nguồn gốc và giấy phép sử dụng media.
+5. Cập nhật bằng chứng commit, PR và CI nếu có.
+

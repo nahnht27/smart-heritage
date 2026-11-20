@@ -68,18 +68,6 @@ if ($modeCount -eq 0) {
     return
 }
 
-if ($Seed -and $WhatIfPreference) {
-    Write-Host 'DRY RUN - không gọi API và không ghi database.'
-    Write-Host '2 HeritageSite'
-    Write-Host '8 Artifact'
-    Write-Host '8 Multimedia'
-    Write-Host '4 Beacon'
-    Write-Host '24 VisitorInteraction'
-    Write-Host ''
-    Write-Host 'DRY RUN COMPLETE.'
-    return
-}
-
 if ($Cleanup) {
     $confirmWasExplicitlyEnabled = (
         $PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Confirm') -and
@@ -94,6 +82,7 @@ if ($Cleanup) {
 # 2. DEMO DATA
 
 $Sites = @(
+    # Site 1: Hoàng thành Thăng Long
     @{
         Key = 'site-thang-long'
         Name = 'Hoàng thành Thăng Long'
@@ -105,7 +94,7 @@ $Sites = @(
 Hoàng thành Thăng Long là quần thể di sản văn hóa gắn với lịch sử hình thành và phát triển của kinh đô Thăng Long qua nhiều triều đại, từ thời Đại La, Lý, Trần, Lê đến thời Nguyễn. Khu di sản lưu giữ hệ thống dấu tích kiến trúc, nền móng cung điện và nhiều hiện vật khảo cổ phản ánh đời sống chính trị, văn hóa và nghệ thuật cung đình Việt Nam. Đây là không gian tiêu biểu để tìm hiểu lịch sử kinh đô Thăng Long và sự tiếp nối của các lớp văn hóa qua hơn một nghìn năm.
 '@
     },
-
+    # Site 2: Đại Nội Huế 
     @{
         Key = 'site-hue'
         Name = 'Đại Nội Huế'
@@ -116,10 +105,35 @@ Hoàng thành Thăng Long là quần thể di sản văn hóa gắn với lịch
         Description = @'
 Đại Nội Huế là trung tâm quyền lực chính trị và nghi lễ của triều Nguyễn, nằm trong quần thể di tích Cố đô Huế. Công trình bao gồm Hoàng thành và Tử Cấm thành, với hệ thống cung điện, miếu thờ, cổng thành và các công trình kiến trúc cung đình. Không gian di tích lưu giữ nhiều dấu ấn về tổ chức triều chính, nghi lễ hoàng gia, nghệ thuật kiến trúc và kỹ nghệ thủ công dưới triều Nguyễn.
 '@
+    },
+    # Site 3: Văn Miếu – Quốc Tử Giám
+    @{
+        Key = 'site-van-mieu'
+        Name = 'Văn Miếu – Quốc Tử Giám'
+        Address = '58 Quốc Tử Giám, Đống Đa, Hà Nội, Việt Nam'
+        Latitude = 21.0277
+        Longitude = 105.8355
+
+        Description = @'
+Văn Miếu được xây dựng năm 1070 dưới triều vua Lý Thánh Tông. Năm 1076, Quốc Tử Giám được thành lập bên cạnh Văn Miếu, trở thành cơ sở giáo dục cấp cao của nhà nước phong kiến Việt Nam. Quần thể di tích lưu giữ các công trình kiến trúc, không gian thờ tự và 82 bia Tiến sĩ, phản ánh lịch sử giáo dục, khoa cử và truyền thống trọng dụng nhân tài của Việt Nam.
+'@
+    },
+    # Site 4: Thành nhà Hồ
+    @{
+        Key = 'site-ho-citadel'
+        Name = 'Thành nhà Hồ'
+        Address = 'Khu di sản Thành nhà Hồ, xã Tây Đô, tỉnh Thanh Hóa, Việt Nam'
+        Latitude = 20.0700
+        Longitude = 105.6000
+
+        Description = @'
+Thành nhà Hồ được xây dựng năm 1397 dưới triều Hồ Quý Ly, từng giữ vai trò kinh đô của nước Đại Ngu. Di sản nổi bật với thành nội có mặt bằng gần hình vuông, hệ thống cổng thành và tường thành được xây dựng bằng những khối đá lớn. Quần thể di sản còn bao gồm các thành phần như La Thành và Đàn tế Nam Giao, phản ánh quy hoạch, kỹ thuật xây dựng và tổ chức không gian chính trị, nghi lễ cuối thế kỷ XIV đầu thế kỷ XV.
+'@
     }
 )
 
 $Artifacts = @(
+    # Artifact khu vực Hoàng thành Thăng Long
     @{
         Key = 'tl-01'
         SiteKey = 'site-thang-long'
@@ -165,6 +179,17 @@ Bát gốm men trắng trang trí hình rồng đại diện cho dòng đồ g�
     },
 
     @{
+        Key = 'tl-05'
+        SiteKey = 'site-thang-long'
+        Name = 'Cổng Đoan Môn'
+        Image = 'artifact_01_05_thang_long_doan_mon.jpg'
+
+        Description = @'
+Đoan Môn là cổng phía Nam dẫn vào khu vực Cấm thành của Hoàng thành Thăng Long. Công trình nằm trên trục không gian chính dẫn đến khu vực điện Kính Thiên, thể hiện cách tổ chức không gian và hệ thống cổng trong kiến trúc hoàng cung xưa. Đoan Môn có kết cấu cổng thành với các cửa vòm cuốn và phần tường xây bằng gạch. Công trình là dấu tích quan trọng giúp tìm hiểu lịch sử kiến trúc cung đình và sự phát triển của kinh đô Thăng Long qua các triều đại.
+'@
+    },
+# Artifact khu vực Đại Nội Huế  
+    @{
         Key = 'hue-01'
         SiteKey = 'site-hue'
         Name = 'Cửu Đỉnh triều Nguyễn'
@@ -205,6 +230,129 @@ Chuông Ngọ Môn là hiện vật bằng đồng gắn với không gian kiế
 
         Description = @'
 Phù điêu đá thời Minh Mạng là hiện vật điêu khắc cung đình phản ánh kỹ thuật chế tác đá và nghệ thuật trang trí dưới triều Nguyễn. Các đường nét chạm khắc, bố cục hình ảnh và hoa văn trang trí thể hiện quan niệm thẩm mỹ cũng như những biểu tượng văn hóa được sử dụng trong không gian hoàng gia. Hiện vật hiện được bảo quản và trưng bày tại Bảo tàng Cổ vật Cung đình Huế, góp phần giới thiệu giá trị nghệ thuật tạo hình thời Nguyễn.
+'@
+    }, 
+
+    @{
+        Key = 'hue-05'
+        SiteKey = 'site-hue'
+        Name = 'Ngọ Môn – Cổng chính Hoàng thành Huế'
+        Image = 'artifact_02_05_hue_ngo_mon_gate.jpg'
+
+        Description = @'
+Ngọ Môn là cổng chính phía Nam của Hoàng thành Huế, nằm trên trục thần đạo dẫn vào khu vực cung điện. Công trình gồm phần nền đài đồ sộ với các lối cửa vòm và lầu Ngũ Phụng ở phía trên. Kiến trúc kết hợp vật liệu đá, gạch, gỗ và hệ mái ngói trang trí theo phong cách cung đình triều Nguyễn. Ngọ Môn vừa có chức năng kiểm soát lối ra vào Hoàng thành vừa gắn với các hoạt động nghi lễ và sự kiện quan trọng của triều đình.
+'@
+    },
+
+    # Artifact khu vực Văn Miếu – Quốc Tử Giám
+    @{
+        Key = 'vm-01'
+        SiteKey = 'site-van-mieu'
+        Name = 'Khuê Văn Các'
+        Image = 'artifact_03_01_van_mieu_khue_van_cac.jpg'
+
+        Description = @'
+Khuê Văn Các được xây dựng năm 1805 dưới triều Nguyễn, là một công trình kiến trúc nổi bật trong quần thể Văn Miếu – Quốc Tử Giám. Công trình có tầng dưới gồm bốn trụ gạch tạo thành không gian thông thoáng, tầng trên là kiến trúc gỗ với hệ mái và các cửa sổ hình tròn đặc trưng. Khuê Văn Các thể hiện sự kết hợp giữa kết cấu gạch, gỗ và nghệ thuật kiến trúc truyền thống. Công trình trở thành biểu tượng gắn với truyền thống hiếu học và văn hóa Thăng Long.
+'@
+    },
+
+    @{
+        Key = 'vm-02'
+        SiteKey = 'site-van-mieu'
+        Name = '82 bia Tiến sĩ'
+        Image = 'artifact_03_02_van_mieu_doctoral_steles.jpg'
+
+        Description = @'
+Vườn bia Tiến sĩ tại Văn Miếu – Quốc Tử Giám hiện lưu giữ 82 bia đá ghi danh những người đỗ Tiến sĩ trong các khoa thi từ năm 1442 đến năm 1779. Các bia được đặt trên lưng rùa đá, khắc thông tin về khoa thi và những người đạt học vị. Hệ thống bia phản ánh lịch sử khoa cử, việc tuyển chọn nhân tài và truyền thống tôn vinh người có học trong xã hội Việt Nam thời quân chủ. Đây là tư liệu lịch sử quan trọng về nền giáo dục và hành chính của các triều đại phong kiến.
+'@
+    },
+
+    @{
+        Key = 'vm-03'
+        SiteKey = 'site-van-mieu'
+        Name = 'Giếng Thiên Quang'
+        Image = 'artifact_03_03_van_mieu_thien_quang_well.jpg'
+
+        Description = @'
+Giếng Thiên Quang, còn gọi là Thiên Quang Tỉnh, nằm trong khu vực trung tâm của quần thể Văn Miếu – Quốc Tử Giám. Giếng có mặt bằng hình vuông, tạo thành điểm nhấn cảnh quan giữa Khuê Văn Các và khu vực bia Tiến sĩ. Không gian giếng gắn với cách tổ chức cảnh quan và bố cục kiến trúc của di tích. Công trình góp phần thể hiện quan niệm thẩm mỹ, tư tưởng văn hóa và sự hài hòa giữa kiến trúc với thiên nhiên trong không gian truyền thống.
+'@
+    },
+
+    @{
+        Key = 'vm-04'
+        SiteKey = 'site-van-mieu'
+        Name = 'Điện Đại Thành'
+        Image = 'artifact_03_04_van_mieu_dai_thanh_hall.jpg'
+
+        Description = @'
+Điện Đại Thành nằm trong khu Đại Thành của Văn Miếu – Quốc Tử Giám, là không gian thờ Khổng Tử và các bậc tiên hiền Nho học. Công trình có kiến trúc truyền thống với hệ cột, kết cấu gỗ, mái ngói và không gian thờ tự được bố trí theo trục chính. Điện Đại Thành thể hiện vai trò của Nho giáo trong đời sống tư tưởng, giáo dục và khoa cử Việt Nam thời quân chủ. Đây cũng là một trong những khu vực quan trọng trong hành trình tìm hiểu chức năng văn hóa và giáo dục của Văn Miếu.
+'@
+    },
+
+    @{
+        Key = 'vm-05'
+        SiteKey = 'site-van-mieu'
+        Name = 'Nhà Thái Học'
+        Image = 'artifact_03_05_van_mieu_thai_hoc_house.jpg'
+
+        Description = @'
+Khu Thái Học gắn với lịch sử Quốc Tử Giám, cơ sở giáo dục cấp cao được thành lập năm 1076 dưới triều vua Lý Nhân Tông. Đây là nơi gắn với hoạt động học tập và đào tạo nhân tài của nhà nước phong kiến Việt Nam. Công trình Nhà Thái Học hiện nay được phục dựng trong quá trình bảo tồn và phát huy giá trị di tích. Không gian này giúp giới thiệu lịch sử giáo dục, vai trò của Quốc Tử Giám và truyền thống đào tạo nhân tài trong lịch sử dân tộc.
+'@
+    },
+
+    # Artifact khu vực Thành nhà Hồ
+    @{
+        Key = 'hc-01'
+        SiteKey = 'site-ho-citadel'
+        Name = 'Cổng Nam Thành nhà Hồ'
+        Image = 'artifact_04_01_ho_citadel_south_gate.jpg'
+
+        Description = @'
+Cổng Nam là cổng chính ở phía Nam của thành nội Thành nhà Hồ. Công trình nổi bật với ba lối đi dạng vòm cuốn được xây dựng bằng các khối đá lớn. Các khối đá được gia công và ghép nối tạo thành kết cấu cổng có quy mô lớn, thể hiện kỹ thuật xây dựng thành lũy đặc trưng cuối thế kỷ XIV. Cổng Nam là điểm tham quan tiêu biểu để tìm hiểu cấu trúc thành nội và kỹ thuật kiến trúc đá của di sản.
+'@
+    },
+
+    @{
+        Key = 'hc-02'
+        SiteKey = 'site-ho-citadel'
+        Name = 'Cổng Bắc Thành nhà Hồ'
+        Image = 'artifact_04_02_ho_citadel_north_gate.jpg'
+
+        Description = @'
+Cổng Bắc là một trong bốn cổng chính của thành nội Thành nhà Hồ. Công trình có một lối đi dạng vòm cuốn, được tạo thành từ những khối đá lớn ghép nối với nhau. Kết cấu cổng thể hiện kỹ thuật chế tác đá và khả năng tổ chức công trình thành lũy của người thợ thời Hồ. Cổng Bắc góp phần giúp người tham quan nhận biết bố cục bốn mặt thành và hệ thống giao thông ra vào khu vực thành nội.
+'@
+    },
+
+    @{
+        Key = 'hc-03'
+        SiteKey = 'site-ho-citadel'
+        Name = 'Cổng Đông Thành nhà Hồ'
+        Image = 'artifact_04_03_ho_citadel_east_gate.jpg'
+
+        Description = @'
+Cổng Đông là cổng nằm ở phía Đông của thành nội Thành nhà Hồ, thuộc hệ thống bốn cổng đá của công trình. Cổng có lối đi dạng vòm cuốn với các khối đá lớn được gia công và lắp ghép thành thân cổng. Cùng với các cổng còn lại, Cổng Đông thể hiện quy hoạch thành nội gần hình vuông và kỹ thuật xây dựng bằng đá quy mô lớn. Hình ảnh công trình giúp người tham quan tìm hiểu cấu trúc cổng và sự liên kết giữa cổng thành với hệ thống tường thành.
+'@
+    },
+
+    @{
+        Key = 'hc-04'
+        SiteKey = 'site-ho-citadel'
+        Name = 'Cổng Tây Thành nhà Hồ'
+        Image = 'artifact_04_04_ho_citadel_west_gate.jpg'
+
+        Description = @'
+Cổng Tây nằm ở phía Tây của thành nội Thành nhà Hồ và là một trong bốn cổng chính của di tích. Công trình có một lối đi dạng vòm cuốn, được xây dựng bằng những khối đá lớn. Kết cấu cổng và phần tường thành liền kề thể hiện kỹ thuật chế tác, vận chuyển và lắp ghép đá trong kiến trúc quân sự thời Hồ. Cổng Tây góp phần hoàn thiện bố cục không gian của thành nội và là dấu tích quan trọng trong nghiên cứu kiến trúc thành lũy cuối thế kỷ XIV.
+'@
+    },
+
+    @{
+        Key = 'hc-05'
+        SiteKey = 'site-ho-citadel'
+        Name = 'Tường thành đá Thành nhà Hồ'
+        Image = 'artifact_04_05_ho_citadel_stone_walls.jpg'
+
+        Description = @'
+Tường thành nội Thành nhà Hồ được xây dựng từ những khối đá vôi lớn, được gia công và ghép nối tạo thành hệ thống tường bao quanh khu vực trung tâm. Thành nội có mặt bằng gần hình vuông, với bốn cổng chính nằm ở bốn hướng. Những khối đá có kích thước lớn cùng cách sắp xếp và liên kết giữa các cấu kiện phản ánh kỹ thuật xây dựng thành lũy đặc biệt của thời Hồ. Tường thành là thành phần kiến trúc tiêu biểu thể hiện giá trị kỹ thuật và lịch sử của di sản.
 '@
     }
 )
@@ -257,6 +405,29 @@ $VisitorIds = @(
     '20000000-0000-4000-8000-000000000007'
     '20000000-0000-4000-8000-000000000008'
 )
+
+if ($Seed -and $WhatIfPreference) {
+    $expectedSiteCount = @($Sites).Count
+    $expectedArtifactCount = @($Artifacts).Count
+    $expectedMultimediaCount = @(
+        $Artifacts | Where-Object {
+            -not [string]::IsNullOrWhiteSpace($_.Image)
+        }
+    ).Count
+    $expectedBeaconCount = @($Beacons).Count
+    $expectedInteractionCount = $expectedArtifactCount * 3
+
+    Write-Host ''
+    Write-Host 'DRY RUN - không gọi API và không ghi database.'
+    Write-Host "$expectedSiteCount HeritageSite"
+    Write-Host "$expectedArtifactCount Artifact"
+    Write-Host "$expectedMultimediaCount Multimedia"
+    Write-Host "$expectedBeaconCount Beacon"
+    Write-Host "$expectedInteractionCount VisitorInteraction"
+    Write-Host ''
+    Write-Host 'DRY RUN COMPLETE.'
+    return
+}
 
 # ============================================================
 # 3. AUTHENTICATION
@@ -597,8 +768,12 @@ function Load-Manifest {
         return $null
     }
 
-    $manifest = Get-Content -LiteralPath $ManifestPath -Raw |
-        ConvertFrom-Json
+    $manifestJson = [System.IO.File]::ReadAllText(
+    	$ManifestPath,
+    	[System.Text.Encoding]::UTF8
+    )
+
+    $manifest = $manifestJson | ConvertFrom-Json
 
     if ([int]$manifest.version -ne 2) {
         throw 'Manifest không đúng version 2.'
@@ -889,14 +1064,21 @@ function New-InteractionDefinitions {
 
     $eventNumber = 0
 
-    foreach ($artifact in $Artifacts) {
+    $orderedArtifacts = @(
+        $Artifacts |
+            Sort-Object {
+                [int]$ArtifactIds[$_.Key]
+            }
+    )
+
+    foreach ($artifact in $orderedArtifacts) {
         $artifactId = [int]$ArtifactIds[$artifact.Key]
 
         $beacon = @(
             $Beacons |
-            Where-Object {
-                $_.ArtifactKey -eq $artifact.Key
-            }
+                Where-Object {
+                    $_.ArtifactKey -eq $artifact.Key
+                }
         )
 
         $beaconId = $null
@@ -956,8 +1138,10 @@ function New-InteractionDefinitions {
         }
     }
 
-    if ($definitions.Count -ne 24) {
-        throw "Expected 24 interactions, got $($definitions.Count)."
+    $expectedInteractionCount = $Artifacts.Count * 3
+
+    if ($definitions.Count -ne $expectedInteractionCount) {
+        throw "Expected $expectedInteractionCount interactions, got $($definitions.Count)."
     }
 
     return ,$definitions
@@ -974,15 +1158,45 @@ if ($Verify) {
         throw "Không tìm thấy manifest: $ManifestPath."
     }
 
+    # ---------------------------------------------------------
+    # 13.1. Expected counts from current demo definitions
+    # ---------------------------------------------------------
+
+    $expectedSiteCount = @($Sites).Count
+    $expectedArtifactCount = @($Artifacts).Count
+
+    $expectedMultimediaCount = @(
+        $Artifacts |
+            Where-Object {
+                -not [string]::IsNullOrWhiteSpace($_.Image)
+            }
+    ).Count
+
+    $expectedBeaconCount = @($Beacons).Count
+
+    # Mỗi Artifact có 3 interaction:
+    # VIEW + SCAN + BEACON_TRIGGER hoặc AUDIO_PLAY.
+    $expectedInteractionCount = $expectedArtifactCount * 3
+
+    # ---------------------------------------------------------
+    # 13.2. Load API data
+    # ---------------------------------------------------------
+
     $siteList = Get-ApiList '/api/heritage-sites'
     $artifactList = Get-ApiList '/api/artifacts'
     $mediaList = Get-ApiList '/api/multimedia'
     $beaconList = Get-ApiList '/api/admin/beacons'
 
+    # ---------------------------------------------------------
+    # 13.3. Verify Heritage Sites
+    # ---------------------------------------------------------
+
     foreach ($entry in $script:Manifest.sites) {
         $record = @(
             $siteList |
-            Where-Object { [int]$_.siteId -eq [int]$entry.id }
+                Where-Object {
+                    [int]$_.siteId -eq [int]$entry.id
+                }
         )
 
         if (
@@ -993,10 +1207,16 @@ if ($Verify) {
         }
     }
 
+    # ---------------------------------------------------------
+    # 13.4. Verify Artifacts
+    # ---------------------------------------------------------
+
     foreach ($entry in $script:Manifest.artifacts) {
         $record = @(
             $artifactList |
-            Where-Object { [int]$_.artifactId -eq [int]$entry.id }
+                Where-Object {
+                    [int]$_.artifactId -eq [int]$entry.id
+                }
         )
 
         if (
@@ -1008,12 +1228,16 @@ if ($Verify) {
         }
     }
 
+    # ---------------------------------------------------------
+    # 13.5. Verify Multimedia and physical media files
+    # ---------------------------------------------------------
+
     foreach ($entry in $script:Manifest.multimedia) {
         $record = @(
             $mediaList |
-            Where-Object {
-                [int]$_.multimediaId -eq [int]$entry.id
-            }
+                Where-Object {
+                    [int]$_.multimediaId -eq [int]$entry.id
+                }
         )
 
         if (
@@ -1027,12 +1251,16 @@ if ($Verify) {
         Assert-MediaAvailable -Url $entry.url
     }
 
+    # ---------------------------------------------------------
+    # 13.6. Verify Beacons
+    # ---------------------------------------------------------
+
     foreach ($entry in $script:Manifest.beacons) {
         $record = @(
             $beaconList |
-            Where-Object {
-                [int]$_.beaconId -eq [int]$entry.id
-            }
+                Where-Object {
+                    [int]$_.beaconId -eq [int]$entry.id
+                }
         )
 
         if (
@@ -1053,30 +1281,43 @@ if ($Verify) {
         }
     }
 
+    # ---------------------------------------------------------
+    # 13.7. Verify manifest collection counts
+    # ---------------------------------------------------------
+
     $expectedCounts = @{
-        sites = 2
-        artifacts = 8
-        multimedia = 8
-        beacons = 4
-        interactions = 24
+        sites = $expectedSiteCount
+        artifacts = $expectedArtifactCount
+        multimedia = $expectedMultimediaCount
+        beacons = $expectedBeaconCount
+        interactions = $expectedInteractionCount
     }
 
     foreach ($collection in $expectedCounts.Keys) {
         $actual = @($script:Manifest.$collection).Count
+        $expected = [int]$expectedCounts[$collection]
 
-        if ($actual -ne $expectedCounts[$collection]) {
+        if ($actual -ne $expected) {
             throw (
                 "Manifest $collection không hợp lệ. " +
-                "Actual=$actual Expected=$($expectedCounts[$collection])"
+                "Actual=$actual Expected=$expected"
             )
         }
     }
 
+    # ---------------------------------------------------------
+    # 13.8. Prepare SQL expected interaction rows
+    # ---------------------------------------------------------
+
     $expectedRows = @()
     $seenEventIds = @{}
+    $seenVisitorIds = @{}
 
     function ConvertTo-SqlLiteral {
-        param([AllowNull()][string]$Value)
+        param(
+            [AllowNull()]
+            [string]$Value
+        )
 
         if ($null -eq $Value) {
             return 'NULL'
@@ -1089,17 +1330,21 @@ if ($Verify) {
         $eventGuid = [guid]::Empty
         $visitorGuid = [guid]::Empty
 
-        if (-not [guid]::TryParse(
-            [string]$entry.eventId,
-            [ref]$eventGuid
-        )) {
+        if (
+            -not [guid]::TryParse(
+                [string]$entry.eventId,
+                [ref]$eventGuid
+            )
+        ) {
             throw 'Interaction có eventId không hợp lệ.'
         }
 
-        if (-not [guid]::TryParse(
-            [string]$entry.visitorId,
-            [ref]$visitorGuid
-        )) {
+        if (
+            -not [guid]::TryParse(
+                [string]$entry.visitorId,
+                [ref]$visitorGuid
+            )
+        ) {
             throw "visitorId không hợp lệ: $($entry.eventId)"
         }
 
@@ -1111,6 +1356,7 @@ if ($Verify) {
         }
 
         $seenEventIds[$eventId] = $true
+        $seenVisitorIds[$visitorId] = $true
 
         $artifactId = 0
 
@@ -1126,12 +1372,14 @@ if ($Verify) {
 
         $type = [string]$entry.interactionType
 
-        if ($type -notin @(
-            'VIEW',
-            'SCAN',
-            'BEACON_TRIGGER',
-            'AUDIO_PLAY'
-        )) {
+        if (
+            $type -notin @(
+                'VIEW',
+                'SCAN',
+                'BEACON_TRIGGER',
+                'AUDIO_PLAY'
+            )
+        ) {
             throw "interactionType không hợp lệ: $eventId"
         }
 
@@ -1157,7 +1405,10 @@ if ($Verify) {
             $null -ne $entry.PSObject.Properties['beaconId'].Value -and
             [string]$entry.PSObject.Properties['beaconId'].Value -ne ''
         ) {
-            throw "Interaction không phải BEACON_TRIGGER nhưng có beaconId: $eventId"
+            throw (
+                "Interaction không phải BEACON_TRIGGER " +
+                "nhưng có beaconId: $eventId"
+            )
         }
 
         $language = [string]$entry.languageCode
@@ -1192,7 +1443,8 @@ if ($Verify) {
             )
 
             $timestampSql += (
-                (ConvertTo-SqlLiteral $utcValue) + '::timestamptz'
+                (ConvertTo-SqlLiteral $utcValue) +
+                '::timestamptz'
             )
         }
 
@@ -1220,10 +1472,24 @@ if ($Verify) {
         )
     }
 
-    if ($expectedRows.Count -ne 24) {
-        throw "Expected 24 manifest interactions, got $($expectedRows.Count)."
+    # ---------------------------------------------------------
+    # 13.9. Verify expected interaction count
+    # ---------------------------------------------------------
+
+    if ($expectedRows.Count -ne $expectedInteractionCount) {
+        throw (
+            "Expected $expectedInteractionCount manifest interactions, " +
+            "got $($expectedRows.Count)."
+        )
     }
+
+    $expectedUniqueVisitorCount = $seenVisitorIds.Count
+
     $valuesSql = $expectedRows -join ",`n"
+
+    # ---------------------------------------------------------
+    # 13.10. Compare manifest interactions with PostgreSQL
+    # ---------------------------------------------------------
 
     $sql = @"
 WITH expected (
@@ -1297,7 +1563,12 @@ SELECT
         [int]$stats[3]
     )
 
-    $expectedStats = @(24, 0, 8, 0)
+    $expectedStats = @(
+        $expectedInteractionCount,
+        0,
+        $expectedUniqueVisitorCount,
+        0
+    )
 
     $statNames = @(
         'Total events',
@@ -1316,15 +1587,27 @@ SELECT
         }
     }
 
+    # ---------------------------------------------------------
+    # 13.11. Verify success
+    # ---------------------------------------------------------
+
     Write-Host ''
-    Write-Host 'VERIFY SUCCESS'
-    Write-Host '2 Sites'
-    Write-Host '8 Artifacts'
-    Write-Host '8 Multimedia'
-    Write-Host '4 Beacons'
-    Write-Host '24 Interactions'
-    Write-Host '8 unique anonymous visitors'
-    Write-Host 'Beacon mapping and timestamps valid.'
+    Write-Host '======================================'
+    Write-Host 'SMART HERITAGE VERIFY SUCCESS'
+    Write-Host '======================================'
+    Write-Host "HeritageSite      : $expectedSiteCount"
+    Write-Host "Artifact          : $expectedArtifactCount"
+    Write-Host "Multimedia        : $expectedMultimediaCount"
+    Write-Host "Beacon            : $expectedBeaconCount"
+    Write-Host "VisitorInteraction: $expectedInteractionCount"
+    Write-Host "Unique Visitors   : $expectedUniqueVisitorCount"
+    Write-Host 'API records       : Valid'
+    Write-Host 'Media files       : Valid'
+    Write-Host 'PostgreSQL data   : Matched'
+    Write-Host 'Beacon mapping    : Valid'
+    Write-Host 'Anonymous visitor : Valid'
+    Write-Host ''
+
     return
 }
 
@@ -2046,12 +2329,25 @@ foreach ($interaction in $interactionDefinitions) {
 # 21. FINAL MANIFEST CHECK
 # ============================================================
 
+$expectedSiteCount = @($Sites).Count
+$expectedArtifactCount = @($Artifacts).Count
+
+$expectedMultimediaCount = @(
+    $Artifacts |
+        Where-Object {
+            -not [string]::IsNullOrWhiteSpace($_.Image)
+        }
+).Count
+
+$expectedBeaconCount = @($Beacons).Count
+$expectedInteractionCount = $expectedArtifactCount * 3
+
 $expectedCounts = @{
-    sites = 2
-    artifacts = 8
-    multimedia = 8
-    beacons = 4
-    interactions = 24
+    sites = $expectedSiteCount
+    artifacts = $expectedArtifactCount
+    multimedia = $expectedMultimediaCount
+    beacons = $expectedBeaconCount
+    interactions = $expectedInteractionCount
 }
 
 foreach ($collection in $expectedCounts.Keys) {
@@ -2073,11 +2369,11 @@ Write-Host ''
 Write-Host '======================================'
 Write-Host 'SMART HERITAGE DEMO SEED COMPLETED'
 Write-Host '======================================'
-Write-Host 'HeritageSite      : 2'
-Write-Host 'Artifact          : 8'
-Write-Host 'Multimedia        : 8'
-Write-Host 'Beacon            : 4'
-Write-Host 'VisitorInteraction: 24'
+Write-Host "HeritageSite      : $expectedSiteCount"
+Write-Host "Artifact          : $expectedArtifactCount"
+Write-Host "Multimedia        : $expectedMultimediaCount"
+Write-Host "Beacon            : $expectedBeaconCount"
+Write-Host "VisitorInteraction: $expectedInteractionCount"
 Write-Host "Manifest          : $ManifestPath"
 Write-Host ''
 Write-Host 'Next step:'
