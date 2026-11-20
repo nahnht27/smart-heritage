@@ -7,15 +7,14 @@
 #
 # Safety:
 #   - Prompts for the exact target database name before doing anything.
-#   - Refuses to restore into the primary database unless
-#     ALLOW_PRIMARY_DB_RESTORE=yes is set explicitly.
-#   - Never deletes the Docker volume.
+#   - Refuses to restore into the primary database.
+#   - Refuses to restore into a target that already contains user objects.
+#   - Never uses pg_restore --clean and never deletes the Docker volume.
 #
 # Optional overrides:
 #   COMPOSE_FILE=... ENV_FILE=... POSTGRES_SERVICE=... RESTORE_DB=...
 #   COMPOSE_CMD='docker compose'   # override the Compose command if needed
 #   CONFIRM_RESTORE=yes          # non-interactive confirmation (automation)
-#   ALLOW_PRIMARY_DB_RESTORE=yes # allow restoring into POSTGRES_DB itself
 
 set -euo pipefail
 
@@ -77,21 +76,28 @@ if ! compose exec -T "$POSTGRES_SERVICE" \
   fail "Database '$TARGET_DB' is not reachable. Create it first (createdb) or set RESTORE_DB."
 fi
 
-cat >&2 <<EOF
-WARNING: destructive restore
-  Backup : $BACKUP_FILE
-  Target : $TARGET_DB
-Objects present in the backup will be dropped and recreated. Existing data in
-the target database can be replaced. The Docker volume is NOT deleted.
-Recommended: stop the backend first, and rehearse on a separate database.
-EOF
-
-if [[ "$TARGET_DB" == "$PRIMARY_DB" && "${ALLOW_PRIMARY_DB_RESTORE:-}" != "yes" ]]; then
+if [[ "$TARGET_DB" == "$PRIMARY_DB" ]]; then
   echo "Refusing to restore into the primary database '$PRIMARY_DB'." >&2
-  echo "Set RESTORE_DB to a separate database for drills, or set" >&2
-  echo "ALLOW_PRIMARY_DB_RESTORE=yes after taking a fresh backup." >&2
+  echo "Create a separate empty database and set RESTORE_DB." >&2
   exit 1
 fi
+
+empty_check_sql="select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname not like 'pg_%' and n.nspname <> 'information_schema' and c.relkind in ('r', 'p', 'v', 'm', 'S', 'f', 'i')"
+existing_objects="$(compose exec -T "$POSTGRES_SERVICE" sh -c \
+  'psql -U "$POSTGRES_USER" -d "$1" -At -v ON_ERROR_STOP=1 -c "$2"' \
+  sh "$TARGET_DB" "$empty_check_sql" | tr -d '\r')" \
+  || fail "Could not inspect target database '$TARGET_DB'"
+
+[[ "$existing_objects" == "0" ]] \
+  || fail "Target database '$TARGET_DB' is not empty ($existing_objects user relation(s))"
+
+cat >&2 <<EOF
+Restore target verified empty
+  Backup : $BACKUP_FILE
+  Target : $TARGET_DB
+The target database will receive objects from the backup. The Docker volume is
+NOT deleted. A failed restore is rolled back by --single-transaction.
+EOF
 
 if [[ "${CONFIRM_RESTORE:-}" != "yes" ]]; then
   # Read from the controlling terminal when available: earlier `compose exec -T`
@@ -108,7 +114,7 @@ fi
 
 log "Restoring $BACKUP_FILE into '$TARGET_DB'"
 compose exec -T "$POSTGRES_SERVICE" sh -c \
-  'exec pg_restore -U "$POSTGRES_USER" -d "$1" --clean --if-exists --no-owner --no-privileges --single-transaction' \
+  'exec pg_restore -U "$POSTGRES_USER" -d "$1" --exit-on-error --no-owner --no-privileges --single-transaction' \
   sh "$TARGET_DB" < "$BACKUP_FILE"
 
 compose exec -T "$POSTGRES_SERVICE" \

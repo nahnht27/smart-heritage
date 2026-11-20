@@ -1,150 +1,145 @@
 # PostgreSQL backup & restore
 
-Scripts:
+Quy trình S6-M1-02 dùng bộ script an toàn trong `scripts/database/`:
 
-- `scripts/deployment/backup-postgres.sh`
-- `scripts/deployment/restore-postgres.sh`
+- `scripts/database/backup.sh`
+- `scripts/database/restore.sh`
+- `scripts/database/test-backup-restore.sh`
 
-Cả hai dùng Docker Compose để chạy `pg_dump`/`pg_restore` **trong container**
-PostgreSQL, nên host không cần cài PostgreSQL client và password không bị in ra
-log.
+Chi tiết thiết kế, kịch bản kiểm chứng và giới hạn:
+[`docs/sprint-6/database-backup-restore.md`](../sprint-6/database-backup-restore.md).
 
-## 1. Yêu cầu
+## 1. Nguyên tắc an toàn
 
-- Production stack đang chạy (`docker-compose.production.yml` + `.env.production`).
-- Docker + Compose V2 (`docker compose`). Legacy `docker-compose` chỉ là fallback.
-- Quyền đọc `.env.production` và ghi thư mục backup.
-- Không chạy restore lên database đang được người dùng sử dụng nếu chưa có cửa
-  sổ bảo trì và backup mới.
+- Chỉ restore vào database **đã tồn tại và trống**.
+- Không restore đè lên database đang phục vụ.
+- Không dùng `pg_restore --clean`.
+- Không để script restore tự tạo/drop database tùy ý.
+- Không dùng credential production cho test disposable.
+- Luôn kiểm tra checksum và metadata trước khi restore.
+- Không commit dump, checksum, metadata hoặc file chứa credential.
 
-Biến môi trường tuỳ chọn cho cả hai script:
+Các script cũ trong `scripts/deployment/` là wrapper Docker Compose cho
+production. `restore-postgres.sh` cũng từ chối primary database, target không
+trống và không dùng `--clean`; không dùng chúng cho diễn tập S6.
 
-| Biến | Mặc định | Ý nghĩa |
-|------|----------|---------|
-| `COMPOSE_FILE` | `docker-compose.production.yml` | Compose file |
-| `ENV_FILE` | `.env.production` | Env file production |
-| `POSTGRES_SERVICE` | `postgres` | Tên service Compose |
-| `COMPOSE_CMD` | auto | Override lệnh Compose khi cần (ví dụ đường dẫn binary) |
+## 2. Yêu cầu
 
-## 2. Backup
+- PostgreSQL 16; client major >= server major.
+- `pg_dump`, `pg_restore`, `psql`, `createdb`, `dropdb`, `sha256sum`.
+- Flyway wrapper dùng Docker (`FLYWAY_MODE=docker`) hoặc Maven plugin
+  (`FLYWAY_MODE=maven`); chế độ `auto` tự chọn.
+- Java 17 và backend jar nếu chạy application compatibility check; Maven mode
+  cũng cần Java 17.
 
-```bash
-scripts/deployment/backup-postgres.sh
-```
+Không dùng tài liệu này để thao tác trực tiếp trên production data.
 
-Script sẽ:
-
-1. Kiểm tra Compose file/env file.
-2. Kiểm tra service PostgreSQL đang chạy và `pg_isready`.
-3. Chạy `pg_dump --format=custom --no-owner --no-privileges`.
-4. Tạo `backups/<database>_<UTC timestamp>.dump`.
-5. Kiểm tra file không rỗng và có magic `PGDMP`.
-6. Đặt quyền `600`.
-
-Ví dụ kết quả:
-
-```text
-[backup] Dumping database 'smart_heritage' to backups/smart_heritage_20261104T130811Z.dump
-[backup] Backup OK: backups/smart_heritage_20261104T130811Z.dump (18337 bytes)
-```
-
-Tùy chọn:
+## 3. Cấu hình kết nối
 
 ```bash
-BACKUP_DIR=/var/backups/smart-heritage scripts/deployment/backup-postgres.sh
+export PGHOST=127.0.0.1
+export PGPORT=5432
+export PGDATABASE=smart_heritage
+export PGUSER=smart_heritage_app
+export PGPASSFILE="$HOME/.pgpass"
+chmod 600 "$PGPASSFILE"
 ```
 
-`backups/` đã nằm trong `.gitignore`; không commit dump.
+Không truyền password qua argument và không in password ra log. `PGPASSWORD`
+chỉ nên dùng cho CI/disposable test.
 
-Khuyến nghị vận hành:
-
-- Copy backup ra khỏi host và mã hoá khi lưu trữ dài hạn.
-- Giữ retention theo chính sách của team (script không tự xoá backup cũ).
-- Chạy backup trước mỗi release và trước rollback.
-- Không đặt backup trong thư mục được serve public.
-
-## 3. Restore
+## 4. Backup
 
 ```bash
-scripts/deployment/restore-postgres.sh backups/smart_heritage_20261104T130811Z.dump
+scripts/database/backup.sh --output-dir /var/backups/smart-heritage
 ```
 
-Script sẽ:
+Script:
 
-1. Kiểm tra file backup và magic `PGDMP`.
-2. Kiểm tra PostgreSQL đang chạy/healthy.
-3. Xác định target database (`POSTGRES_DB` hoặc `RESTORE_DB`).
-4. Cảnh báo rõ thao tác destructive.
-5. Yêu cầu gõ đúng tên database để xác nhận.
-6. Từ chối restore vào **primary database** trừ khi
-   `ALLOW_PRIMARY_DB_RESTORE=yes` được đặt rõ ràng.
-7. Chạy `pg_restore --clean --if-exists --no-owner --no-privileges
-   --single-transaction`.
-8. Kiểm tra database sau restore.
+1. Kiểm tra đúng database và PostgreSQL major 16.
+2. Chạy `pg_dump --format=custom --compress=9 --no-owner --no-privileges`.
+3. Kiểm tra magic `PGDMP` và đọc archive bằng `pg_restore --list`.
+4. Tính SHA-256, kích thước, server/client version và UTC timestamp.
+5. Ghi `.dump`, `.dump.sha256`, `.dump.metadata` với mode `600`.
 
-Không xoá Docker volume. Tuy nhiên object có trong backup sẽ bị drop/recreate;
-dữ liệu hiện có trong target database có thể bị thay thế.
+Đường dẫn backup được in ra stdout; log ở stderr. Script không ghi đè file đã
+tồn tại và từ chối thư mục source chưa được gitignore.
 
-### Restore vào database chính (production)
+Dump chỉ chứa database hiện tại, không chứa role/global object. Nếu cần khôi
+phục role/password, phải có quy trình `pg_dumpall --globals-only` riêng.
 
-Chỉ sau khi:
-
-- Đã backup mới.
-- Đã dừng backend để tránh ghi dữ liệu.
-- Đã xác nhận đúng database.
+## 5. Restore vào database trống
 
 ```bash
-docker compose -f docker-compose.production.yml --env-file .env.production stop backend
-ALLOW_PRIMARY_DB_RESTORE=yes \
-  scripts/deployment/restore-postgres.sh backups/<file>.dump
-docker compose -f docker-compose.production.yml --env-file .env.production start backend
+createdb --maintenance-db=postgres smart_heritage_restore_verify
+
+export PROTECTED_DATABASES=smart_heritage
+scripts/database/restore.sh \
+  /var/backups/smart-heritage/smart_heritage_20261120T100000Z.dump \
+  smart_heritage_restore_verify
 ```
 
-### Diễn tập restore trên database cô lập (khuyến nghị)
+Mặc định phải gõ đúng tên database đích. Chỉ dùng `--yes` khi automation đã xác
+định chính xác target.
 
-Tạo database riêng trong cùng container PostgreSQL, restore vào đó, kiểm tra,
-rồi xoá database test:
+Script từ chối:
+
+- Target trùng database nguồn trong metadata.
+- `postgres`, `template0`, `template1` hoặc database trong
+  `PROTECTED_DATABASES`; mặc định đã chặn `smart_heritage`,
+  `smart_heritage_prod`, `smart_heritage_production`.
+- Target đã có user object.
+- Checksum/size mismatch, archive hỏng hoặc version không tương thích.
+
+Restore dùng `--exit-on-error --single-transaction --no-owner --no-privileges`.
+Không có `--clean`; lỗi giữa chừng được rollback. Database target và source
+không bị drop bởi script.
+
+## 6. Diễn tập trên database disposable
 
 ```bash
-docker compose -f docker-compose.production.yml --env-file .env.production \
-  exec -T postgres sh -c 'createdb -U "$POSTGRES_USER" smart_heritage_restore_test'
+export PGHOST=127.0.0.1
+export PGPORT=5432
+export PGUSER=backup_ci
+export PGPASSWORD=backup_ci
+export TEST_DB_PREFIX=s6_local_
+export FLYWAY_MODE=auto
 
-RESTORE_DB=smart_heritage_restore_test \
-CONFIRM_RESTORE=yes \
-  scripts/deployment/restore-postgres.sh backups/<file>.dump
-
-docker compose -f docker-compose.production.yml --env-file .env.production \
-  exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d smart_heritage_restore_test -c "SELECT 1"'
+BACKEND_JAR=backend/target/backend-0.0.1-SNAPSHOT.jar \
+REQUIRE_APP_CHECK=1 \
+  bash scripts/database/test-backup-restore.sh
 ```
 
-Không dùng `RESTORE_DB` trỏ nhầm database đang phục vụ người dùng.
+Script tạo ba database có prefix do nó kiểm soát, seed dữ liệu deterministic,
+backup, thử các trường hợp bị từ chối, restore, so sánh data/schema/Flyway,
+kiểm tra sequence và chạy backend với `ddl-auto=validate`.
 
-### Non-interactive (CI/automation)
+Không đặt `TEST_DB_PREFIX` trùng tên database thật.
 
-`CONFIRM_RESTORE=yes` bỏ qua prompt nhưng vẫn giữ guard primary database. Chỉ
-dùng khi đã xác định đúng target từ trước.
+## 7. Sau restore
 
-## 4. Bằng chứng kiểm chứng
+```bash
+export SPRING_DATASOURCE_URL='jdbc:postgresql://host:5432/smart_heritage_restore_verify'
+export SPRING_DATASOURCE_USERNAME='user'
+export SPRING_DATASOURCE_PASSWORD='password'
+export FLYWAY_NETWORK=host
 
-Ngày 2026-11-04, chạy trên **project Compose cô lập** `smart-heritage-task4-test`
-với database test `smart_heritage_prod_test` (không phải dữ liệu dev/production):
+scripts/database/flyway.sh info
+scripts/database/flyway.sh validate
+```
 
-- Backup: `smart_heritage_prod_test_20261104T130811Z.dump`, 18337 bytes, magic
-  `PGDMP`, mode `600`.
-- Tạo database đích riêng `smart_heritage_restore_test`.
-- Restore bằng `RESTORE_DB=smart_heritage_restore_test CONFIRM_RESTORE=yes`:
-  exit 0.
-- Kiểm tra dữ liệu marker sau restore: trả `persists` → PASS.
-- Guard primary DB: chạy restore không có `ALLOW_PRIMARY_DB_RESTORE` vào
-  `smart_heritage_prod_test` → từ chối, exit 1 → PASS.
-- Không restore vào database dev đang chạy; không xoá volume của stack dev.
+Kiểm tra thêm:
 
-## 5. Giới hạn
+- Flyway history V1–V4 `success=true`, không có migration fail.
+- Backend start với `ddl-auto=validate`, `/api/health` trả `UP`.
+- Dữ liệu heritage site/artifact/beacon/interaction quan trọng còn đúng.
+- Không có invalid index hoặc sequence lệch.
 
-- Không có backup tự động theo lịch trong M1; nếu cần, thêm cron/systemd timer
-  gọi script và giám sát exit code.
-- Không có mã hoá/offsite upload sẵn; team cần bổ sung theo hạ tầng.
-- Không phải PITR (point-in-time recovery); chỉ restore từ dump.
-- `pg_restore --clean` không drop các object không có trong backup và không
-  reset toàn bộ database; muốn sạch hoàn toàn phải tạo database mới rồi restore.
-- Luôn kiểm tra version PostgreSQL của dump và server đích tương thích.
+## 8. Giới hạn
+
+- Không có PITR; chỉ restore từ dump.
+- Không tự động mã hóa/offsite/retention.
+- Không tự chuyển backend sang database mới.
+- Không có production data để diễn tập.
+- Legacy `scripts/deployment/backup-postgres.sh` không tạo checksum/metadata;
+  dùng `scripts/database/backup.sh` khi môi trường cho phép kết nối libpq.
