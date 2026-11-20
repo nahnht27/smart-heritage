@@ -199,6 +199,7 @@ Production stack gồm PostgreSQL (internal, persistent volume), backend
 - Backup/restore: [`docs/deployment/backup-restore.md`](docs/deployment/backup-restore.md)
 - Database backup/restore acceptance S6: [`docs/sprint-6/database-backup-restore.md`](docs/sprint-6/database-backup-restore.md)
 - Release/rollback: [`docs/deployment/release-management.md`](docs/deployment/release-management.md)
+- Tài liệu kiến trúc S6: [`docs/sprint-6/architecture/README.md`](docs/sprint-6/architecture/README.md)
 
 Compose development ở trên vẫn giữ nguyên cho local.
 
