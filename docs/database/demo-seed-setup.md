@@ -1,8 +1,6 @@
 # Smart Heritage Demo Dataset — Setup, Seed and Cleanup
-
 ## 1. Mục đích
 Tài liệu hướng dẫn chuẩn bị, tạo, kiểm tra và dọn dẹp dữ liệu demo cho hệ thống Smart Heritage.
-
 Script sử dụng:
 - `backend/scripts/seed-demo-data.ps1`: tự động tạo, xác minh và dọn dẹp dữ liệu demo.
 - `backend/scripts/demo-seed-manifest.json`: lưu thông tin các bản ghi thuộc bộ dữ liệu demo và trạng thái sở hữu.
@@ -28,6 +26,7 @@ Các giá trị mặc định:
 
 ## 3. Khởi động hệ thống
 Mở PowerShell tại thư mục gốc repository:
+
 ```powershell
 docker compose up --build -d
 ```
@@ -41,14 +40,11 @@ Kiểm tra API health:
 ```powershell
 Invoke-RestMethod -Uri "http://localhost:8080/api/health"
 ```
-
-**Chỉ thực hiện Seed sau khi backend và PostgreSQL đã sẵn sàng.
+***Chỉ thực hiện Seed sau khi backend và PostgreSQL đã sẵn sàng*** 
 
 ## 4. Xác thực ADMIN
 Script cần ADMIN Bearer token để thực hiện các thao tác API có quyền quản trị.
-
 Có hai cách cung cấp token:
-
 **Cách 1 — Nhập khi được yêu cầu**
 Nếu biến môi trường chưa được thiết lập, script sẽ hiển thị lời nhắc nhập token bằng `Read-Host -AsSecureString`.
 Token được chuyển thành chuỗi trong bộ nhớ để tạo HTTP Authorization header. Script không ghi token vào manifest.
@@ -60,29 +56,33 @@ $env:SMART_HERITAGE_ADMIN_TOKEN = "<ADMIN_BEARER_TOKEN>"
 ```
 
 Không đưa token thật vào mã nguồn, file manifest, tài liệu, log hoặc Git.
-
 Sau khi hoàn thành công việc, xóa biến môi trường khỏi phiên hiện tại:
 ```powershell
 Remove-Item Env:SMART_HERITAGE_ADMIN_TOKEN -ErrorAction SilentlyContinue
 ```
 
 ## 5. Cấu trúc Demo Dataset
+
 Bộ dữ liệu demo hiện tại gồm:
 
 | Loại dữ liệu | Số lượng |
 |---|---:|
-| HeritageSite | 2 |
-| Artifact | 8 |
-| Multimedia | 8 |
+| HeritageSite | 4 |
+| Artifact | 20 |
+| Multimedia | 20 |
 | Beacon | 4 |
-| VisitorInteraction | 24 |
+| VisitorInteraction | 60 |
 | Anonymous visitors | 8 |
 
-Hai địa điểm demo:
-- Hoàng thành Thăng Long.
-- Đại Nội Huế.
+Bốn địa điểm demo:
+
+- Hoàng thành Thăng Long (`site-thang-long`).
+- Đại Nội Huế (`site-hue`).
+- Văn Miếu – Quốc Tử Giám (`site-van-mieu`).
+- Thành nhà Hồ (`site-ho-citadel`).
 
 Quan hệ dữ liệu:
+
 ```text
 HeritageSite
     |
@@ -95,40 +95,56 @@ HeritageSite
             +-- VisitorInteraction
 ```
 
-Mỗi địa điểm có 4 Artifact. Có 4 Beacon được ánh xạ tới Artifact, mỗi địa điểm có 2 Beacon.
-VisitorInteraction sử dụng anonymous visitor UUID và event UUID ổn định để hỗ trợ việc chạy Seed nhiều lần mà không tạo bản ghi trùng.
+Mỗi Artifact thuộc một HeritageSite. Mỗi Multimedia được liên kết với một Artifact. Beacon có thể được ánh xạ tới Artifact tương ứng.
 
-Các loại interaction:
+Bốn Beacon sử dụng Proximity UUID, Major và Minor riêng biệt. Các VisitorInteraction sử dụng eventId và visitorId ổn định để hỗ trợ nhận diện sự kiện khi chạy Seed nhiều lần.
 
-| Interaction type | Số lượng |
-|---|---:|
-| VIEW | 8 |
-| SCAN | 8 |
-| BEACON_TRIGGER | 4 |
-| AUDIO_PLAY | 4 |
-| **Total** | **24** |
+Các loại Interaction được sử dụng:
 
-Timestamp được tạo theo UTC và sử dụng định dạng có timezone.
+- VIEW.
+- SCAN.
+- BEACON_TRIGGER.
+- AUDIO_PLAY.
+
+Mỗi Artifact có 3 VisitorInteraction. Các Artifact có Beacon được sử dụng BEACON_TRIGGER; những Artifact không có Beacon sử dụng AUDIO_PLAY thay thế.
+
+VisitorInteraction sử dụng 8 anonymous visitor UUID ổn định. Timestamp được tạo theo UTC và các trường thời gian được đồng bộ theo định nghĩa của Seed Script.
 
 ## 6. Chạy Seed
 
 ### 6.1. Dry-run
+
 Trước khi tạo dữ liệu, chạy:
 
 ```powershell
 .\backend\scripts\seed-demo-data.ps1 -Seed -WhatIf
 ```
 
+Kết quả dry-run hiện tại:
+
+```text
+DRY RUN - không gọi API và không ghi database.
+4 HeritageSite
+20 Artifact
+20 Multimedia
+4 Beacon
+60 VisitorInteraction
+
+DRY RUN COMPLETE.
+```
+
 Chế độ này chỉ hiển thị kế hoạch dữ liệu:
-- 2 HeritageSite.
-- 8 Artifact.
-- 8 Multimedia.
+
+- 4 HeritageSite.
+- 20 Artifact.
+- 20 Multimedia.
 - 4 Beacon.
-- 24 VisitorInteraction.
+- 60 VisitorInteraction.
 
 Không gọi API và không ghi dữ liệu vào database hoặc manifest.
 
 ### 6.2. Tạo dữ liệu
+
 Sau khi kiểm tra dry-run:
 
 ```powershell
@@ -138,6 +154,7 @@ Sau khi kiểm tra dry-run:
 Cung cấp ADMIN token khi được yêu cầu.
 
 Script thực hiện:
+
 1. Đọc manifest hiện tại nếu đã tồn tại.
 2. Kiểm tra các bản ghi đã có.
 3. Tạo những bản ghi còn thiếu.
@@ -148,12 +165,17 @@ Script thực hiện:
 Không chỉnh sửa hoặc xóa manifest trong khi Seed đang chạy.
 
 ### 6.3. Tính idempotent
+
 Có thể chạy lại Seed khi cần khôi phục hoặc bổ sung dữ liệu.
-Script nhận diện các bản ghi đã tồn tại để tránh tạo trùng.
-Đối với VisitorInteraction, event UUID được sử dụng để nhận diện sự kiện đã được tạo.
+
+Script nhận diện các bản ghi đã tồn tại để tránh tạo trùng. Đối với VisitorInteraction, event UUID được sử dụng để nhận diện sự kiện đã được tạo.
+
 Sau khi chạy lại, cần đối chiếu số lượng dữ liệu PostgreSQL và chạy Verify.
 
+Lưu ý: cần kiểm thử idempotency thực tế trên dataset hiện tại gồm 4 HeritageSite, 20 Artifact, 20 Multimedia, 4 Beacon và 60 VisitorInteraction trước khi xác nhận tiêu chí này hoàn tất cho phiên bản dataset mới.
+
 ## 7. Verify dữ liệu
+
 Chạy:
 
 ```powershell
@@ -161,6 +183,7 @@ Chạy:
 ```
 
 Verify kiểm tra dữ liệu thông qua API và PostgreSQL, bao gồm:
+
 - HeritageSite.
 - Artifact và quan hệ với HeritageSite.
 - Multimedia và quan hệ với Artifact.
@@ -170,23 +193,31 @@ Verify kiểm tra dữ liệu thông qua API và PostgreSQL, bao gồm:
 - Event UUID.
 - Timestamp và timezone.
 - Các điều kiện toàn vẹn dữ liệu liên quan.
+- Media files.
 
-Kết quả thành công có dạng:
+Kết quả xác minh thực tế gần nhất:
 
 ```text
-VERIFY SUCCESS
-2 Sites
-8 Artifacts
-8 Multimedia
-4 Beacons
-24 Interactions
-8 unique anonymous visitors
-Beacon mapping and timestamps valid.
+======================================
+SMART HERITAGE VERIFY SUCCESS
+======================================
+HeritageSite      : 4
+Artifact          : 20
+Multimedia        : 20
+Beacon            : 4
+VisitorInteraction: 60
+Unique Visitors   : 8
+API records       : Valid
+Media files       : Valid
+PostgreSQL data   : Matched
+Beacon mapping    : Valid
+Anonymous visitor : Valid
 ```
 
 Nếu Verify thất bại, cần kiểm tra lỗi API, manifest và PostgreSQL trước khi tiếp tục.
 
 ## 8. Kiểm tra PostgreSQL trực tiếp
+
 Có thể kiểm tra số lượng bản ghi bằng:
 
 ```powershell
@@ -194,15 +225,17 @@ docker compose exec -T postgres psql -U postgres -d smart_heritage -X -c "SELECT
 ```
 
 Kết quả mong đợi đối với bộ dữ liệu demo hoàn chỉnh:
+
 | Table | Expected count |
 |---|---:|
-| heritage_site | 2 |
-| artifact | 8 |
-| multimedia | 8 |
+| heritage_site | 4 |
+| artifact | 20 |
+| multimedia | 20 |
 | beacon | 4 |
-| visitor_interaction | 24 |
+| visitor_interaction | 60 |
 
 Nếu database có dữ liệu khác ngoài demo, không được mặc định rằng tổng số bản ghi phải bằng các giá trị trên.
+
 
 ## 9. Cleanup dữ liệu demo
 
@@ -275,7 +308,6 @@ Không sử dụng Cleanup như một phương pháp reset toàn bộ database.
 
 ## 10. Manifest và quyền sở hữu dữ liệu
 Manifest lưu:
-
 - Seed name và Base URL.
 - Phiên bản manifest.
 - ID các bản ghi được quản lý.
@@ -285,18 +317,15 @@ Manifest lưu:
 - Thời điểm tạo, cập nhật và hoàn tất Cleanup (`createdAtUtc`, `updatedAtUtc`, `cleanedAtUtc`).
 
 Manifest được sử dụng để:
-
 - Hỗ trợ Seed idempotent.
 - Phục hồi trạng thái khi Seed bị gián đoạn.
 - Kiểm tra quyền sở hữu trước Cleanup.
 - Ngăn Cleanup xóa nhầm bản ghi không thuộc bộ demo.
 
 Không chỉnh sửa ID hoặc `createdBySeed` thủ công nếu không hiểu rõ tác động đến quá trình Cleanup.
-
 Không xóa manifest trong khi dữ liệu demo vẫn còn trong database.
 
 ## 11. Khắc phục sự cố
-
 | Hiện tượng | Hướng xử lý |
 |---|---|
 | Không kết nối được API | Kiểm tra backend, Docker Compose và Base URL |
