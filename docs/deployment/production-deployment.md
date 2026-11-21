@@ -53,7 +53,7 @@ Không sửa `docker-compose.yml` của Task 1 khi triển khai production.
 | Backend | `backend/Dockerfile` | Multi-stage Maven build, JRE 17 runtime, non-root UID 10001, healthcheck |
 | Admin Web | `frontend/Dockerfile`, `frontend/nginx/default.conf` | Node build + Nginx static/SPA + proxy `/api` |
 | Env mẫu | `.env.production.example` | Chỉ placeholder |
-| Backup/restore | `scripts/deployment/*.sh` | Xem [backup-restore.md](backup-restore.md) |
+| Backup/restore | `scripts/database/*.sh`, wrapper `scripts/deployment/*.sh` | Xem [backup-restore.md](backup-restore.md) |
 | Release/rollback | [release-management.md](release-management.md) | Semver, checklist, rollback |
 
 ## 4. Chuẩn bị môi trường
@@ -130,7 +130,8 @@ curl -fsS http://127.0.0.1:8080/api/health
 ```
 
 Kỳ vọng: `postgres`, `backend`, `frontend` đều `healthy`; `/api/health` trả
-`{"status":"UP",...}`.
+`{"status":"UP",...}`. Backend production chạy Spring profile `prod`, tắt
+`show-sql`/`open-in-view`, bật graceful shutdown và có `stop_grace_period: 30s`.
 
 Các lệnh `curl` trên dùng cổng mặc định `8080`; nếu đổi `APP_HTTP_PORT`, thay
 số cổng tương ứng.
@@ -197,6 +198,11 @@ Yêu cầu TLS:
 
 `depends_on` dùng `condition: service_healthy`; health check vẫn là nguồn xác
 nhận thật, không thay thế bằng thứ tự start.
+
+Backend dùng `server.shutdown=graceful` với timeout 25s
+(`application-prod.yml`), trong khi Compose cho container 30s trước `SIGKILL`.
+`docker compose stop backend` hoặc `up -d` khi đổi image sẽ cho request đang xử
+lý hoàn tất thay vì cắt ngang.
 
 Logging:
 
@@ -282,8 +288,9 @@ dev trong cùng thư mục:
 - `GET /api/health` qua Nginx: `status=UP`.
 - Public API qua proxy: PASS.
 - PostgreSQL persistence sau restart: PASS.
-- Backup/restore trên database cô lập: PASS (xem
-  [backup-restore.md](backup-restore.md)).
+- Backup/restore S6 trên database disposable: xem
+  [database-backup-restore.md](../sprint-6/database-backup-restore.md) và job CI
+  `database-backup-restore`.
 - Flyway fresh DB V1–V4 + Hibernate validate + `/api/health`: PASS trên
   PostgreSQL 16 disposable.
 - Flyway adoption DB kiểu Hibernate: detection 3 → baseline 3 → V4 → validate:

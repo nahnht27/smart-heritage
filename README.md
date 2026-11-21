@@ -170,8 +170,10 @@ môi trường cho các scenario cần đăng nhập và ghi interaction.
 GitHub Actions chạy tự động cho PR vào `main`, push vào `main`/`LTJ-*` và chạy
 thủ công từ tab Actions. Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
-Required checks dự kiến: `backend-test`, `frontend-checks`, `mobile-tests`,
-`docker-build`; `integration-smoke` (public-only) sau khi ổn định.
+Required checks dự kiến: `backend-test`, `postgres-integration`,
+`database-backup-restore`, `frontend-checks`, `mobile-tests`, `docker-build`,
+`integration-smoke` (public-only), `production-smoke` (production Compose +
+Nginx + health).
 `mobile-static-analysis` là **advisory** do technical debt TypeScript/ESLint có sẵn.
 
 Chi tiết kiến trúc, cách xem log và cấu hình branch protection:
@@ -193,8 +195,11 @@ Production stack gồm PostgreSQL (internal, persistent volume), backend
 `/api`), chỉ frontend bind `127.0.0.1` để đặt reverse proxy TLS phía trước.
 
 - Hướng dẫn đầy đủ: [`docs/deployment/production-deployment.md`](docs/deployment/production-deployment.md)
+- Release readiness S6: [`docs/sprint-6/release-readiness.md`](docs/sprint-6/release-readiness.md)
 - Backup/restore: [`docs/deployment/backup-restore.md`](docs/deployment/backup-restore.md)
+- Database backup/restore acceptance S6: [`docs/sprint-6/database-backup-restore.md`](docs/sprint-6/database-backup-restore.md)
 - Release/rollback: [`docs/deployment/release-management.md`](docs/deployment/release-management.md)
+- Tài liệu kiến trúc S6: [`docs/sprint-6/architecture/README.md`](docs/sprint-6/architecture/README.md)
 
 Compose development ở trên vẫn giữ nguyên cho local.
 
