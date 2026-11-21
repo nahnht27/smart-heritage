@@ -53,7 +53,7 @@ Không sửa `docker-compose.yml` của Task 1 khi triển khai production.
 | Backend | `backend/Dockerfile` | Multi-stage Maven build, JRE 17 runtime, non-root UID 10001, healthcheck |
 | Admin Web | `frontend/Dockerfile`, `frontend/nginx/default.conf` | Node build + Nginx static/SPA + proxy `/api` |
 | Env mẫu | `.env.production.example` | Chỉ placeholder |
-| Backup/restore | `scripts/deployment/*.sh` | Xem [backup-restore.md](backup-restore.md) |
+| Backup/restore | `scripts/database/*.sh`, wrapper `scripts/deployment/*.sh` | Xem [backup-restore.md](backup-restore.md) |
 | Release/rollback | [release-management.md](release-management.md) | Semver, checklist, rollback |
 
 ## 4. Chuẩn bị môi trường
@@ -288,8 +288,9 @@ dev trong cùng thư mục:
 - `GET /api/health` qua Nginx: `status=UP`.
 - Public API qua proxy: PASS.
 - PostgreSQL persistence sau restart: PASS.
-- Backup/restore trên database cô lập: PASS (xem
-  [backup-restore.md](backup-restore.md)).
+- Backup/restore S6 trên database disposable: xem
+  [database-backup-restore.md](../sprint-6/database-backup-restore.md) và job CI
+  `database-backup-restore`.
 - Flyway fresh DB V1–V4 + Hibernate validate + `/api/health`: PASS trên
   PostgreSQL 16 disposable.
 - Flyway adoption DB kiểu Hibernate: detection 3 → baseline 3 → V4 → validate:

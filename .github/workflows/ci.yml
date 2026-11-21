@@ -145,6 +145,59 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  database-backup-restore:
+    name: database-backup-restore
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: smart_heritage_backup_ci
+          POSTGRES_USER: backup_ci
+          POSTGRES_PASSWORD: backup_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U backup_ci -d smart_heritage_backup_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: backup_ci
+      PGPASSWORD: backup_ci
+      EXPECTED_POSTGRES_MAJOR: "16"
+      TEST_DB_PREFIX: s6_backup_ci_
+      FLYWAY_NETWORK: host
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install PostgreSQL 16 client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Build backend jar
+        working-directory: backend
+        run: ./mvnw -B -DskipTests package
+
+      - name: Run disposable backup/restore round trip
+        env:
+          BACKEND_JAR: backend/target/backend-0.0.1-SNAPSHOT.jar
+          REQUIRE_APP_CHECK: "1"
+        run: bash scripts/database/test-backup-restore.sh
+
   frontend-checks:
     name: frontend-checks
     runs-on: ubuntu-latest
