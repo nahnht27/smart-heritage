@@ -1,0 +1,139 @@
+@startuml smart-heritage-use-cases
+title Smart Heritage — As-Built Use Cases (S6-M1-03)
+
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #475569
+  ArrowColor #475569
+}
+
+actor Visitor as "Visitor"
+actor Admin as "Heritage Site\nAdministrator"
+actor Beacon as "iBeacon Device\n(BLE broadcaster)"
+
+rectangle "Smart Heritage System" as SYS {
+
+  package "Visitor mobile — implemented" as VM_IMPL {
+    usecase "UC-V01\nRegister / Login" as V_LOGIN
+    usecase "UC-V02\nBrowse heritage sites" as V_SITES
+    usecase "UC-V03\nBrowse / search artifacts" as V_ARTIFACTS
+    usecase "UC-V04\nView artifact detail" as V_DETAIL
+    usecase "UC-V05\nView / play multimedia" as V_MEDIA
+    usecase "UC-V06\nScan nearby iBeacon" as V_SCAN
+    usecase "UC-V07\nResolve beacon to artifact" as V_RESOLVE
+    usecase "UC-V08\nRecord VIEW / AUDIO_PLAY /\nSCAN / BEACON_TRIGGER" as V_RECORD
+    usecase "UC-V09\nView / update own profile" as V_PROFILE
+  }
+
+  package "Visitor mobile — placeholder / mock" as VM_PARTIAL #F1F5F9 {
+    usecase "UC-V10\nView heritage map\n(placeholder)" as V_MAP
+    usecase "UC-V11\nSave favorites\n(mock data)" as V_FAV
+    usecase "UC-V12\nView visit history\n(mock data)" as V_HISTORY
+    usecase "UC-V13\nSubmit rating / feedback\n(local alert only)" as V_FEEDBACK
+    usecase "UC-V14\nSelect preferred language\n(no catalogue)" as V_LANG
+  }
+
+  package "Admin web — implemented" as ADMIN_IMPL {
+    usecase "UC-A01\nAdmin login" as A_LOGIN
+    usecase "UC-A02\nManage heritage sites" as A_SITES
+    usecase "UC-A03\nManage artifacts" as A_ARTIFACTS
+    usecase "UC-A04\nManage multimedia" as A_MEDIA
+    usecase "UC-A05\nManage beacons\n(identity + artifact mapping)" as A_BEACONS
+    usecase "UC-A06\nView interaction analytics" as A_ANALYTICS
+    usecase "UC-A07\nExport summary CSV\n(browser-side)" as A_CSV
+  }
+
+  package "Admin web — placeholder" as ADMIN_PARTIAL #F1F5F9 {
+    usecase "UC-A08\nManage translations\n(placeholder)" as A_TRANS
+    usecase "UC-A09\nModerate feedback\n(placeholder)" as A_FEEDBACK
+    usecase "UC-A10\nExport PDF / Excel\n(not implemented)" as A_PDF
+    usecase "UC-A11\nManage beacon map location\n(not implemented)" as A_BEACON_MAP
+  }
+
+  package "System behavior — implemented" as SYSTEM {
+    usecase "UC-S01\nProcess BLE advertisements\n(on device)" as S_PROCESS
+    usecase "UC-S02\nDebounce entry + cooldown\n(on device)" as S_DEBOUNCE
+    usecase "UC-S03\nEnforce unique eventId\n(idempotency)" as S_IDEMPOTENT
+    usecase "UC-S04\nAuthenticate JWT +\nRBAC authorization" as S_AUTH
+    usecase "UC-S05\nValidate input and\nmap errors" as S_VALIDATE
+    usecase "UC-S06\nPersist content and\ninteraction history" as S_PERSIST
+    usecase "UC-S07\nAggregate analytics\nin UTC" as S_AGG
+    usecase "UC-S08\nApply Flyway schema\nmigrations" as S_FLYWAY
+  }
+}
+
+' ---------- Visitor relationships ----------
+Visitor --> V_LOGIN
+Visitor --> V_SITES
+Visitor --> V_ARTIFACTS
+Visitor --> V_DETAIL
+Visitor --> V_MEDIA
+Visitor --> V_SCAN
+Visitor --> V_PROFILE
+Visitor --> V_MAP
+Visitor --> V_FAV
+Visitor --> V_HISTORY
+Visitor --> V_FEEDBACK
+Visitor --> V_LANG
+
+V_SCAN .> S_PROCESS : <<include>>
+V_SCAN .> S_DEBOUNCE : <<include>>
+V_SCAN .> V_RESOLVE : <<include>>
+V_RESOLVE .> V_RECORD : <<include>>
+V_DETAIL .> V_RECORD : <<include>>
+V_DETAIL .> V_MEDIA : <<include>>
+V_RECORD .> S_IDEMPOTENT : <<include>>
+V_RECORD .> S_VALIDATE : <<include>>
+V_RECORD .> S_PERSIST : <<include>>
+V_LOGIN .> S_AUTH : <<include>>
+V_PROFILE .> S_AUTH : <<include>>
+
+' ---------- Beacon relationships ----------
+Beacon --> S_PROCESS
+
+' ---------- Admin relationships ----------
+Admin --> A_LOGIN
+Admin --> A_SITES
+Admin --> A_ARTIFACTS
+Admin --> A_MEDIA
+Admin --> A_BEACONS
+Admin --> A_ANALYTICS
+Admin --> A_CSV
+Admin --> A_TRANS
+Admin --> A_FEEDBACK
+Admin --> A_PDF
+Admin --> A_BEACON_MAP
+
+A_LOGIN .> S_AUTH : <<include>>
+A_SITES .> S_AUTH : <<include>>
+A_ARTIFACTS .> S_AUTH : <<include>>
+A_MEDIA .> S_AUTH : <<include>>
+A_BEACONS .> S_AUTH : <<include>>
+A_ANALYTICS .> S_AUTH : <<include>>
+A_ANALYTICS .> S_AGG : <<include>>
+A_CSV .> A_ANALYTICS : <<include>>
+A_SITES .> S_VALIDATE : <<include>>
+A_ARTIFACTS .> S_VALIDATE : <<include>>
+A_MEDIA .> S_VALIDATE : <<include>>
+A_BEACONS .> S_VALIDATE : <<include>>
+A_SITES .> S_PERSIST : <<include>>
+A_ARTIFACTS .> S_PERSIST : <<include>>
+A_MEDIA .> S_PERSIST : <<include>>
+A_BEACONS .> S_PERSIST : <<include>>
+
+' ---------- System relationships ----------
+S_PERSIST .> S_FLYWAY : <<include>>
+
+legend right
+  Legend:
+  White package = implemented in code
+  Light grey package = placeholder, mock data, or not implemented
+  "Include" means the behavior is part of the use case, not an optional extension.
+  Physical BLE hardware, real-device media playback and iOS verification
+  remain PENDING; see requirements-traceability.md.
+endlegend
+
+@enduml
