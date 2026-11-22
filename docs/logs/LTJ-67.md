@@ -103,7 +103,7 @@
 
 ### Khởi tạo và xác minh tài khoản ADMIN
 - Đã đăng ký tài khoản quản trị thông qua POST `/api/auth/register`.
-- Đã xác minh userId = 1, username = admin và email = admin@gmail.com trong PostgreSQL.
+- Đã xác minh userId = 1, username = admin và email đã được che khỏi tài liệu (`<redacted>`).
 - Đã tạo role ADMIN và nâng quyền đúng tài khoản userId = 1.
 - Đã truy vấn lại PostgreSQL, xác nhận tài khoản có role ADMIN.
 - Đã đăng nhập lại qua POST `/api/auth/login`, nhận JWT mới với tokenType = Bearer và thời hạn 86400 giây.
@@ -382,3 +382,56 @@ Task đã hoàn thành phần chuẩn bị dữ liệu, mở rộng dataset và 
 4. Xác minh nguồn gốc và giấy phép sử dụng media.
 5. Cập nhật bằng chứng commit, PR và CI nếu có.
 
+
+## 8. Final hardening — manifest, BaseUrl và analytics anchor
+
+### 8.1. Manifest runtime
+- Đã thêm chính xác đường dẫn `backend/scripts/demo-seed-manifest.json` vào `.gitignore`.
+- Đã bỏ manifest khỏi Git index bằng `git rm --cached`, giữ nguyên file local để không mất dữ liệu hiện có.
+- Script tạo manifest mới khi chưa có; mỗi developer/môi trường sở hữu manifest riêng.
+- Không còn manifest runtime hoặc thông tin tài khoản trong commit.
+
+### 8.2. Giới hạn BaseUrl
+- Đã thêm validation trước bước đọc token và trước mọi API call.
+- Chỉ chấp nhận `localhost`, `127.0.0.1`, `::1`.
+- Từ chối URL remote, credentials, query string, fragment và path không hợp lệ.
+- Cleanup dùng cùng guard, không thể bỏ qua bằng tham số khác.
+
+### 8.3. Interaction anchor
+- Đã bỏ timestamp hardcode `2026-11-01T08:00:00+00:00`.
+- Manifest lưu `interactionAnchorAtUtc`.
+- Seed lần đầu lấy UTC hiện tại, ghi anchor trước khi tạo interaction.
+- Seed lặp lại dùng lại anchor; event UUID vẫn deterministic.
+- Interaction nằm trong cửa sổ 8 ngày kết thúc gần anchor, không tạo timestamp tương lai.
+- Verify kiểm tra anchor và yêu cầu dữ liệu khác 0 cho 7/30/90 ngày và All Time.
+- Manifest cũ chưa có anchor được suy ra từ timestamp cũ, có cảnh báo, không ghi đè dữ liệu.
+- Cleanup thành công reset anchor và ownership interaction để lần Seed sau làm mới dataset.
+
+### 8.4. Media
+- Đã xác nhận 20 ảnh Artifact là JPEG hợp lệ, dung lượng lớn hơn 0 byte.
+- Đã loại bỏ 2 ảnh HeritageSite không được tham chiếu vì model không có trường ảnh và frontend/mobile không dùng.
+- Đã tạo `docs/database/demo-media-attribution.md` với inventory 20 ảnh.
+- Nguồn và giấy phép từng ảnh vẫn `PENDING`; không suy đoán hoặc gán giấy phép.
+
+### 8.5. Kiểm thử tự động
+- Đã thêm `backend/scripts/tests/seed-common.tests.ps1` với 38 assertion cho parser, BaseUrl, anchor và interaction generator.
+- Kết quả local: `PASS: 38 seed helper assertions.`
+- `Seed -WhatIf`: `DRY RUN COMPLETE` với 4/20/20/4/60.
+- BaseUrl remote bị từ chối trước khi xác thực.
+- Đã thêm CI job `demo-seed-static-checks` và `demo-seed-lifecycle`.
+- `demo-seed-lifecycle` chạy Seed, Seed lặp lại, Verify, Cleanup WhatIf, mô phỏng cleanup gián đoạn, Cleanup thật, bảo toàn dữ liệu không thuộc seed, Seed lại sau Cleanup và Verify thất bại sau Cleanup.
+- Backend test local: 155 tests, 0 failures, 0 errors, 0 skipped.
+
+### 8.6. Trạng thái acceptance
+| Tiêu chí | Trạng thái |
+|---|---|
+| Manifest không bị commit | Đã xử lý và có CI check |
+| BaseUrl chỉ loopback | Đã triển khai và có test |
+| Anchor được lưu và tái sử dụng | Đã triển khai và có test |
+| Analytics 7/30/90/All Time | Verify bắt buộc dữ liệu khác 0 |
+| Seed idempotency 4/20/20/4/60 | Chờ kết quả CI lifecycle |
+| Cleanup WhatIf | Chờ kết quả CI lifecycle |
+| Cleanup thật | Chờ kết quả CI lifecycle |
+| Bảo toàn dữ liệu không thuộc seed | Chờ kết quả CI lifecycle |
+| Media attribution | Inventory đã có; nguồn/giấy phép `PENDING` |
+| Commit/PR/CI evidence | Sẽ cập nhật sau khi push PR #42 |

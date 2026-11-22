@@ -24,17 +24,26 @@ param(
     [switch]$Seed,
     [switch]$Verify,
     [switch]$Cleanup,
+    [switch]$Force,
     [string]$BaseUrl = 'http://localhost:8080',
     [string]$ManifestPath = (
         Join-Path $PSScriptRoot 'demo-seed-manifest.json'
-    )
+    ),
+    [ValidateSet('DockerCompose', 'Local')]
+    [string]$PostgresMode = 'DockerCompose',
+    [string]$PostgresDatabase = 'smart_heritage',
+    [string]$PostgresUser = 'postgres'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # 1 CONFIGURATION
-$BaseUrl = $BaseUrl.TrimEnd('/')
+Import-Module (
+    Join-Path $PSScriptRoot 'lib/DemoSeed.Common.psm1'
+) -Force
+
+$BaseUrl = Resolve-DemoSeedBaseUrl -BaseUrl $BaseUrl
 
 $script:Headers = @{}
 $script:Manifest = $null
@@ -74,8 +83,11 @@ if ($Cleanup) {
         [bool]$PSCmdlet.MyInvocation.BoundParameters['Confirm']
     )
 
-    if (-not $confirmWasExplicitlyEnabled) {
-        throw 'Cleanup yêu cầu xác nhận. Hãy sử dụng -Cleanup -Confirm.'
+    if (-not $confirmWasExplicitlyEnabled -and -not $Force) {
+        throw (
+            'Cleanup yêu cầu xác nhận. ' +
+            'Hãy sử dụng -Cleanup -Confirm hoặc -Force trong CI.'
+        )
     }
 }
 
@@ -539,14 +551,26 @@ function Invoke-Api {
         $statusCode = 0
         $content = ''
 
-        if ($_.Exception.Response) {
+        $responseProperty = $_.Exception.PSObject.Properties[
+            'Response'
+        ]
+        $errorResponse = $null
+
+        if (
+            $null -ne $responseProperty -and
+            $null -ne $responseProperty.Value
+        ) {
+            $errorResponse = $responseProperty.Value
+        }
+
+        if ($null -ne $errorResponse) {
             try {
-                $statusCode = [int]$_.Exception.Response.StatusCode
+                $statusCode = [int]$errorResponse.StatusCode
             }
             catch {}
 
             try {
-                $stream = $_.Exception.Response.GetResponseStream()
+                $stream = $errorResponse.GetResponseStream()
 
                 if ($stream) {
                     $reader = New-Object System.IO.StreamReader(
@@ -763,6 +787,29 @@ function Save-Manifest {
         -Destination $ManifestPath -Force
 }
 
+function Set-ManifestProperty {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Name,
+
+        [AllowNull()]
+        [object]$Value
+    )
+
+    if ($script:Manifest -is [System.Collections.IDictionary]) {
+        $script:Manifest[$Name] = $Value
+        return
+    }
+
+    $script:Manifest |
+        Add-Member `
+            -MemberType NoteProperty `
+            -Name $Name `
+            -Value $Value `
+            -Force |
+        Out-Null
+}
+
 function Load-Manifest {
     if (-not (Test-Path -LiteralPath $ManifestPath)) {
         return $null
@@ -821,23 +868,35 @@ function Invoke-PostgresSql {
         $stderrPath = [System.IO.Path]::GetTempFileName()
         try {
             $ErrorActionPreference = 'Continue'
-            $output = & docker compose exec -T postgres `
-                psql -U postgres -d smart_heritage `
-                -X -q -A -t `
-                -v ON_ERROR_STOP=1 `
-                -c $Sql 2> $stderrPath
-            $dockerExitCode = $LASTEXITCODE
-            $dockerError = [System.IO.File]::ReadAllText($stderrPath)
+
+            if ($PostgresMode -eq 'Local') {
+                $output = & psql `
+                    -U $PostgresUser `
+                    -d $PostgresDatabase `
+                    -X -q -A -t `
+                    -v ON_ERROR_STOP=1 `
+                    -c $Sql 2> $stderrPath
+            }
+            else {
+                $output = & docker compose exec -T postgres `
+                    psql -U $PostgresUser -d $PostgresDatabase `
+                    -X -q -A -t `
+                    -v ON_ERROR_STOP=1 `
+                    -c $Sql 2> $stderrPath
+            }
+
+            $commandExitCode = $LASTEXITCODE
+            $commandError = [System.IO.File]::ReadAllText($stderrPath)
         }
         finally {
             $ErrorActionPreference = $previousPreference
             Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
         }
 
-        if ($dockerExitCode -ne 0) {
+        if ($commandExitCode -ne 0) {
             throw (
                 'PostgreSQL command thất bại. ExitCode=' +
-                $dockerExitCode + ': ' + $dockerError
+                $commandExitCode + ': ' + $commandError
             )
         }
 
@@ -1046,108 +1105,7 @@ function Ensure-Beacon {
     }
 }
 
-# ============================================================
-# 11. INTERACTION DATA GENERATOR
-# ============================================================
-
-function New-InteractionDefinitions {
-    param(
-        [hashtable]$ArtifactIds,
-        [hashtable]$BeaconIds
-    )
-
-    $definitions = @()
-
-    $baseTime = [DateTimeOffset]::Parse(
-        '2026-11-01T08:00:00+00:00'
-    )
-
-    $eventNumber = 0
-
-    $orderedArtifacts = @(
-        $Artifacts |
-            Sort-Object {
-                [int]$ArtifactIds[$_.Key]
-            }
-    )
-
-    foreach ($artifact in $orderedArtifacts) {
-        $artifactId = [int]$ArtifactIds[$artifact.Key]
-
-        $beacon = @(
-            $Beacons |
-                Where-Object {
-                    $_.ArtifactKey -eq $artifact.Key
-                }
-        )
-
-        $beaconId = $null
-
-        if ($beacon.Count -eq 1) {
-            $beaconId = [int]$BeaconIds[$beacon[0].Key]
-        }
-
-        $types = @('VIEW', 'SCAN')
-
-        if ($null -ne $beaconId) {
-            $types += 'BEACON_TRIGGER'
-        }
-        else {
-            $types += 'AUDIO_PLAY'
-        }
-
-        foreach ($type in $types) {
-            $eventNumber++
-
-            $start = $baseTime.AddDays(
-                ($eventNumber - 1) % 8
-            ).AddMinutes(
-                15 * $eventNumber
-            )
-
-            $end = $start.AddSeconds(90)
-
-            $eventId = [guid]::Parse(
-                ('30000000-0000-4000-8000-{0:D12}' -f $eventNumber)
-            ).ToString()
-
-            $item = [ordered]@{
-                eventId = $eventId
-
-                visitorId = $VisitorIds[
-                    ($eventNumber - 1) % $VisitorIds.Count
-                ]
-
-                artifactId = $artifactId
-                interactionType = $type
-
-                languageCode = @('vi', 'en')[
-                    ($eventNumber - 1) % 2
-                ]
-
-                startedAt = $start.ToString('o')
-                endedAt = $end.ToString('o')
-                interactedAt = $end.ToString('o')
-            }
-
-            if ($type -eq 'BEACON_TRIGGER') {
-                $item.beaconId = $beaconId
-            }
-
-            $definitions += [pscustomobject]$item
-        }
-    }
-
-    $expectedInteractionCount = $Artifacts.Count * 3
-
-    if ($definitions.Count -ne $expectedInteractionCount) {
-        throw "Expected $expectedInteractionCount interactions, got $($definitions.Count)."
-    }
-
-    return ,$definitions
-}
-
-# 12. LOAD AUTH AND MANIFEST
+# 11. LOAD AUTH AND MANIFEST
 
 Set-AdminHeaders
 $script:Manifest = Load-Manifest
@@ -1306,7 +1264,92 @@ if ($Verify) {
     }
 
     # ---------------------------------------------------------
-    # 13.8. Prepare SQL expected interaction rows
+    # 13.8. Verify interaction anchor and analytics windows
+    # ---------------------------------------------------------
+
+    $anchorProperty = $script:Manifest.PSObject.Properties[
+        'interactionAnchorAtUtc'
+    ]
+
+    if (
+        $null -eq $anchorProperty -or
+        [string]::IsNullOrWhiteSpace([string]$anchorProperty.Value)
+    ) {
+        throw (
+            'Manifest thiếu interactionAnchorAtUtc. ' +
+            'Chạy Seed một lần để lưu anchor trước khi Verify.'
+        )
+    }
+
+    $verifyNow = [DateTimeOffset]::UtcNow
+    $verifyAnchor = Resolve-DemoSeedInteractionAnchor `
+        -Manifest $script:Manifest `
+        -Now $verifyNow
+
+    $interactionTimes = @()
+
+    foreach ($entry in $script:Manifest.interactions) {
+        $interactedAt = [DateTimeOffset]::MinValue
+
+        if (-not [DateTimeOffset]::TryParse(
+            [string]$entry.interactedAt,
+            [ref]$interactedAt
+        )) {
+            throw "Interaction có interactedAt không hợp lệ: $($entry.eventId)."
+        }
+
+        $interactionTimes += $interactedAt.ToUniversalTime()
+    }
+
+    $analyticsWindows = @(
+        @{
+            Name = '7 ngày'
+            From = $verifyNow.AddDays(-7)
+        },
+        @{
+            Name = '30 ngày'
+            From = $verifyNow.AddDays(-30)
+        },
+        @{
+            Name = '90 ngày'
+            From = $verifyNow.AddDays(-90)
+        }
+    )
+
+    $analyticsCounts = [ordered]@{}
+
+    foreach ($window in $analyticsWindows) {
+        $count = @(
+            $interactionTimes |
+                Where-Object {
+                    $_ -ge $window.From -and
+                    $_ -lt $verifyNow
+                }
+        ).Count
+
+        if ($count -le 0) {
+            throw (
+                "Analytics $($window.Name) không có dữ liệu. " +
+                'Chạy Cleanup rồi Seed lại trên môi trường demo.'
+            )
+        }
+
+        $analyticsCounts[$window.Name] = $count
+    }
+
+    $allTimeCount = @(
+        $interactionTimes |
+            Where-Object { $_ -lt $verifyNow }
+    ).Count
+
+    if ($allTimeCount -le 0) {
+        throw 'Analytics All Time không có dữ liệu.'
+    }
+
+    $analyticsCounts['All Time'] = $allTimeCount
+
+    # ---------------------------------------------------------
+    # 13.9. Prepare SQL expected interaction rows
     # ---------------------------------------------------------
 
     $expectedRows = @()
@@ -1601,6 +1644,11 @@ SELECT
     Write-Host "Beacon            : $expectedBeaconCount"
     Write-Host "VisitorInteraction: $expectedInteractionCount"
     Write-Host "Unique Visitors   : $expectedUniqueVisitorCount"
+    Write-Host "InteractionAnchor : $($verifyAnchor.ToString('o'))"
+    Write-Host "Analytics 7 days  : $($analyticsCounts['7 ngày'])"
+    Write-Host "Analytics 30 days : $($analyticsCounts['30 ngày'])"
+    Write-Host "Analytics 90 days : $($analyticsCounts['90 ngày'])"
+    Write-Host "Analytics All Time: $($analyticsCounts['All Time'])"
     Write-Host 'API records       : Valid'
     Write-Host 'Media files       : Valid'
     Write-Host 'PostgreSQL data   : Matched'
@@ -1994,8 +2042,21 @@ END
     # --------------------------------------------------------
 
     if (-not $WhatIfPreference) {
-        $script:Manifest.cleanedAtUtc = [DateTime]::UtcNow.ToString('o')
-        $script:Manifest.updatedAtUtc = [DateTime]::UtcNow.ToString('o')
+        $cleanupNow = [DateTimeOffset]::UtcNow
+
+        Set-ManifestProperty `
+            -Name 'cleanedAtUtc' `
+            -Value $cleanupNow.ToString('o')
+
+        Set-ManifestProperty `
+            -Name 'updatedAtUtc' `
+            -Value $cleanupNow.ToString('o')
+
+        Set-ManifestProperty `
+            -Name 'interactionAnchorAtUtc' `
+            -Value $null
+
+        $script:Manifest.interactions = @()
         Save-Manifest
     }
     else {
@@ -2022,14 +2083,17 @@ if (-not $script:PSCmdlet.ShouldProcess(
     return
 }
 
+$now = [DateTimeOffset]::UtcNow
+$anchorProperty = $null
+
 if ($null -eq $script:Manifest) {
     $script:Manifest = [ordered]@{
         version = 2
         seedName = 'smart-heritage-demo'
         baseUrl = $BaseUrl
 
-        createdAtUtc = [DateTime]::UtcNow.ToString('o')
-        updatedAtUtc = [DateTime]::UtcNow.ToString('o')
+        createdAtUtc = $now.ToString('o')
+        updatedAtUtc = $now.ToString('o')
 
         sites = @()
         artifacts = @()
@@ -2037,6 +2101,38 @@ if ($null -eq $script:Manifest) {
         beacons = @()
         interactions = @()
     }
+}
+else {
+    $anchorProperty = $script:Manifest.PSObject.Properties[
+        'interactionAnchorAtUtc'
+    ]
+}
+
+$anchorWasStored = (
+    $null -ne $anchorProperty -and
+    -not [string]::IsNullOrWhiteSpace([string]$anchorProperty.Value)
+)
+
+$interactionAnchorAtUtc = Resolve-DemoSeedInteractionAnchor `
+    -Manifest $script:Manifest `
+    -Now $now
+
+Set-ManifestProperty `
+    -Name 'interactionAnchorAtUtc' `
+    -Value $interactionAnchorAtUtc.ToString('o')
+
+Save-Manifest
+
+if (
+    -not $anchorWasStored -and
+    @($script:Manifest.interactions).Count -gt 0
+) {
+    Write-Warning (
+        'Manifest cũ chưa có interactionAnchorAtUtc. ' +
+        'Đã suy ra anchor từ dữ liệu hiện có để không thay đổi ' +
+        'timestamp. Chạy Cleanup rồi Seed lại nếu cần làm mới ' +
+        'các cửa sổ analytics 7/30/90 ngày.'
+    )
 }
 
 $siteList = Get-ApiList '/api/heritage-sites'
@@ -2223,9 +2319,13 @@ foreach ($beacon in $Beacons) {
 # 20. SEED VISITOR INTERACTIONS
 # ============================================================
 
-$interactionDefinitions = New-InteractionDefinitions `
+$interactionDefinitions = New-DemoSeedInteractionDefinitions `
+    -Artifacts $Artifacts `
+    -Beacons $Beacons `
+    -VisitorIds $VisitorIds `
     -ArtifactIds $ArtifactIds `
-    -BeaconIds $BeaconIds
+    -BeaconIds $BeaconIds `
+    -AnchorAtUtc $interactionAnchorAtUtc
 
 foreach ($interaction in $interactionDefinitions) {
     $payload = @{
@@ -2362,6 +2462,7 @@ foreach ($collection in $expectedCounts.Keys) {
     }
 }
 
+Set-ManifestProperty -Name 'cleanedAtUtc' -Value $null
 $script:Manifest.updatedAtUtc = [DateTime]::UtcNow.ToString('o')
 Save-Manifest
 
