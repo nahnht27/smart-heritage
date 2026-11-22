@@ -95,6 +95,9 @@ backend/logs/
 .env.production.*
 !.env.production.example
 
-# Database backups (never commit dumps)
+# Database backups (never commit dumps or sidecars)
 backups/
 scripts/deployment/backups/
+*.dump
+*.backup
+*.sql.gz
