@@ -297,6 +297,58 @@ jobs:
         if: always()
         run: npm run lint
 
+  demo-seed-static-checks:
+    name: demo-seed-static-checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Verify runtime manifest is untracked
+        run: |
+          if git ls-files --error-unmatch \
+              backend/scripts/demo-seed-manifest.json >/dev/null 2>&1; then
+            echo "Runtime demo seed manifest must not be tracked" >&2
+            exit 1
+          fi
+
+      - name: Parse and unit-check seed helpers
+        shell: pwsh
+        run: '& ./backend/scripts/tests/seed-common.tests.ps1'
+
+      - name: Run Seed dry-run
+        shell: pwsh
+        run: '& ./backend/scripts/seed-demo-data.ps1 -Seed -WhatIf'
+
+      - name: Reject non-loopback BaseUrl before authentication
+        shell: pwsh
+        run: |
+          $rejected = $false
+          try {
+            ./backend/scripts/seed-demo-data.ps1 `
+              -Seed -WhatIf `
+              -BaseUrl 'https://example.com'
+          }
+          catch {
+            $rejected = $true
+          }
+
+          if (-not $rejected) {
+            throw 'Remote BaseUrl was not rejected'
+          }
+
+  demo-seed-lifecycle:
+    name: demo-seed-lifecycle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run disposable seed lifecycle
+        run: bash scripts/testing/test-demo-seed-lifecycle.sh
+
   docker-build:
     name: docker-build
     runs-on: ubuntu-latest
