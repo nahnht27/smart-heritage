@@ -1694,6 +1694,7 @@ LIMIT 1;
 
         Write-Host 'Interaction mismatch sample:'
         Write-Host (Invoke-PostgresSql -Sql $sampleSql)
+        Write-Host "Expected row sample: $($expectedRows[0])"
     }
 
     $statNames = @(
