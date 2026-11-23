@@ -395,7 +395,7 @@ CI job `demo-seed-lifecycle` chạy trên Docker Compose disposable:
 - Seed lại sau Cleanup để làm mới anchor.
 - Verify thất bại sau Cleanup.
 
-Kết quả CI được cập nhật tại PR #42 sau khi job hoàn tất.
+Kết quả CI: [run 45111442938](https://github.com/nahnht27/smart-heritage/actions/runs/45111442938) — tất cả job success, gồm `demo-seed-static-checks` và `demo-seed-lifecycle`.
 
 ## 14. Khắc phục sự cố
 

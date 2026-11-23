@@ -208,7 +208,7 @@ Beacon mapping and timestamps valid.
 | Cleanup và ownership validation | Đã kiểm tra ownership và WhatIf; Cleanup thật chưa kiểm thử |
 | Tài liệu setup/seed/cleanup | Đã tạo docs/database/demo-seed-setup.md |
 | Nguồn gốc, giấy phép media | Chưa xác minh đầy đủ |
-| Commit/PR/CI evidence | Chưa cập nhật |
+| Commit/PR/CI evidence | Đã cập nhật tại PR #42 và CI run 45111442938 |
 
 ### Bằng chứng kiểm thử Idempotency
 
@@ -238,7 +238,7 @@ Kết quả PostgreSQL sau lần Seed thứ hai:
 
 Phần triển khai cốt lõi của S6-M2-01 đã hoàn thành: Seed Script, Demo Dataset, Manifest và PostgreSQL Verification.
 
-Task chưa được đánh dấu hoàn thành toàn bộ. Các công việc còn lại gồm kiểm thử Cleanup thật, xác minh giấy phép media và cập nhật bằng chứng commit/CI.
+Tại thời điểm mục 7, task chưa được đánh dấu hoàn thành toàn bộ. Trạng thái cuối sau khi CI lifecycle pass được ghi tại mục 9.
 
 ## Cập nhật LTJ-67 — Mở rộng Demo Dataset 
 
@@ -361,12 +361,12 @@ Xác nhận:
 | API và PostgreSQL consistency | Đã Verify |
 | Media files | Đã Verify |
 | Seed dry-run với dataset hiện tại | Đã chạy thành công |
-| Seed thực tế với dataset hiện tại | Đã có dữ liệu và Verify; chưa kiểm thử chạy Seed lặp lại sau lần mở rộng gần nhất |
-| Idempotency | Đã kiểm thử thành công trên dataset phiên bản ban đầu; cần kiểm thử lại với dataset hiện tại |
-| Cleanup WhatIf | Đã kiểm thử trên dataset phiên bản trước; cần chạy lại với dataset hiện tại |
-| Cleanup thật | Chưa kiểm thử |
+| Seed thực tế với dataset hiện tại | Đã chạy Seed lặp lại và Verify trên CI lifecycle |
+| Idempotency | Đã kiểm thử thành công trên dataset 4/20/20/4/60 |
+| Cleanup WhatIf | Đã kiểm thử trên dataset 4/20/20/4/60 |
+| Cleanup thật | Đã kiểm thử trên CI lifecycle |
 | Nguồn gốc và giấy phép media | Chưa xác minh đầy đủ |
-| Commit/PR/CI evidence | Chưa cập nhật |
+| Commit/PR/CI evidence | Đã cập nhật tại PR #42 và CI run 45111442938 |
 
 ### 7. Kết luận tiến độ cập nhật
 Đã mở rộng thành công Demo Dataset của LTJ-67 lên 4 HeritageSite, 20 Artifact, 20 Multimedia, 4 Beacon và 60 VisitorInteraction.
@@ -429,9 +429,32 @@ Task đã hoàn thành phần chuẩn bị dữ liệu, mở rộng dataset và 
 | BaseUrl chỉ loopback | Đã triển khai và có test |
 | Anchor được lưu và tái sử dụng | Đã triển khai và có test |
 | Analytics 7/30/90/All Time | Verify bắt buộc dữ liệu khác 0 |
-| Seed idempotency 4/20/20/4/60 | Chờ kết quả CI lifecycle |
-| Cleanup WhatIf | Chờ kết quả CI lifecycle |
-| Cleanup thật | Chờ kết quả CI lifecycle |
-| Bảo toàn dữ liệu không thuộc seed | Chờ kết quả CI lifecycle |
+| Seed idempotency 4/20/20/4/60 | Đã pass CI lifecycle |
+| Cleanup WhatIf | Đã pass CI lifecycle |
+| Cleanup thật | Đã pass CI lifecycle |
+| Bảo toàn dữ liệu không thuộc seed | Đã pass CI lifecycle |
 | Media attribution | Inventory đã có; nguồn/giấy phép `PENDING` |
-| Commit/PR/CI evidence | Sẽ cập nhật sau khi push PR #42 |
+| Commit/PR/CI evidence | Đã cập nhật tại PR #42 và CI run 45111442938 |
+
+
+## 9. Bằng chứng CI cuối cùng
+
+CI run: https://github.com/nahnht27/smart-heritage/actions/runs/45111442938
+
+- Commit: `e73b351704bbf431f1c5707d913a4038659787b5`.
+- Kết quả: `completed / success`.
+- Tất cả 11 job đều success: `backend-test`, `postgres-integration`, `database-backup-restore`, `frontend-checks`, `mobile-tests`, `mobile-static-analysis`, `demo-seed-static-checks`, `demo-seed-lifecycle`, `docker-build`, `integration-smoke`, `production-smoke`.
+- `backend-test`: 155 tests, 0 failures, 0 errors, 0 skipped.
+- `demo-seed-static-checks`: 38 seed helper assertions pass; manifest runtime không bị track; remote BaseUrl bị từ chối trước khi xác thực.
+- `demo-seed-lifecycle` pass các bước:
+  - Seed lần đầu và Verify với 4/20/20/4/60.
+  - Seed lặp lại, Verify và xác nhận anchor không đổi.
+  - Cleanup WhatIf không thay đổi manifest hoặc dữ liệu.
+  - Mô phỏng cleanup gián đoạn.
+  - Cleanup thật xóa đúng dữ liệu seed.
+  - Bảo toàn HeritageSite không thuộc seed.
+  - Seed lại sau Cleanup làm mới anchor.
+  - Verify thất bại sau Cleanup.
+- Kết quả Verify trên CI: 4 HeritageSite, 20 Artifact, 20 Multimedia, 4 Beacon, 60 VisitorInteraction, 8 anonymous visitors; analytics 7 ngày = 52, 30/90 ngày và All Time = 60.
+- Media attribution vẫn `PENDING`; không có giấy phép nào được suy đoán.
+- PR #42 vẫn `OPEN`, không merge.
