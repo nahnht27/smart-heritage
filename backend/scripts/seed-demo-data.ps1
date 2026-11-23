@@ -1043,10 +1043,26 @@ function Ensure-Beacon {
 
     $matches = @(
         $Existing | Where-Object {
-            ([string]$_.uuid).ToLowerInvariant() -eq
+            if ($null -eq $_) {
+                return $false
+            }
+
+            $uuidProperty = $_.PSObject.Properties['uuid']
+            $majorProperty = $_.PSObject.Properties['major']
+            $minorProperty = $_.PSObject.Properties['minor']
+
+            if (
+                $null -eq $uuidProperty -or
+                $null -eq $majorProperty -or
+                $null -eq $minorProperty
+            ) {
+                return $false
+            }
+
+            ([string]$uuidProperty.Value).ToLowerInvariant() -eq
                 $Definition.UUID.ToLowerInvariant() -and
-            [int]$_.major -eq $Definition.Major -and
-            [int]$_.minor -eq $Definition.Minor
+            [int]$majorProperty.Value -eq $Definition.Major -and
+            [int]$minorProperty.Value -eq $Definition.Minor
         }
     )
 
@@ -2145,10 +2161,10 @@ if (
     )
 }
 
-$siteList = Get-ApiList '/api/heritage-sites'
-$artifactList = Get-ApiList '/api/artifacts'
-$mediaList = Get-ApiList '/api/multimedia'
-$beaconList = Get-ApiList '/api/admin/beacons'
+$siteList = @(Get-ApiList '/api/heritage-sites')
+$artifactList = @(Get-ApiList '/api/artifacts')
+$mediaList = @(Get-ApiList '/api/multimedia')
+$beaconList = @(Get-ApiList '/api/admin/beacons')
 
 # ============================================================
 # 16. SEED HERITAGE SITES
