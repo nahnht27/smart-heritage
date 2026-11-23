@@ -113,6 +113,14 @@ ADMIN_TOKEN="$(
 
 log "Running first Seed and Verify"
 run_seed -Seed -Force
+log "Inspecting first seeded interaction before Verify"
+psql_db "SELECT event_id, visitor_id, artifact_id, interaction_type, beacon_id, language_code, started_at, ended_at, interacted_at, user_id FROM visitor_interaction ORDER BY interaction_id LIMIT 1;"
+python3 - "$MANIFEST_PATH" <<'PY'
+import json
+import sys
+manifest = json.load(open(sys.argv[1]))
+print("MANIFEST_FIRST_INTERACTION", json.dumps(manifest["interactions"][0], sort_keys=True))
+PY
 run_seed -Verify
 
 FIRST_ANCHOR="$(
