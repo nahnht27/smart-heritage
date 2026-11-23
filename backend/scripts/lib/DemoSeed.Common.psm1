@@ -205,6 +205,8 @@ function New-DemoSeedInteractionDefinitions {
                 ($eventNumber - 1) % 8
             ).AddMinutes(15 * $eventNumber)
 
+            $start = $start.AddTicks(-($start.Ticks % 10))
+
             $end = $start.AddSeconds(90)
 
             $eventId = [guid]::Parse(
