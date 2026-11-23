@@ -708,7 +708,17 @@ function Find-UniqueByProperty {
 
     $matches = @(
         $Items | Where-Object {
-            [string]($_.$Property) -ceq $Value
+            if ($null -eq $_) {
+                return $false
+            }
+
+            $propertyInfo = $_.PSObject.Properties[$Property]
+
+            if ($null -eq $propertyInfo) {
+                return $false
+            }
+
+            [string]$propertyInfo.Value -ceq $Value
         }
     )
 
