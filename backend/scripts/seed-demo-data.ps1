@@ -610,12 +610,18 @@ function Invoke-Api {
             throw "API $Method $Path không trả JSON hợp lệ."
         }
 
-        if ($apiResponse.PSObject.Properties.Name -contains 'success') {
-            if ($apiResponse.success -ne $true) {
+        $successProperty = $apiResponse.PSObject.Properties['success']
+
+        if ($null -ne $successProperty) {
+            if ($successProperty.Value -ne $true) {
                 throw "API $Method $Path trả success=false."
             }
 
-            $data = $apiResponse.data
+            $dataProperty = $apiResponse.PSObject.Properties['data']
+
+            if ($null -ne $dataProperty) {
+                $data = $dataProperty.Value
+            }
         }
         else {
             $data = $apiResponse
