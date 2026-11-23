@@ -830,7 +830,14 @@ function Load-Manifest {
     	[System.Text.Encoding]::UTF8
     )
 
-    $manifest = $manifestJson | ConvertFrom-Json
+    $convertParameters = @{}
+    $convertCommand = Get-Command ConvertFrom-Json
+
+    if ($convertCommand.Parameters.ContainsKey('DateKind')) {
+        $convertParameters.DateKind = 'String'
+    }
+
+    $manifest = $manifestJson | ConvertFrom-Json @convertParameters
 
     if ([int]$manifest.version -ne 2) {
         throw 'Manifest không đúng version 2.'
@@ -1638,64 +1645,6 @@ SELECT
         $expectedUniqueVisitorCount,
         0
     )
-
-    if ($actualCounts[1] -gt 0) {
-        $sampleSql = @"
-WITH expected (
-    event_id,
-    visitor_id,
-    artifact_id,
-    interaction_type,
-    beacon_id,
-    language_code,
-    started_at,
-    ended_at,
-    interacted_at
-) AS (
-    VALUES
-    $valuesSql
-)
-SELECT
-    e.event_id::text,
-    vi.event_id::text,
-    e.visitor_id::text,
-    vi.visitor_id::text,
-    e.artifact_id,
-    vi.artifact_id,
-    e.interaction_type,
-    vi.interaction_type,
-    e.beacon_id,
-    vi.beacon_id,
-    e.language_code,
-    vi.language_code,
-    e.started_at::text,
-    vi.started_at::text,
-    e.ended_at::text,
-    vi.ended_at::text,
-    e.interacted_at::text,
-    vi.interacted_at::text,
-    vi.user_id
-FROM expected e
-LEFT JOIN public.visitor_interaction vi
-    ON vi.event_id = e.event_id
-WHERE
-    vi.event_id IS NULL
-    OR vi.user_id IS NOT NULL
-    OR vi.visitor_id IS DISTINCT FROM e.visitor_id
-    OR vi.artifact_id IS DISTINCT FROM e.artifact_id
-    OR vi.interaction_type::text IS DISTINCT FROM e.interaction_type
-    OR vi.beacon_id IS DISTINCT FROM e.beacon_id
-    OR vi.language_code IS DISTINCT FROM e.language_code
-    OR vi.started_at IS DISTINCT FROM e.started_at
-    OR vi.ended_at IS DISTINCT FROM e.ended_at
-    OR vi.interacted_at IS DISTINCT FROM e.interacted_at
-LIMIT 1;
-"@
-
-        Write-Host 'Interaction mismatch sample:'
-        Write-Host (Invoke-PostgresSql -Sql $sampleSql)
-        Write-Host "Expected row sample: $($expectedRows[0])"
-    }
 
     $statNames = @(
         'Total events',
