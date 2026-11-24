@@ -510,4 +510,37 @@ CI run cũ: https://github.com/nahnht27/smart-heritage/actions/runs/45111442938
 - CI thêm job `demo-seed-isolation`.
 - Media attribution vẫn `PENDING`; không suy đoán nguồn hoặc giấy phép.
 
-@@CI@@
+### 10.6. Bằng chứng CI cuối cùng (code HEAD `496f05d5826216e13a60cdf6107179694935bdd3`)
+
+- Run: https://github.com/nahnht27/smart-heritage/actions/runs/45333583135
+- Kết quả: `completed / success`, 12/12 job success (`frontend-checks`,
+  `database-backup-restore`, `postgres-integration`, `docker-build`,
+  `demo-seed-static-checks`, `integration-smoke`,
+  `mobile-static-analysis (advisory)`, `demo-seed-isolation`, `mobile-tests`,
+  `production-smoke`, `backend-test`, `demo-seed-lifecycle`).
+- Lần chạy đầu của `demo-seed-lifecycle` thất bại do Maven Central trả về
+  HTTP 429 khi Docker build tải parent POM (lỗi hạ tầng tạm thời, không liên
+  quan code). Job được re-run và pass.
+- `backend-test`: 155 tests, 0 failures, 0 errors, 0 skipped.
+- `demo-seed-static-checks`: 75 seed helper assertion pass (gồm test
+  `PGOPTIONS` và `-PostgresDatabase` dạng conninfo/URI); manifest runtime không
+  bị track; dry-run pass; BaseUrl remote và PostgreSQL host remote bị từ chối.
+- `demo-seed-isolation`: sentinel stack mặc định không đổi; project/container/
+  volume cô lập bị xóa sạch.
+- `demo-seed-lifecycle`: Seed + Verify, Seed lặp lại (anchor không đổi),
+  Cleanup WhatIf, phục hồi cleanup gián đoạn, Cleanup thật, bảo toàn
+  HeritageSite không thuộc seed, Seed lại làm mới anchor; analytics
+  7/30/90/All Time = 8/20/36/60.
+- Chạy lifecycle Docker chỉ được thực hiện trên CI; Docker daemon local không
+  hoạt động nên KHÔNG có lần chạy Docker lifecycle local.
+- Các run trước (`45111442938`, `45331583544`, `45332107998`) là lịch sử.
+- Log `GlobalExceptionHandler -- Unhandled data integrity violation` trong job
+  lifecycle đến từ unit test `GlobalExceptionHandlerTest.
+  handleDataIntegrityViolation_otherConstraintReturnsInternalServerError`, chạy
+  trong bước `mvn package` của Docker build; đây là ca kiểm thử âm tính có chủ
+  đích (constraint lạ phải trả 500 và được log), không phải request của
+  lifecycle.
+- Lịch sử nhánh có chứa bản manifest cũ (commit `37cece8`, `798cf5f`; đã xóa ở
+  `6bea36e`). Chỉ có ID local, không có token/mật khẩu; nên squash merge.
+- Media attribution vẫn `PENDING`; ảnh chưa được xác nhận để phân phối công khai.
+
