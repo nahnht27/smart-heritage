@@ -117,6 +117,7 @@ $cleanPostgresEnvironment = @{
     PGHOSTADDR = ''
     PGSERVICE = ''
     PGSERVICEFILE = ''
+    PGOPTIONS = ''
 }
 
 foreach ($loopbackHost in @('localhost', '127.0.0.1', '::1')) {
@@ -163,6 +164,7 @@ $blockedEnvironmentCases = @(
         Value = '/tmp/pg_service.conf'
         Pattern = 'PGSERVICEFILE'
     },
+    @{ Name = 'PGOPTIONS'; Value = '-c search_path=x'; Pattern = 'PGOPTIONS' },
     @{ Name = 'PGHOST'; Value = '10.0.0.5'; Pattern = 'PGHOST' },
     @{
         Name = 'PGHOST'
@@ -185,6 +187,30 @@ foreach ($case in $blockedEnvironmentCases) {
             -Environment $blockedEnvironment } `
         $case.Pattern `
         "rejects $($case.Name)=$($case.Value)"
+}
+
+$validDatabase = Assert-DemoSeedLocalPostgresEnvironment `
+    -PostgresHost 'localhost' `
+    -PostgresPort 5432 `
+    -PostgresDatabase 'smart_heritage_seed_ci' `
+    -Environment $cleanPostgresEnvironment
+Assert-True ($validDatabase.Port -eq 5432) 'accepts plain PostgreSQL database name'
+
+foreach ($badDatabase in @(
+    'host=10.0.0.5 dbname=x',
+    'postgresql://10.0.0.5/db',
+    'db name',
+    '-h',
+    ''
+)) {
+    Assert-Throws `
+        { Assert-DemoSeedLocalPostgresEnvironment `
+            -PostgresHost 'localhost' `
+            -PostgresPort 5432 `
+            -PostgresDatabase $badDatabase `
+            -Environment $cleanPostgresEnvironment } `
+        'PostgresDatabase' `
+        "rejects PostgreSQL database '$badDatabase'"
 }
 
 # ---------------------------------------------------------------------------

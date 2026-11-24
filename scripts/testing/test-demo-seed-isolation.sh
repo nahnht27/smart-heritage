@@ -145,12 +145,14 @@ fi
 
 log "Creating default-stack sentinels"
 docker pull "$POSTGRES_IMAGE" >/dev/null
+# Pre-existence was checked above, so anything created below is ours to remove,
+# even if creation fails part-way.
+SENTINELS_CREATED=1
 docker create --name "$SENTINEL_DB" "$POSTGRES_IMAGE" >/dev/null
 docker create --name "$SENTINEL_BACKEND" "$POSTGRES_IMAGE" >/dev/null
 docker volume create \
   --label "$SENTINEL_LABEL_KEY=$SENTINEL_LABEL_VALUE" \
   "$SENTINEL_VOLUME" >/dev/null
-SENTINELS_CREATED=1
 
 SENTINELS_BEFORE="$(snapshot_sentinels)"
 

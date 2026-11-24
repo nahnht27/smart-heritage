@@ -149,6 +149,8 @@ function Assert-DemoSeedLocalPostgresEnvironment {
         [Parameter(Mandatory)]
         [int]$PostgresPort,
 
+        [string]$PostgresDatabase,
+
         [System.Collections.IDictionary]$Environment
     )
 
@@ -175,6 +177,17 @@ function Assert-DemoSeedLocalPostgresEnvironment {
         throw 'PostgresPort phải nằm trong khoảng 1-65535.'
     }
 
+    # psql -d accepts a conninfo string or URI that overrides -h/-p, so only a
+    # plain database name is allowed in Local mode.
+    if ($PSBoundParameters.ContainsKey('PostgresDatabase') -and
+        $PostgresDatabase -cnotmatch '^[A-Za-z_][A-Za-z0-9_$-]{0,62}$') {
+        throw (
+            'PostgresDatabase chỉ được là tên database thuần ' +
+            '(không chứa khoảng trắng, "=" hoặc URI) khi dùng ' +
+            'PostgresMode Local.'
+        )
+    }
+
     function Get-EnvironmentValue {
         param([Parameter(Mandatory)][string]$Name)
 
@@ -185,7 +198,7 @@ function Assert-DemoSeedLocalPostgresEnvironment {
         return [string][Environment]::GetEnvironmentVariable($Name)
     }
 
-    foreach ($blockedName in @('PGHOSTADDR', 'PGSERVICE', 'PGSERVICEFILE')) {
+    foreach ($blockedName in @('PGHOSTADDR', 'PGSERVICE', 'PGSERVICEFILE', 'PGOPTIONS')) {
         if (-not [string]::IsNullOrWhiteSpace(
             (Get-EnvironmentValue -Name $blockedName)
         )) {
