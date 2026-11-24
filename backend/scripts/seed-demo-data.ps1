@@ -97,7 +97,8 @@ if ($Cleanup) {
 if ($PostgresMode -eq 'Local') {
     Assert-DemoSeedLocalPostgresEnvironment `
         -PostgresHost $PostgresHost `
-        -PostgresPort $PostgresPort | Out-Null
+        -PostgresPort $PostgresPort `
+        -PostgresDatabase $PostgresDatabase | Out-Null
 }
 
 # 2. DEMO DATA

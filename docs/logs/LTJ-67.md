@@ -208,7 +208,7 @@ Beacon mapping and timestamps valid.
 | Cleanup và ownership validation | Đã kiểm tra ownership và WhatIf; Cleanup thật chưa kiểm thử |
 | Tài liệu setup/seed/cleanup | Đã tạo docs/database/demo-seed-setup.md |
 | Nguồn gốc, giấy phép media | Chưa xác minh đầy đủ |
-| Commit/PR/CI evidence | Đã cập nhật tại PR #42 và CI run 45111442938 |
+| Commit/PR/CI evidence | Xem mục 10.6 (CI run cuối cùng, ghi tại mục 10.6) |
 
 ### Bằng chứng kiểm thử Idempotency
 
@@ -366,7 +366,7 @@ Xác nhận:
 | Cleanup WhatIf | Đã kiểm thử trên dataset 4/20/20/4/60 |
 | Cleanup thật | Đã kiểm thử trên CI lifecycle |
 | Nguồn gốc và giấy phép media | Chưa xác minh đầy đủ |
-| Commit/PR/CI evidence | Đã cập nhật tại PR #42 và CI run 45111442938 |
+| Commit/PR/CI evidence | Xem mục 10.6 (CI run cuối cùng, ghi tại mục 10.6) |
 
 ### 7. Kết luận tiến độ cập nhật
 Đã mở rộng thành công Demo Dataset của LTJ-67 lên 4 HeritageSite, 20 Artifact, 20 Multimedia, 4 Beacon và 60 VisitorInteraction.
@@ -434,10 +434,10 @@ Task đã hoàn thành phần chuẩn bị dữ liệu, mở rộng dataset và 
 | Cleanup thật | Đã pass CI lifecycle |
 | Bảo toàn dữ liệu không thuộc seed | Đã pass CI lifecycle |
 | Media attribution | Inventory đã có; nguồn/giấy phép `PENDING` |
-| Commit/PR/CI evidence | Đã cập nhật tại PR #42 và CI run 45111442938 |
+| Commit/PR/CI evidence | Xem mục 10.6 (CI run cuối cùng, ghi tại mục 10.6) |
 
 
-## 9. Bằng chứng CI trước hardening (đã thay thế)
+## 9. Bằng chứng CI trước hardening (LỊCH SỬ — đã bị thay thế bởi mục 10.6)
 
 CI run cũ: https://github.com/nahnht27/smart-heritage/actions/runs/45111442938
 
@@ -482,7 +482,8 @@ CI run cũ: https://github.com/nahnht27/smart-heritage/actions/runs/45111442938
 - Thêm `Assert-DemoSeedLocalPostgresEnvironment` trong
   `DemoSeed.Common.psm1`.
 - Chỉ chấp nhận host loopback; từ chối `PGHOSTADDR`, `PGSERVICE`,
-  `PGSERVICEFILE`, `PGHOST` remote/multi-host và `PGPORT` không khớp.
+  `PGSERVICEFILE`, `PGOPTIONS`, `-PostgresDatabase` dạng conninfo/URI (ví dụ
+  `host=... dbname=...`, `postgresql://...`), `PGHOST` remote/multi-host và `PGPORT` không khớp.
 - Validation chạy trước dry-run, trước khi đọc token và trước API call.
 - `psql` nhận `-h` và `-p` tường minh.
 
@@ -509,6 +510,4 @@ CI run cũ: https://github.com/nahnht27/smart-heritage/actions/runs/45111442938
 - CI thêm job `demo-seed-isolation`.
 - Media attribution vẫn `PENDING`; không suy đoán nguồn hoặc giấy phép.
 
-### 10.6. Bằng chứng CI hardening
-
-Sẽ cập nhật sau khi chạy workflow cho commit hardening.
+@@CI@@

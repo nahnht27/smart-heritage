@@ -68,7 +68,8 @@ Script kiểm tra cấu hình trước khi đọc token hoặc gọi API:
 
 - `-PostgresHost` chỉ được là `localhost`, `127.0.0.1` hoặc `::1`.
 - `-PostgresPort` phải nằm trong khoảng `1-65535`.
-- Từ chối `PGHOSTADDR`, `PGSERVICE` và `PGSERVICEFILE` nếu các biến này được đặt.
+- Từ chối `PGHOSTADDR`, `PGSERVICE`, `PGSERVICEFILE` và `PGOPTIONS` nếu các biến này được đặt.
+- `-PostgresDatabase` chỉ được là tên database thuần; chuỗi conninfo/URI (có thể ghi đè host) bị từ chối.
 - `PGHOST`, nếu có, phải là một host loopback duy nhất và khớp `-PostgresHost`.
 - `PGPORT`, nếu có, phải là số hợp lệ và khớp `-PostgresPort`.
 
@@ -280,7 +281,7 @@ Có thể chỉ định PostgreSQL local thay vì Docker Compose:
 
 Với `-PostgresMode Local`, host/port chỉ được là loopback và được kiểm tra theo
 mục 2.2. Script gọi `psql -h <host> -p <port>` tường minh; `PGHOSTADDR`,
-`PGSERVICE` và `PGSERVICEFILE` phải trống. `PGPASSWORD` được dùng để xác thực
+`PGSERVICE`, `PGSERVICEFILE` và `PGOPTIONS` phải trống. `PGPASSWORD` được dùng để xác thực
 nhưng không bị ghi lại.
 
 ### 8.1. Idempotency
