@@ -17,7 +17,7 @@ export default function () {
         "/api/health",
         "/api/heritage-sites",
         "/api/artifacts",
-        "/api/artifacts/48"
+        "/api/artifacts/" + (__ENV.ARTIFACT_ID || "48")
     ];
 
     for (const endpoint of endpoints) {
