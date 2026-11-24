@@ -12,8 +12,8 @@ Thành phần:
   sinh interaction definition.
 - `backend/scripts/demo-seed-manifest.json`: runtime state của từng developer
   hoặc môi trường; **không commit**.
-- `docs/database/demo-media-attribution.md`: inventory media và trạng thái
-  nguồn/giấy phép.
+- `docs/database/demo-media-attribution.md`: audit media và nguồn gốc
+  ảnh placeholder.
 
 Không chạy script trên production hoặc database chứa dữ liệu thật.
 
@@ -409,13 +409,14 @@ BaseUrl khác, hoặc database có dữ liệu thật cần bảo toàn.
 
 ## 12. Media demo
 
-Bundle hiện có 20 ảnh JPEG cho 20 Artifact. Hai ảnh site không được sử dụng đã
-được loại bỏ vì model HeritageSite không có trường ảnh và frontend/mobile không
-tham chiếu.
+Bundle có 20 ảnh JPEG (1200×800) cho 20 Artifact. Đây là **placeholder gốc do
+dự án tạo** (nhãn `ẢNH MINH HỌA`), không phải ảnh thật của hiện vật/di tích; sinh
+bởi `scripts/tools/generate-demo-placeholders.py`. 20 ảnh bên thứ ba ban đầu
+không có bằng chứng giấy phép (NOT CLEARED) nên đã bị thay thế. Chi tiết audit
+tại `docs/database/demo-media-attribution.md`.
 
-Nguồn và giấy phép từng ảnh chưa được xác minh. Trạng thái là `PENDING` trong
-`docs/database/demo-media-attribution.md`. Không công bố media ngoài phạm vi đồ
-án trước khi hoàn tất attribution.
+Không thêm ảnh bên thứ ba vào repo công khai khi chưa có nguồn, tác giả, giấy
+phép và điều kiện attribution được ghi lại.
 
 ## 13. Automated checks
 

@@ -542,5 +542,15 @@ CI run cũ: https://github.com/nahnht27/smart-heritage/actions/runs/45111442938
   lifecycle.
 - Lịch sử nhánh có chứa bản manifest cũ (commit `37cece8`, `798cf5f`; đã xóa ở
   `6bea36e`). Chỉ có ID local, không có token/mật khẩu; nên squash merge.
-- Media attribution vẫn `PENDING`; ảnh chưa được xác nhận để phân phối công khai.
+- Media: xem mục 11 (bản cập nhật mới nhất thay thế các ghi chú `PENDING` trước đó).
 
+## 11. Khắc phục giấy phép media (2026-11-24)
+
+Các ghi chú `PENDING`/"chưa xác minh" ở các mục trên là lịch sử. Trạng thái hiện tại:
+
+- Audit từng ảnh: cả 20 ảnh gốc là NOT CLEARED (không có nguồn/tác giả/giấy phép).
+- Đã thay cả 20 bằng placeholder gốc do dự án tạo (cùng tên tệp/URL), nhãn
+  `ẢNH MINH HỌA`; 0 ảnh bên thứ ba còn lại trong cây hiện tại.
+- Lịch sử Git của nhánh công khai vẫn chứa blob ảnh cũ (commit `98ebf75`,
+  `798cf5f`); chưa viết lại lịch sử. Chi tiết: `docs/database/demo-media-attribution.md`
+  và mô tả PR #42.
