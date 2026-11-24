@@ -338,6 +338,101 @@ jobs:
             throw 'Remote BaseUrl was not rejected'
           }
 
+      - name: Reject non-loopback PostgreSQL Local host before authentication
+        shell: pwsh
+        run: |
+          $rejected = $false
+          try {
+            ./backend/scripts/seed-demo-data.ps1 `
+              -Seed -WhatIf `
+              -PostgresMode Local `
+              -PostgresHost '10.0.0.5'
+          }
+          catch {
+            $rejected = $true
+          }
+
+          if (-not $rejected) {
+            throw 'Remote PostgreSQL Local host was not rejected'
+          }
+
+      - name: Reject PostgreSQL service environment overrides
+        shell: pwsh
+        run: |
+          $env:PGHOSTADDR = '10.0.0.5'
+          $rejected = $false
+          try {
+            ./backend/scripts/seed-demo-data.ps1 `
+              -Seed -WhatIf `
+              -PostgresMode Local
+          }
+          catch {
+            $rejected = $true
+          }
+          finally {
+            Remove-Item Env:PGHOSTADDR -ErrorAction SilentlyContinue
+          }
+
+          if (-not $rejected) {
+            throw 'PGHOSTADDR override was not rejected'
+          }
+
+      - name: Reject legacy interaction distribution before authentication
+        shell: pwsh
+        run: |
+          $manifestPath = Join-Path `
+            ([System.IO.Path]::GetTempPath()) `
+            'legacy-demo-seed-manifest.json'
+
+          $manifest = @{
+            version = 2
+            seedName = 'smart-heritage-demo'
+            baseUrl = 'http://localhost:8080'
+            sites = @()
+            artifacts = @()
+            multimedia = @()
+            beacons = @()
+            interactions = @(
+              @{ eventId = '30000000-0000-4000-8000-000000000001' }
+            )
+          } | ConvertTo-Json -Depth 6
+
+          Set-Content -LiteralPath $manifestPath -Value $manifest -Encoding utf8
+
+          try {
+            $rejected = $false
+            try {
+              ./backend/scripts/seed-demo-data.ps1 `
+                -Verify `
+                -ManifestPath $manifestPath
+            }
+            catch {
+              $rejected = $true
+
+              if ($_.Exception.Message -notmatch 'phân bố cũ') {
+                throw
+              }
+            }
+
+            if (-not $rejected) {
+              throw 'Legacy interaction distribution was not rejected'
+            }
+          }
+          finally {
+            Remove-Item -LiteralPath $manifestPath -ErrorAction SilentlyContinue
+          }
+
+  demo-seed-isolation:
+    name: demo-seed-isolation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Verify default Docker stack is isolated
+        run: bash scripts/testing/test-demo-seed-isolation.sh
+
   demo-seed-lifecycle:
     name: demo-seed-lifecycle
     runs-on: ubuntu-24.04

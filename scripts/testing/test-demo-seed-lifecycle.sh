@@ -13,6 +13,15 @@ ADMIN_USERNAME='seed_lifecycle_admin'
 ADMIN_EMAIL='seed.lifecycle@example.com'
 ADMIN_PASSWORD='seed-lifecycle-ci-only'
 
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-smart-heritage-seed-$(date +%s)-$$}"
+POSTGRES_CONTAINER_NAME="${POSTGRES_CONTAINER_NAME:-${COMPOSE_PROJECT_NAME}-db}"
+BACKEND_CONTAINER_NAME="${BACKEND_CONTAINER_NAME:-${COMPOSE_PROJECT_NAME}-backend}"
+POSTGRES_VOLUME_NAME="${POSTGRES_VOLUME_NAME:-${COMPOSE_PROJECT_NAME}_postgres_data}"
+
+DEFAULT_POSTGRES_CONTAINER='smart-heritage-db'
+DEFAULT_BACKEND_CONTAINER='smart-heritage-backend'
+DEFAULT_POSTGRES_VOLUME='smart-heritage_postgres_data'
+
 log() {
   printf '[demo-seed-lifecycle] %s\n' "$*" >&2
 }
@@ -26,6 +35,24 @@ for command in curl docker python3 pwsh; do
   command -v "$command" >/dev/null 2>&1 || fail "$command is required"
 done
 
+case "$COMPOSE_PROJECT_NAME" in
+  smart-heritage-seed-*) ;;
+  *)
+    fail "Refusing to tear down Compose project '$COMPOSE_PROJECT_NAME'"
+    ;;
+esac
+
+[[ "$POSTGRES_CONTAINER_NAME" != "$DEFAULT_POSTGRES_CONTAINER" ]] \
+  || fail 'PostgreSQL container name must be isolated from the default stack'
+[[ "$BACKEND_CONTAINER_NAME" != "$DEFAULT_BACKEND_CONTAINER" ]] \
+  || fail 'Backend container name must be isolated from the default stack'
+[[ "$POSTGRES_VOLUME_NAME" != "$DEFAULT_POSTGRES_VOLUME" ]] \
+  || fail 'PostgreSQL volume name must be isolated from the default stack'
+
+export COMPOSE_PROJECT_NAME \
+  POSTGRES_CONTAINER_NAME \
+  BACKEND_CONTAINER_NAME \
+  POSTGRES_VOLUME_NAME
 export POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD BACKEND_PORT POSTGRES_PORT JWT_SECRET
 export CORS_ALLOWED_ORIGINS="$API_BASE_URL"
 
@@ -34,11 +61,37 @@ MANIFEST_PATH="$TMP_DIR/demo-seed-manifest.json"
 SEED_SCRIPT="$ROOT_DIR/backend/scripts/seed-demo-data.ps1"
 STACK_STARTED=0
 
+container_exists() {
+  docker inspect "$1" >/dev/null 2>&1
+}
+
+snapshot_default_stack() {
+  local name
+  local snapshot=''
+
+  for name in "$DEFAULT_POSTGRES_CONTAINER" "$DEFAULT_BACKEND_CONTAINER"; do
+    if container_exists "$name"; then
+      snapshot+="$name:$(docker inspect -f '{{.Id}}' "$name")|"
+    else
+      snapshot+="$name:absent|"
+    fi
+  done
+
+  if docker volume inspect "$DEFAULT_POSTGRES_VOLUME" >/dev/null 2>&1; then
+    snapshot+="$DEFAULT_POSTGRES_VOLUME:present"
+  else
+    snapshot+="$DEFAULT_POSTGRES_VOLUME:absent"
+  fi
+
+  printf '%s' "$snapshot"
+}
+
 cleanup() {
   local status=$?
   trap - EXIT
   if [[ "$STACK_STARTED" == "1" ]]; then
-    docker compose -f "$ROOT_DIR/docker-compose.yml" down -v --remove-orphans \
+    docker compose -p "$COMPOSE_PROJECT_NAME" \
+      -f "$ROOT_DIR/docker-compose.yml" down -v --remove-orphans \
       >/dev/null 2>&1 || true
   fi
   rm -rf "$TMP_DIR"
@@ -47,7 +100,8 @@ cleanup() {
 trap cleanup EXIT
 
 compose() {
-  docker compose -f "$ROOT_DIR/docker-compose.yml" "$@"
+  docker compose -p "$COMPOSE_PROJECT_NAME" \
+    -f "$ROOT_DIR/docker-compose.yml" "$@"
 }
 
 psql_db() {
@@ -63,6 +117,26 @@ db_count() {
   psql_db "$1" | tr -d '[:space:]'
 }
 
+assert_analytics_distribution() {
+  local counts
+  counts="$(db_count "
+SELECT
+    COUNT(*) FILTER (
+        WHERE interacted_at >= now() - interval '7 days'
+    ) || '|' ||
+    COUNT(*) FILTER (
+        WHERE interacted_at >= now() - interval '30 days'
+    ) || '|' ||
+    COUNT(*) FILTER (
+        WHERE interacted_at >= now() - interval '90 days'
+    ) || '|' ||
+    COUNT(*)
+FROM visitor_interaction;
+")"
+  [[ "$counts" == "8|20|36|60" ]] \
+    || fail "analytics distribution mismatch: expected 8|20|36|60, got $counts"
+}
+
 run_seed() {
   SMART_HERITAGE_ADMIN_TOKEN="$ADMIN_TOKEN" \
     pwsh -NoProfile -NonInteractive \
@@ -74,9 +148,35 @@ run_seed() {
       "$@"
 }
 
+DEFAULT_STACK_BEFORE="$(snapshot_default_stack)"
+
+if container_exists "$POSTGRES_CONTAINER_NAME" \
+    || container_exists "$BACKEND_CONTAINER_NAME"; then
+  fail "isolated container name already exists: $COMPOSE_PROJECT_NAME"
+fi
+
+if docker volume inspect "$POSTGRES_VOLUME_NAME" >/dev/null 2>&1; then
+  fail "isolated volume already exists: $POSTGRES_VOLUME_NAME"
+fi
+
 log "Starting disposable Docker Compose stack"
+log "Compose project: $COMPOSE_PROJECT_NAME"
+log "Containers: $POSTGRES_CONTAINER_NAME, $BACKEND_CONTAINER_NAME"
+log "Volume: $POSTGRES_VOLUME_NAME"
 STACK_STARTED=1
 compose up -d --build --wait --wait-timeout 300
+
+if ! container_exists "$POSTGRES_CONTAINER_NAME" \
+    || ! container_exists "$BACKEND_CONTAINER_NAME"; then
+  fail 'isolated containers were not created'
+fi
+
+if ! docker volume inspect "$POSTGRES_VOLUME_NAME" >/dev/null 2>&1; then
+  fail 'isolated PostgreSQL volume was not created'
+fi
+
+[[ "$(snapshot_default_stack)" == "$DEFAULT_STACK_BEFORE" ]] \
+  || fail 'default Docker stack changed while starting the isolated stack'
 
 healthy=0
 for _ in $(seq 1 60); do
@@ -114,6 +214,15 @@ ADMIN_TOKEN="$(
 log "Running first Seed and Verify"
 run_seed -Seed -Force
 run_seed -Verify
+assert_analytics_distribution
+
+python3 - "$MANIFEST_PATH" <<'PY'
+import json
+import sys
+manifest = json.load(open(sys.argv[1]))
+assert manifest.get("interactionDistributionVersion") == 2, \
+    "interactionDistributionVersion must be 2"
+PY
 
 FIRST_ANCHOR="$(
   python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["interactionAnchorAtUtc"])' \
@@ -123,6 +232,7 @@ FIRST_ANCHOR="$(
 log "Running repeated Seed and Verify"
 run_seed -Seed -Force
 run_seed -Verify
+assert_analytics_distribution
 
 SECOND_ANCHOR="$(
   python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["interactionAnchorAtUtc"])' \
@@ -183,6 +293,7 @@ fi
 log "Running Seed and Verify after cleanup to refresh the anchor"
 run_seed -Seed -Force
 run_seed -Verify
+assert_analytics_distribution
 
 THIRD_ANCHOR="$(
   python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["interactionAnchorAtUtc"])' \
@@ -209,4 +320,20 @@ run_seed -Cleanup -Force
 [[ "$(db_count 'SELECT COUNT(*) FROM visitor_interaction')" == "0" ]] \
   || fail "final Cleanup left interactions"
 
-log "PASS: repeated Seed, Verify, WhatIf, cleanup recovery, and preservation checks"
+log "Tearing down the isolated Docker Compose stack"
+compose down -v --remove-orphans
+STACK_STARTED=0
+
+if container_exists "$POSTGRES_CONTAINER_NAME" \
+    || container_exists "$BACKEND_CONTAINER_NAME"; then
+  fail 'isolated containers still exist after teardown'
+fi
+
+if docker volume inspect "$POSTGRES_VOLUME_NAME" >/dev/null 2>&1; then
+  fail "isolated volume still exists after teardown: $POSTGRES_VOLUME_NAME"
+fi
+
+[[ "$(snapshot_default_stack)" == "$DEFAULT_STACK_BEFORE" ]] \
+  || fail 'default Docker stack was modified by the isolated lifecycle'
+
+log "PASS: repeated Seed, Verify, WhatIf, cleanup recovery, preservation, and isolation checks"

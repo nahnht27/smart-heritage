@@ -437,9 +437,9 @@ Task đã hoàn thành phần chuẩn bị dữ liệu, mở rộng dataset và 
 | Commit/PR/CI evidence | Đã cập nhật tại PR #42 và CI run 45111442938 |
 
 
-## 9. Bằng chứng CI cuối cùng
+## 9. Bằng chứng CI trước hardening (đã thay thế)
 
-CI run: https://github.com/nahnht27/smart-heritage/actions/runs/45111442938
+CI run cũ: https://github.com/nahnht27/smart-heritage/actions/runs/45111442938
 
 - Commit: `e73b351704bbf431f1c5707d913a4038659787b5`.
 - Kết quả: `completed / success`.
@@ -458,3 +458,57 @@ CI run: https://github.com/nahnht27/smart-heritage/actions/runs/45111442938
 - Kết quả Verify trên CI: 4 HeritageSite, 20 Artifact, 20 Multimedia, 4 Beacon, 60 VisitorInteraction, 8 anonymous visitors; analytics 7 ngày = 52, 30/90 ngày và All Time = 60.
 - Media attribution vẫn `PENDING`; không có giấy phép nào được suy đoán.
 - PR #42 vẫn `OPEN`, không merge.
+
+## 10. Hardening — Docker isolation, PostgreSQL Local và phân bổ analytics
+
+### 10.1. Cô lập vòng đời Docker
+- `docker-compose.yml` nhận `POSTGRES_CONTAINER_NAME`, `BACKEND_CONTAINER_NAME`
+  và `POSTGRES_VOLUME_NAME`; giá trị mặc định giữ nguyên
+  `smart-heritage-db`, `smart-heritage-backend` và
+  `smart-heritage_postgres_data`.
+- `test-demo-seed-lifecycle.sh` dùng Compose project riêng
+  `smart-heritage-seed-<timestamp>-<pid>`, container và volume riêng.
+- Script từ chối teardown nếu project không khớp tiền tố cho phép.
+- Trước/sau lifecycle, script so sánh sentinel của stack mặc định: container
+  `smart-heritage-db`, `smart-heritage-backend` và volume
+  `smart-heritage_postgres_data`.
+- Thêm `scripts/testing/test-demo-seed-isolation.sh` tạo sentinel stack mặc
+  định, chạy PostgreSQL trong project cô lập, teardown và xác nhận sentinel
+  không đổi.
+
+### 10.2. PostgreSQL Local
+- Thêm `-PostgresHost` (mặc định `127.0.0.1`) và `-PostgresPort` (mặc định
+  `5432`).
+- Thêm `Assert-DemoSeedLocalPostgresEnvironment` trong
+  `DemoSeed.Common.psm1`.
+- Chỉ chấp nhận host loopback; từ chối `PGHOSTADDR`, `PGSERVICE`,
+  `PGSERVICEFILE`, `PGHOST` remote/multi-host và `PGPORT` không khớp.
+- Validation chạy trước dry-run, trước khi đọc token và trước API call.
+- `psql` nhận `-h` và `-p` tường minh.
+
+### 10.3. Phân bổ analytics
+- 60 interaction được chia cố định `8 / 12 / 16 / 24` theo các band
+  0–7, 7–30, 30–90 và cũ hơn 90 ngày.
+- Tổng cộng dồn: `8 < 20 < 36 < 60`.
+- Timestamp deterministic, microsecond, không ở tương lai.
+- `Get-DemoSeedInteractionBandCounts` dùng chung cho generator và Verify.
+- Verify so khớp chính xác bốn cửa sổ; lifecycle kiểm tra trực tiếp PostgreSQL
+  với kết quả `8|20|36|60`.
+
+### 10.4. Manifest phân bổ legacy
+- Manifest mới ghi `interactionDistributionVersion = 2`.
+- Manifest có interaction nhưng thiếu/khác version bị từ chối ở Seed/Verify
+  trước khi xác thực.
+- Cleanup vẫn được phép để dọn dữ liệu cũ; không tự động xóa manifest.
+
+### 10.5. Test và CI
+- `seed-common.tests.ps1`: bổ sung test PostgreSQL Local, legacy distribution
+  guard, band plan và phân bổ 60 event; local pass 68 assertion.
+- CI static checks bổ sung kiểm tra từ chối PostgreSQL host remote và
+  `PGHOSTADDR`.
+- CI thêm job `demo-seed-isolation`.
+- Media attribution vẫn `PENDING`; không suy đoán nguồn hoặc giấy phép.
+
+### 10.6. Bằng chứng CI hardening
+
+Sẽ cập nhật sau khi chạy workflow cho commit hardening.
