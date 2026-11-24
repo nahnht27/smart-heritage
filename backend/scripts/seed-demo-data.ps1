@@ -32,7 +32,10 @@ param(
     [ValidateSet('DockerCompose', 'Local')]
     [string]$PostgresMode = 'DockerCompose',
     [string]$PostgresDatabase = 'smart_heritage',
-    [string]$PostgresUser = 'postgres'
+    [string]$PostgresUser = 'postgres',
+    [string]$PostgresHost = '127.0.0.1',
+    [ValidateRange(1, 65535)]
+    [int]$PostgresPort = 5432
 )
 
 Set-StrictMode -Version Latest
@@ -89,6 +92,12 @@ if ($Cleanup) {
             'Hãy sử dụng -Cleanup -Confirm hoặc -Force trong CI.'
         )
     }
+}
+
+if ($PostgresMode -eq 'Local') {
+    Assert-DemoSeedLocalPostgresEnvironment `
+        -PostgresHost $PostgresHost `
+        -PostgresPort $PostgresPort | Out-Null
 }
 
 # 2. DEMO DATA
@@ -894,6 +903,8 @@ function Invoke-PostgresSql {
 
             if ($PostgresMode -eq 'Local') {
                 $output = & psql `
+                    -h $PostgresHost `
+                    -p $PostgresPort `
                     -U $PostgresUser `
                     -d $PostgresDatabase `
                     -X -q -A -t `
@@ -1144,10 +1155,27 @@ function Ensure-Beacon {
     }
 }
 
-# 11. LOAD AUTH AND MANIFEST
+# 11. LOAD MANIFEST BEFORE AUTHENTICATION
+
+$script:Manifest = Load-Manifest
+
+if ($null -ne $script:Manifest) {
+    $manifestMode = if ($Cleanup) {
+        'Cleanup'
+    }
+    elseif ($Verify) {
+        'Verify'
+    }
+    else {
+        'Seed'
+    }
+
+    Assert-DemoSeedManifestDistributionVersion `
+        -Manifest $script:Manifest `
+        -Mode $manifestMode
+}
 
 Set-AdminHeaders
-$script:Manifest = Load-Manifest
 
 # 13. VERIFY MODE
 if ($Verify) {
@@ -1337,7 +1365,16 @@ if ($Verify) {
             throw "Interaction có interactedAt không hợp lệ: $($entry.eventId)."
         }
 
-        $interactionTimes += $interactedAt.ToUniversalTime()
+        $normalizedInteractedAt = $interactedAt.ToUniversalTime()
+
+        if ($normalizedInteractedAt -ge $verifyNow) {
+            throw (
+                "Interaction $($entry.eventId) có interactedAt " +
+                'trong tương lai. Chạy Cleanup rồi Seed lại.'
+            )
+        }
+
+        $interactionTimes += $normalizedInteractedAt
     }
 
     $analyticsWindows = @(
@@ -1366,13 +1403,6 @@ if ($Verify) {
                 }
         ).Count
 
-        if ($count -le 0) {
-            throw (
-                "Analytics $($window.Name) không có dữ liệu. " +
-                'Chạy Cleanup rồi Seed lại trên môi trường demo.'
-            )
-        }
-
         $analyticsCounts[$window.Name] = $count
     }
 
@@ -1381,11 +1411,52 @@ if ($Verify) {
             Where-Object { $_ -lt $verifyNow }
     ).Count
 
-    if ($allTimeCount -le 0) {
-        throw 'Analytics All Time không có dữ liệu.'
+    $analyticsCounts['All Time'] = $allTimeCount
+
+    $expectedBandCounts = Get-DemoSeedInteractionBandCounts `
+        -Total $expectedInteractionCount
+
+    $expectedAnalyticsCounts = [ordered]@{
+        '7 ngày' = [int]$expectedBandCounts[0]
+        '30 ngày' = [int](
+            $expectedBandCounts[0] +
+            $expectedBandCounts[1]
+        )
+        '90 ngày' = [int](
+            $expectedBandCounts[0] +
+            $expectedBandCounts[1] +
+            $expectedBandCounts[2]
+        )
+        'All Time' = [int]$expectedInteractionCount
     }
 
-    $analyticsCounts['All Time'] = $allTimeCount
+    if (
+        $expectedAnalyticsCounts['7 ngày'] -le 0 -or
+        $expectedAnalyticsCounts['7 ngày'] -ge
+            $expectedAnalyticsCounts['30 ngày'] -or
+        $expectedAnalyticsCounts['30 ngày'] -ge
+            $expectedAnalyticsCounts['90 ngày'] -or
+        $expectedAnalyticsCounts['90 ngày'] -ge
+            $expectedAnalyticsCounts['All Time']
+    ) {
+        throw (
+            'Phân bố analytics dự kiến không tăng nghiêm ngặt: ' +
+            '7 ngày < 30 ngày < 90 ngày < All Time.'
+        )
+    }
+
+    foreach ($windowName in $expectedAnalyticsCounts.Keys) {
+        $actual = [int]$analyticsCounts[$windowName]
+        $expected = [int]$expectedAnalyticsCounts[$windowName]
+
+        if ($actual -ne $expected) {
+            throw (
+                "Analytics $windowName không khớp phân bố seed. " +
+                "Actual=$actual Expected=$expected. " +
+                'Chạy Cleanup rồi Seed lại trên môi trường demo.'
+            )
+        }
+    }
 
     # ---------------------------------------------------------
     # 13.9. Prepare SQL expected interaction rows
@@ -2130,6 +2201,7 @@ if ($null -eq $script:Manifest) {
         version = 2
         seedName = 'smart-heritage-demo'
         baseUrl = $BaseUrl
+        interactionDistributionVersion = 2
 
         createdAtUtc = $now.ToString('o')
         updatedAtUtc = $now.ToString('o')
@@ -2155,6 +2227,10 @@ $anchorWasStored = (
 $interactionAnchorAtUtc = Resolve-DemoSeedInteractionAnchor `
     -Manifest $script:Manifest `
     -Now $now
+
+Set-ManifestProperty `
+    -Name 'interactionDistributionVersion' `
+    -Value 2
 
 Set-ManifestProperty `
     -Name 'interactionAnchorAtUtc' `

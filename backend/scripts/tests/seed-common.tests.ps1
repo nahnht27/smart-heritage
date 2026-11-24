@@ -107,6 +107,175 @@ foreach ($baseUrl in $rejectedBaseUrls) {
         "rejects BaseUrl '$baseUrl'"
 }
 
+# ---------------------------------------------------------------------------
+# PostgreSQL Local environment validation
+# ---------------------------------------------------------------------------
+
+$cleanPostgresEnvironment = @{
+    PGHOST = ''
+    PGPORT = ''
+    PGHOSTADDR = ''
+    PGSERVICE = ''
+    PGSERVICEFILE = ''
+}
+
+foreach ($loopbackHost in @('localhost', '127.0.0.1', '::1')) {
+    $validated = Assert-DemoSeedLocalPostgresEnvironment `
+        -PostgresHost $loopbackHost `
+        -PostgresPort 5432 `
+        -Environment $cleanPostgresEnvironment
+
+    Assert-True `
+        ($validated.Host -eq $loopbackHost -and $validated.Port -eq 5432) `
+        "accepts loopback PostgreSQL host $loopbackHost"
+}
+
+$validatedWithMatchingEnvironment = Assert-DemoSeedLocalPostgresEnvironment `
+    -PostgresHost 'localhost' `
+    -PostgresPort 5433 `
+    -Environment @{
+        PGHOST = 'localhost'
+        PGPORT = '5433'
+        PGHOSTADDR = ''
+        PGSERVICE = ''
+        PGSERVICEFILE = ''
+    }
+
+Assert-True `
+    ($validatedWithMatchingEnvironment.Port -eq 5433) `
+    'accepts matching PGHOST and PGPORT'
+
+foreach ($remoteHost in @('10.0.0.5', 'example.com', 'localhost,127.0.0.1', '')) {
+    Assert-Throws `
+        { Assert-DemoSeedLocalPostgresEnvironment `
+            -PostgresHost $remoteHost `
+            -PostgresPort 5432 `
+            -Environment $cleanPostgresEnvironment } `
+        '' `
+        "rejects PostgreSQL host '$remoteHost'"
+}
+
+$blockedEnvironmentCases = @(
+    @{ Name = 'PGHOSTADDR'; Value = '10.0.0.5'; Pattern = 'PGHOSTADDR' },
+    @{ Name = 'PGSERVICE'; Value = 'demo'; Pattern = 'PGSERVICE' },
+    @{
+        Name = 'PGSERVICEFILE'
+        Value = '/tmp/pg_service.conf'
+        Pattern = 'PGSERVICEFILE'
+    },
+    @{ Name = 'PGHOST'; Value = '10.0.0.5'; Pattern = 'PGHOST' },
+    @{
+        Name = 'PGHOST'
+        Value = 'localhost,127.0.0.1'
+        Pattern = 'PGHOST'
+    },
+    @{ Name = 'PGHOST'; Value = '127.0.0.2'; Pattern = 'PGHOST' },
+    @{ Name = 'PGPORT'; Value = '6543'; Pattern = 'PGPORT' },
+    @{ Name = 'PGPORT'; Value = 'not-a-port'; Pattern = 'PGPORT' }
+)
+
+foreach ($case in $blockedEnvironmentCases) {
+    $blockedEnvironment = $cleanPostgresEnvironment.Clone()
+    $blockedEnvironment[$case.Name] = $case.Value
+
+    Assert-Throws `
+        { Assert-DemoSeedLocalPostgresEnvironment `
+            -PostgresHost '127.0.0.1' `
+            -PostgresPort 5432 `
+            -Environment $blockedEnvironment } `
+        $case.Pattern `
+        "rejects $($case.Name)=$($case.Value)"
+}
+
+# ---------------------------------------------------------------------------
+# Manifest interaction distribution version
+# ---------------------------------------------------------------------------
+
+$legacyManifest = [pscustomobject]@{
+    interactions = @(
+        [pscustomobject]@{
+            eventId = '30000000-0000-4000-8000-000000000001'
+        }
+    )
+}
+
+Assert-Throws `
+    { Assert-DemoSeedManifestDistributionVersion `
+        -Manifest $legacyManifest `
+        -Mode 'Seed' } `
+    'phân bố cũ' `
+    'rejects legacy interaction distribution during Seed'
+
+Assert-Throws `
+    { Assert-DemoSeedManifestDistributionVersion `
+        -Manifest $legacyManifest `
+        -Mode 'Verify' } `
+    'phân bố cũ' `
+    'rejects legacy interaction distribution during Verify'
+
+Assert-True `
+    ($null -eq (Assert-DemoSeedManifestDistributionVersion `
+        -Manifest $legacyManifest `
+        -Mode 'Cleanup')) `
+    'allows Cleanup to remove a legacy interaction distribution'
+
+$currentManifest = [pscustomobject]@{
+    interactionDistributionVersion = 2
+    interactions = @(
+        [pscustomobject]@{
+            eventId = '30000000-0000-4000-8000-000000000001'
+        }
+    )
+}
+
+Assert-True `
+    ($null -eq (Assert-DemoSeedManifestDistributionVersion `
+        -Manifest $currentManifest `
+        -Mode 'Verify')) `
+    'accepts current interaction distribution version'
+
+$emptyLegacyManifest = [pscustomobject]@{
+    interactions = @()
+}
+
+Assert-True `
+    ($null -eq (Assert-DemoSeedManifestDistributionVersion `
+        -Manifest $emptyLegacyManifest `
+        -Mode 'Seed')) `
+    'accepts an empty manifest without a distribution version'
+
+# ---------------------------------------------------------------------------
+# Analytics band planning
+# ---------------------------------------------------------------------------
+
+$productionBandCounts = Get-DemoSeedInteractionBandCounts -Total 60
+
+Assert-True ($productionBandCounts.Count -eq 4) `
+    'plans four analytics bands'
+Assert-True `
+    (($productionBandCounts -join ',') -eq '8,12,16,24') `
+    'uses 8/12/16/24 events for the 60-event dataset'
+
+$productionCumulative = @(
+    $productionBandCounts[0]
+    $productionBandCounts[0] + $productionBandCounts[1]
+    $productionBandCounts[0] + $productionBandCounts[1] + $productionBandCounts[2]
+    ($productionBandCounts | Measure-Object -Sum).Sum
+)
+
+Assert-True `
+    (($productionCumulative -join ',') -eq '8,20,36,60') `
+    'produces cumulative analytics counts 8 < 20 < 36 < 60'
+
+$smallBandCounts = Get-DemoSeedInteractionBandCounts -Total 6
+
+Assert-True `
+    ((($smallBandCounts | Measure-Object -Sum).Sum) -eq 6) `
+    'allocates every small dataset event to a band'
+Assert-True `
+    (@($smallBandCounts | Where-Object { $_ -lt 1 }).Count -eq 0) `
+    'populates every analytics band for a small dataset'
+
 $fixedNow = [DateTimeOffset]::Parse('2026-11-22T12:00:00Z')
 $fixedAnchor = [DateTimeOffset]::Parse('2026-11-22T10:00:00Z')
 
@@ -214,35 +383,128 @@ Assert-True `
         ($repeatedDefinitions | ConvertTo-Json -Depth 10)) `
     'same anchor produces identical interaction definitions'
 
-$earliestExpected = $fixedAnchor.AddDays(-8).AddMinutes(15)
 $latestAllowed = $fixedAnchor
-
-Assert-True `
-    (([DateTimeOffset]::Parse([string]$definitions[0].startedAt)) -eq
-        $earliestExpected) `
-    'first interaction starts at the expected anchored time'
+$startedTimes = @()
+$interactedTimes = @()
 
 foreach ($definition in $definitions) {
     $startedAt = [DateTimeOffset]::Parse([string]$definition.startedAt)
     $interactedAt = [DateTimeOffset]::Parse([string]$definition.interactedAt)
 
+    $startedTimes += $startedAt
+    $interactedTimes += $interactedAt
+
     Assert-True `
-        ($startedAt -ge $earliestExpected -and $startedAt -lt $latestAllowed) `
+        ($startedAt -ge $fixedAnchor.AddDays(-400) -and
+            $startedAt -lt $latestAllowed) `
         'interaction starts within the anchored window'
     Assert-True `
         ($interactedAt -lt $latestAllowed) `
         'interaction does not occur after the anchor'
 }
 
-$sevenDayCount = @(
-    $definitions |
-        Where-Object {
-            [DateTimeOffset]::Parse([string]$_.interactedAt) -ge
-                $fixedAnchor.AddDays(-7)
-        }
-).Count
+$earliestStarted = $startedTimes[0]
 
-Assert-True ($sevenDayCount -gt 0) 'anchored definitions populate 7-day window'
-Assert-True ($definitions.Count -gt 0) 'anchored definitions populate all-time window'
+foreach ($candidate in $startedTimes) {
+    if ($candidate -lt $earliestStarted) {
+        $earliestStarted = $candidate
+    }
+}
+
+Assert-True `
+    ($earliestStarted -ge $fixedAnchor.AddDays(-400) -and
+        $earliestStarted -lt $fixedAnchor.AddDays(-91)) `
+    'dataset includes interactions older than 90 days'
+
+$smallAnalyticsCounts = @(
+    @($interactedTimes |
+        Where-Object {
+            $_ -ge $fixedAnchor.AddDays(-7) -and $_ -lt $fixedAnchor
+        }).Count,
+    @($interactedTimes |
+        Where-Object {
+            $_ -ge $fixedAnchor.AddDays(-30) -and $_ -lt $fixedAnchor
+        }).Count,
+    @($interactedTimes |
+        Where-Object {
+            $_ -ge $fixedAnchor.AddDays(-90) -and $_ -lt $fixedAnchor
+        }).Count,
+    @($interactedTimes | Where-Object { $_ -lt $fixedAnchor }).Count
+)
+
+Assert-True ($smallAnalyticsCounts.Count -eq 4) `
+    'computes four analytics windows for a small dataset'
+Assert-True `
+    (($smallAnalyticsCounts -join ',') -eq '2,3,4,6') `
+    'small dataset windows increase strictly'
+
+# ---------------------------------------------------------------------------
+# Full 60-event analytics distribution
+# ---------------------------------------------------------------------------
+
+$manyArtifacts = @()
+$manyArtifactIds = @{}
+
+for ($index = 1; $index -le 20; $index++) {
+    $key = "many-a$index"
+    $manyArtifacts += @{ Key = $key }
+    $manyArtifactIds[$key] = $index
+}
+
+$manyBeacons = @()
+$manyBeaconIds = @{}
+
+for ($index = 1; $index -le 4; $index++) {
+    $key = "many-b$index"
+    $manyBeacons += @{
+        Key = $key
+        ArtifactKey = "many-a$index"
+    }
+    $manyBeaconIds[$key] = 500 + $index
+}
+
+$manyDefinitions = New-DemoSeedInteractionDefinitions `
+    -Artifacts $manyArtifacts `
+    -Beacons $manyBeacons `
+    -VisitorIds $visitorIds `
+    -ArtifactIds $manyArtifactIds `
+    -BeaconIds $manyBeaconIds `
+    -AnchorAtUtc $fixedAnchor
+
+Assert-True ($manyDefinitions.Count -eq 60) `
+    'creates 60 interactions for 20 artifacts'
+Assert-True `
+    ((@($manyDefinitions.eventId | Sort-Object -Unique)).Count -eq 60) `
+    'creates 60 unique event IDs'
+
+$manyInteractedTimes = @(
+    $manyDefinitions |
+        ForEach-Object {
+            [DateTimeOffset]::Parse([string]$_.interactedAt)
+        }
+)
+
+$manyAnalyticsCounts = @(
+    @($manyInteractedTimes |
+        Where-Object {
+            $_ -ge $fixedAnchor.AddDays(-7) -and $_ -lt $fixedAnchor
+        }).Count,
+    @($manyInteractedTimes |
+        Where-Object {
+            $_ -ge $fixedAnchor.AddDays(-30) -and $_ -lt $fixedAnchor
+        }).Count,
+    @($manyInteractedTimes |
+        Where-Object {
+            $_ -ge $fixedAnchor.AddDays(-90) -and $_ -lt $fixedAnchor
+        }).Count,
+    @($manyInteractedTimes | Where-Object { $_ -lt $fixedAnchor }).Count
+)
+
+Assert-True `
+    (($manyAnalyticsCounts -join ',') -eq '8,20,36,60') `
+    '60-event dataset spans strict 7/30/90/all-time windows'
+Assert-True `
+    (@($manyInteractedTimes | Where-Object { $_ -ge $fixedAnchor }).Count -eq 0) `
+    '60-event dataset contains no future interactions'
 
 Write-Host "PASS: $($script:Passed) seed helper assertions."
