@@ -55,6 +55,7 @@ describe('feedbackService', () => {
     )
     expect(result.items).toEqual([mockItem])
     expect(result.totalElements).toBe(1)
+    expect(result.isDemo).toBe(false)
   })
 
   it('falls back to mock data when backend returns 404', async () => {
@@ -65,6 +66,7 @@ describe('feedbackService', () => {
 
     expect(result.items.length).toBeGreaterThan(0)
     expect(result.items.every((f) => f.status === 'PENDING')).toBe(true)
+    expect(result.isDemo).toBe(true)
   })
 
   it('fetches a single feedback item by id', async () => {

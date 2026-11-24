@@ -74,6 +74,7 @@ describe('TranslationsPage — Admin Translation Management', () => {
       items: mockTranslations,
       totalElements: 2,
       totalPages: 1,
+      isDemo: false,
     })
   })
 
@@ -167,5 +168,26 @@ describe('TranslationsPage — Admin Translation Management', () => {
 
     expect(window.confirm).toHaveBeenCalled()
     expect(translationService.deleteTranslation).toHaveBeenCalledWith(1)
+  })
+
+  it('shows no demo notice when real API data is used', async () => {
+    render(<TranslationsPage />)
+    await waitFor(() => expect(vi.mocked(translationService.getAllTranslations)).toHaveBeenCalled())
+    await waitFor(() => expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument())
+    expect(screen.queryByTestId('demo-mode-notice')).not.toBeInTheDocument()
+  })
+
+  it('shows the demo-mode notice when the service fell back to in-memory data', async () => {
+    vi.mocked(translationService.getAllTranslations).mockResolvedValue({
+      items: mockTranslations,
+      totalElements: mockTranslations.length,
+      totalPages: 1,
+      isDemo: true,
+    })
+    render(<TranslationsPage />)
+    const notice = await screen.findByTestId('demo-mode-notice')
+    expect(notice).toHaveTextContent(
+      'Demo mode — backend endpoint is not implemented. Changes are temporary and reset when the application reloads.',
+    )
   })
 })

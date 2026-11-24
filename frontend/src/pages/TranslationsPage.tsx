@@ -60,6 +60,7 @@ export default function TranslationsPage() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+  const [isDemo, setIsDemo] = useState(false)
 
   // Filters
   const [search, setSearch] = useState('')
@@ -132,6 +133,7 @@ export default function TranslationsPage() {
 
         if (!cancelled) {
           setTranslations(result.items)
+          setIsDemo(result.isDemo)
           setTotalElements(result.totalElements)
           setTotalPages(Math.max(1, result.totalPages))
 
@@ -150,6 +152,7 @@ export default function TranslationsPage() {
       } catch (err) {
         if (!cancelled) {
           setTranslations([])
+          setIsDemo(false)
           setTotalElements(0)
           setTotalPages(1)
           setSelectedTranslation(null)
@@ -172,7 +175,7 @@ export default function TranslationsPage() {
     }
   }, [search, languageFilter, typeFilter, statusFilter, page, reloadKey])
 
-  const stats = computeTranslationStats(translations)
+  const stats = computeTranslationStats(translations, totalElements)
 
   function openCreateModal() {
     setEditingItem(null)
@@ -299,6 +302,12 @@ export default function TranslationsPage() {
       </header>
 
       {/* Alerts */}
+      {isDemo && (
+        <div className="translations-alert translations-alert--demo" role="status" data-testid="demo-mode-notice">
+          <span>Demo mode — backend endpoint is not implemented. Changes are temporary and reset when the application reloads.</span>
+        </div>
+      )}
+
       {message && (
         <div className="translations-alert translations-alert--success" role="status">
           <span>{message}</span>
@@ -693,6 +702,11 @@ export default function TranslationsPage() {
         {/* Quick Stats Column */}
         <aside className="translations-quick-stats">
           <h4 className="translations-quick-stats-heading">Quick Stats</h4>
+          <p className="translations-stat-label" data-testid="stats-scope">
+            {stats.scope === 'current-page'
+              ? `Current page only (${translations.length} of ${totalElements} results)`
+              : 'All loaded results'}
+          </p>
 
           <div className="translations-stat-box">
             <div>

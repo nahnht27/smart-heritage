@@ -601,3 +601,9 @@
   color: #64748b;
   font-size: 13px;
 }
+
+.feedback-alert--demo {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}

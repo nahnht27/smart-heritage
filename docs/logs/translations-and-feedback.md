@@ -10,55 +10,46 @@
 
 ---
 
-## 2. Kiến trúc Tích hợp API Backend & Cơ chế Dữ liệu
+## 2. Hợp đồng API, trạng thái backend và cơ chế dữ liệu demo
 
-### 2.1 Hiện trạng Backend hiện tại
-- Backend Java Spring Boot hiện tại của dự án đã hoàn thành các module: `HeritageSite`, `Artifact`, `Multimedia`, `Beacon`, `User/Auth`, `VisitorInteraction / Analytics`.
-- Hai module **Translation Management** và **Feedback Moderation** đã có đầy đủ đặc tả chi tiết trong tài liệu thiết kế hệ thống ([docs/api/admin_api_design.md](file:///d:/smart-heritage/docs/api/admin_api_design.md) - Mục 3.7 & 3.8), nhưng **chưa được viết Controller và Entity JPA trong mã nguồn backend**.
-- Khi frontend gửi HTTP request tới các endpoint này, server backend sẽ trả về mã `404 Not Found` (hoặc lỗi kết nối HTTP 0 nếu backend chưa khởi động).
+### 2.1 Hiện trạng Backend (đã kiểm tra sau khi đồng bộ `main`)
+- Backend Spring Boot đã triển khai: `HeritageSite`, `Artifact`, `Multimedia`, `Beacon`, `User/Auth`, `VisitorInteraction / Analytics`.
+- **Backend CHƯA có Controller, Entity, Repository hay migration cho Translation Management và Feedback Moderation.** Không có bất kỳ endpoint `POST/PUT/DELETE` Translation hoặc Feedback nào trong Spring Boot, và PR này **không thêm** backend persistence cho hai module này.
+- Mọi dữ liệu Translation/Feedback hiển thị hiện nay, cùng các thao tác thêm/sửa/xóa/duyệt, **không được lưu vào PostgreSQL**.
 
-### 2.2 Giải thích về nguồn dữ liệu hiện có (Dữ liệu dự phòng - Graceful Fallback)
-> **Lưu ý quan trọng về dữ liệu hiển thị hiện tại:**
-> Dữ liệu ban đầu (như *Imperial Citadel*, *Hall of Supreme Harmony*, *F001*, *C001*,...) **KHÔNG PHẢI là hardcode trực tiếp trong giao diện React Component**.
+### 2.2 Hợp đồng API thiết kế hiện có (`docs/api/admin_api_design.md`)
+| Module | Endpoint trong thiết kế | Trạng thái |
+|---|---|---|
+| Translation (mục 3.7) | `GET` list, `GET` detail, `POST`, `PUT`, `DELETE` `/api/admin/translations[/{id}]` | Đã thiết kế, **chưa triển khai** backend |
+| Feedback (mục 3.8) | `GET /api/admin/feedback`, `GET /api/admin/feedback/{id}`, `PUT /api/admin/feedback/{id}/moderate` | Đã thiết kế, **chưa triển khai** backend |
 
-Cơ chế hoạt động được tổ chức tách lớp độc lập qua Service Layer:
-1. **Luồng ưu tiên API thật:**
-   - Khi trang tải hoặc khi người dùng thao tác (Tìm kiếm, Lọc, Thêm mới, Sửa, Xóa, Duyệt), tầng Service ([translationService.ts](file:///d:/smart-heritage/frontend/src/services/translationService.ts) và [feedbackService.ts](file:///d:/smart-heritage/frontend/src/services/feedbackService.ts)) sẽ luôn gửi request HTTP thực tế tới Backend qua `apiClient.apiRequest`.
-2. **Cơ chế Fallback:**
-   - Nếu Backend trả về mã lỗi `404 Not Found`, `501 Not Implemented` hoặc lỗi mất kết nối (`0`), Service sẽ kích hoạt bộ dữ liệu mô phỏng dự phòng (chuẩn theo wireframe thiết kế).
-   - Bộ dữ liệu này được duy trì trạng thái trong bộ nhớ (in-memory state) ở tầng Service, hỗ trợ đầy đủ các thao tác CRUD:
-     - Thêm mới bản dịch / bài viết: tự sinh ID, cập nhật danh sách ngay lập tức.
-     - Chỉnh sửa bản ghi: lưu thông tin và ngày cập nhật mới nhất.
-     - Xóa bản ghi: loại bỏ khỏi danh sách.
-     - Duyệt phản hồi (Approve / Reject): cập nhật trạng thái kiểm duyệt và thời gian duyệt.
-3. **Tính sẵn sàng cho Backend tương lai:**
-   - Toàn bộ tham số truy vấn (`q`, `language`, `contentType`, `status`, `page`, `size`), body request JSON và envelop phản hồi `ApiResponse<T>` đều đã được lập trình chính xác 100% theo backend.
-   - **Khi phía Backend bổ sung Controller & Database Migration thực tế, Frontend sẽ lấy và lưu dữ liệu trực tiếp từ Database mà không cần sửa code ở tầng giao diện.**
+Thiết kế Feedback **không** định nghĩa CRUD nội dung quản trị (tạo/sửa/xóa). Việc tạo feedback thuộc phía Visitor; Admin chỉ xem và kiểm duyệt.
 
----
-
-### 2.3 Danh sách các API Backend đã kết nối
-
-#### A. Quản lý Bản dịch (Translations)
-| Phương thức | Endpoint | Tham số / Payload | Mô tả |
+### 2.3 Những gì frontend gọi
+| Thao tác | Endpoint mà frontend gọi | Thuộc hợp đồng thiết kế? | Lưu bởi backend? |
 |---|---|---|---|
-| `GET` | `/api/admin/translations` | `q`, `language` (`vi`, `en`), `contentType` (`SITE`, `ARTIFACT`), `status` (`DRAFT`, `PUBLISHED`), `page`, `size` | Lấy danh sách bản dịch có tìm kiếm, lọc & phân trang |
-| `GET` | `/api/admin/translations/{id}` | — | Lấy chi tiết một bản dịch |
-| `POST` | `/api/admin/translations` | `TranslationRequest` (`contentType`, `contentId`, `language`, `title`, `description`, `status`) | Tạo bản dịch mới (ADMIN) |
-| `PUT` | `/api/admin/translations/{id}` | `TranslationRequest` | Cập nhật bản dịch (ADMIN) |
-| `DELETE` | `/api/admin/translations/{id}` | — | Xóa bản dịch (ADMIN) |
-| `GET` | `/api/heritage-sites` | — | Lấy danh sách di sản để chọn liên kết trong Modal |
-| `GET` | `/api/artifacts` | — | Lấy danh sách hiện vật để chọn liên kết trong Modal |
+| Translation: list/detail | `GET /api/admin/translations[/{id}]` | Có | Không (chưa triển khai) |
+| Translation: tạo/sửa/xóa | `POST/PUT/DELETE /api/admin/translations[/{id}]` | Có | Không (chưa triển khai) |
+| Feedback: list/detail | `GET /api/admin/feedback[/{id}]` | Có | Không (chưa triển khai) |
+| Feedback: duyệt/từ chối | `PUT /api/admin/feedback/{id}/moderate` | Có | Không (chưa triển khai) |
+| Feedback: thêm/sửa/xóa nội dung | `POST/PUT/DELETE /api/admin/feedback[/{id}]` | **Không** — endpoint dự kiến/tương lai, chỉ phục vụ demo | Không |
+| Danh sách di sản/hiện vật cho modal | `GET /api/heritage-sites`, `GET /api/artifacts` | Có (đã triển khai) | Có (đọc từ backend thật) |
 
-#### B. Quản lý Phản hồi & Nội dung (Feedback & Content)
-| Phương thức | Endpoint | Tham số / Payload | Mô tả |
-|---|---|---|---|
-| `GET` | `/api/admin/feedback` | `q`, `status` (`PENDING`, `APPROVED`, `REJECTED`, `PUBLISHED`, `DRAFT`), `type` (`FEEDBACK`, `CONTENT`), `page`, `size` | Danh sách phản hồi & nội dung |
-| `GET` | `/api/admin/feedback/{id}` | — | Chi tiết phản hồi |
-| `PUT` | `/api/admin/feedback/{id}/moderate` | `{ action: "APPROVE" \| "REJECT" }` | Kiểm duyệt phản hồi của khách tham quan |
-| `POST` | `/api/admin/feedback` | `CreateFeedbackRequest` | Đăng bài viết / thông báo mới |
-| `PUT` | `/api/admin/feedback/{id}` | `UpdateFeedbackRequest` | Cập nhật nội dung / bài viết |
-| `DELETE` | `/api/admin/feedback/{id}` | — | Xóa phản hồi hoặc nội dung |
+Chỉ phần đọc danh sách di sản/hiện vật là dữ liệu thật từ backend. Dữ liệu Translation/Feedback chỉ là dữ liệu thật nếu một backend tương lai thực sự trả về chúng.
+
+### 2.4 Cơ chế fallback trong bộ nhớ (demo-only)
+- Tầng Service (`translationService.ts`, `feedbackService.ts`) luôn gọi API thật trước qua `apiClient.apiRequest` (tái sử dụng xử lý token hiện có).
+- Nếu nhận `404`, `501` hoặc lỗi kết nối (`status 0`), Service chuyển sang dữ liệu mô phỏng lưu **trong bộ nhớ** của tab trình duyệt. Dữ liệu này mất khi tải lại ứng dụng. Các lỗi khác (ví dụ `401`, `403`, `500`) **không** fallback mà hiển thị lỗi.
+- Dữ liệu mô phỏng nằm trong tầng Service, không nằm trong component.
+- `getAllTranslations()` và `getAllFeedback()` trả về cờ `isDemo`: `true` khi kết quả đến từ fallback, `false` khi đến từ API thật.
+- Trang hiển thị thông báo demo khi `isDemo = true` (và không hiển thị khi dữ liệu là thật):
+  `Demo mode — backend endpoint is not implemented. Changes are temporary and reset when the application reloads.`
+- Sau mỗi thao tác thành công, trang tải lại danh sách và cờ `isDemo` được cập nhật theo kết quả mới.
+
+### 2.5 Quick Stats của Translation
+- Không còn giá trị bịa hay giá trị tối thiểu (trước đây: 24/20/4).
+- `Total Content` = số nội dung (loại + id) khác nhau trong các bản ghi **đã tải**; `Translated` = số bản ghi `PUBLISHED` đã tải; `Draft` = số bản ghi `DRAFT` đã tải. Danh sách rỗng cho kết quả 0/0/0.
+- Khi API báo tổng số kết quả lớn hơn số bản ghi đã tải, khung thống kê ghi rõ `Current page only (X of Y results)`; nếu không, ghi `All loaded results`. Không suy luận thống kê toàn bộ dữ liệu từ một trang.
 
 ---
 
@@ -119,6 +110,10 @@ docs/
 
 ## 5. Kết quả Kiểm thử & Biên dịch
 
-- **Biên dịch TypeScript & Vite:** `npm run build` thành công không có lỗi (`0 errors`).
-- **Kiểm thử tự động (Vitest):**
-  - Toàn bộ **19 test files (128 unit/integration tests)** đạt kết quả **100% Passed**.
+Chạy trong `frontend/`: `npm ci`, `npm run lint`, `npm test`, `npm run build`.
+
+- `npm run lint`: không có lỗi.
+- `npm test` (Vitest): **19 test files, 162 tests đều passed** (gồm 2 test trang và 2 test service).
+- `npm run build`: thành công.
+- Test bổ sung: thống kê rỗng, đếm Published/Draft thực, ngữ nghĩa current-page, không có giá trị mặc định giả, và hiển thị/ẩn thông báo demo.
+- Đã đồng bộ `origin/main` bằng merge commit thường; không có xung đột.

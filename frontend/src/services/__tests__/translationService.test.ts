@@ -153,15 +153,71 @@ describe('translationService', () => {
     )
   })
 
-  it('correctly calculates translation stats', () => {
-    const stats = computeTranslationStats([
-      { ...mockTranslation, id: 1, status: 'PUBLISHED' },
-      { ...mockTranslation, id: 2, status: 'PUBLISHED' },
-      { ...mockTranslation, id: 3, status: 'DRAFT' },
-    ])
+  it('flags real API data as not demo and 404 fallback as demo', async () => {
+    vi.mocked(apiClient.apiRequest).mockResolvedValueOnce({
+      success: true,
+      message: 'OK',
+      data: [mockTranslation],
+    })
+    expect((await getAllTranslations()).isDemo).toBe(false)
 
-    expect(stats.translated).toBe(2)
+    vi.mocked(apiClient.apiRequest).mockRejectedValueOnce(
+      new apiClient.ApiError('Not found', 404),
+    )
+    expect((await getAllTranslations()).isDemo).toBe(true)
+  })
+
+  it('does not fall back on non-endpoint errors such as 500', async () => {
+    vi.mocked(apiClient.apiRequest).mockRejectedValueOnce(
+      new apiClient.ApiError('boom', 500),
+    )
+    await expect(getAllTranslations()).rejects.toThrow('boom')
+  })
+
+  it('returns zero stats for an empty dataset (no artificial defaults)', () => {
+    expect(computeTranslationStats([])).toEqual({
+      totalContent: 0,
+      translated: 0,
+      draft: 0,
+      scope: 'all-results',
+    })
+  })
+
+  it('counts actual published and draft records only', () => {
+    const stats = computeTranslationStats([
+      { ...mockTranslation, id: 1, contentId: 1, status: 'PUBLISHED' },
+      { ...mockTranslation, id: 2, contentId: 1, status: 'PUBLISHED' },
+      { ...mockTranslation, id: 3, contentId: 2, status: 'DRAFT' },
+    ])
+    expect(stats).toEqual({
+      totalContent: 2,
+      translated: 2,
+      draft: 1,
+      scope: 'all-results',
+    })
+  })
+
+  it('reports current-page scope when more results exist than were loaded', () => {
+    const stats = computeTranslationStats(
+      [{ ...mockTranslation, id: 1, status: 'DRAFT' }],
+      25,
+    )
+    expect(stats.scope).toBe('current-page')
     expect(stats.draft).toBe(1)
-    expect(stats.totalContent).toBeGreaterThanOrEqual(1)
+    expect(stats.translated).toBe(0)
+  })
+
+  it('returns the requested page of the in-memory dataset with page metadata', async () => {
+    vi.mocked(apiClient.apiRequest).mockRejectedValue(
+      new apiClient.ApiError('Not found', 404),
+    )
+    const first = await getAllTranslations({ page: 0, size: 3 })
+    const second = await getAllTranslations({ page: 1, size: 3 })
+    expect(first.items).toHaveLength(3)
+    expect(first.totalPages).toBe(Math.ceil(first.totalElements / 3))
+    expect(second.items[0].id).not.toBe(first.items[0].id)
+    const stats = computeTranslationStats(first.items, first.totalElements)
+    expect(stats.scope).toBe('current-page')
+    expect(stats.translated + stats.draft).toBe(3)
   })
 })

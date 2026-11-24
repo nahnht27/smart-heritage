@@ -41,6 +41,7 @@ export default function FeedbackPage() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+  const [isDemo, setIsDemo] = useState(false)
 
   // Filters
   const [search, setSearch] = useState('')
@@ -85,12 +86,14 @@ export default function FeedbackPage() {
 
         if (!cancelled) {
           setItems(result.items)
+          setIsDemo(result.isDemo)
           setTotalElements(result.totalElements)
           setTotalPages(Math.max(1, result.totalPages))
         }
       } catch (err) {
         if (!cancelled) {
           setItems([])
+          setIsDemo(false)
           setTotalElements(0)
           setTotalPages(1)
           setError(
@@ -274,6 +277,12 @@ export default function FeedbackPage() {
       </header>
 
       {/* Alerts */}
+      {isDemo && (
+        <div className="feedback-alert feedback-alert--demo" role="status" data-testid="demo-mode-notice">
+          <span>Demo mode — backend endpoint is not implemented. Changes are temporary and reset when the application reloads.</span>
+        </div>
+      )}
+
       {message && (
         <div className="feedback-alert feedback-alert--success" role="status">
           <span>{message}</span>

@@ -110,7 +110,7 @@ export function resetMockFeedback(): void {
 
 export async function getAllFeedback(
   params?: FeedbackFilterParams,
-): Promise<{ items: FeedbackItem[]; totalElements: number; totalPages: number }> {
+): Promise<{ items: FeedbackItem[]; totalElements: number; totalPages: number; isDemo: boolean }> {
   const queryParams = new URLSearchParams()
   if (params?.q) queryParams.set('q', params.q.trim())
   if (params?.status) queryParams.set('status', params.status)
@@ -133,12 +133,14 @@ export async function getAllFeedback(
         items: data,
         totalElements: data.length,
         totalPages: 1,
+        isDemo: false,
       }
     } else if (data && Array.isArray(data.content)) {
       return {
         items: data.content,
         totalElements: data.totalElements,
         totalPages: data.totalPages,
+        isDemo: false,
       }
     }
   } catch (err) {
@@ -146,12 +148,12 @@ export async function getAllFeedback(
       err instanceof ApiError &&
       (err.status === 404 || err.status === 501 || err.status === 0)
     ) {
-      return filterMockFeedback(params)
+      return { ...filterMockFeedback(params), isDemo: true }
     }
     throw err
   }
 
-  return filterMockFeedback(params)
+  return { ...filterMockFeedback(params), isDemo: true }
 }
 
 function filterMockFeedback(params?: FeedbackFilterParams): {

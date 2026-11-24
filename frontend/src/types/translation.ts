@@ -48,4 +48,6 @@ export interface TranslationStats {
   totalContent: number
   translated: number
   draft: number
+  /** 'current-page' when more results exist than were loaded. */
+  scope: 'current-page' | 'all-results'
 }

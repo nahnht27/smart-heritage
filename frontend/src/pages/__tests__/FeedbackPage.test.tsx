@@ -48,6 +48,7 @@ describe('FeedbackPage — Admin Feedback & Content Management', () => {
       items: mockItems,
       totalElements: 2,
       totalPages: 1,
+      isDemo: false,
     })
   })
 
@@ -154,5 +155,26 @@ describe('FeedbackPage — Admin Feedback & Content Management', () => {
         }),
       )
     })
+  })
+
+  it('shows no demo notice when real API data is used', async () => {
+    render(<FeedbackPage />)
+    await waitFor(() => expect(vi.mocked(feedbackService.getAllFeedback)).toHaveBeenCalled())
+    await waitFor(() => expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument())
+    expect(screen.queryByTestId('demo-mode-notice')).not.toBeInTheDocument()
+  })
+
+  it('shows the demo-mode notice when the service fell back to in-memory data', async () => {
+    vi.mocked(feedbackService.getAllFeedback).mockResolvedValue({
+      items: mockItems,
+      totalElements: mockItems.length,
+      totalPages: 1,
+      isDemo: true,
+    })
+    render(<FeedbackPage />)
+    const notice = await screen.findByTestId('demo-mode-notice')
+    expect(notice).toHaveTextContent(
+      'Demo mode — backend endpoint is not implemented. Changes are temporary and reset when the application reloads.',
+    )
   })
 })

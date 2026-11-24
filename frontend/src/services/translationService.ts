@@ -206,7 +206,7 @@ export function resetMockTranslations(): void {
 
 export async function getAllTranslations(
   params?: TranslationFilterParams,
-): Promise<{ items: Translation[]; totalElements: number; totalPages: number }> {
+): Promise<{ items: Translation[]; totalElements: number; totalPages: number; isDemo: boolean }> {
   const queryParams = new URLSearchParams()
   if (params?.q) queryParams.set('q', params.q.trim())
   if (params?.language) queryParams.set('language', params.language)
@@ -230,12 +230,14 @@ export async function getAllTranslations(
         items: data,
         totalElements: data.length,
         totalPages: 1,
+        isDemo: false,
       }
     } else if (data && Array.isArray(data.content)) {
       return {
         items: data.content,
         totalElements: data.totalElements,
         totalPages: data.totalPages,
+        isDemo: false,
       }
     }
   } catch (err) {
@@ -245,12 +247,12 @@ export async function getAllTranslations(
       err instanceof ApiError &&
       (err.status === 404 || err.status === 501 || err.status === 0)
     ) {
-      return filterMockTranslations(params)
+      return { ...filterMockTranslations(params), isDemo: true }
     }
     throw err
   }
 
-  return filterMockTranslations(params)
+  return { ...filterMockTranslations(params), isDemo: true }
 }
 
 function filterMockTranslations(params?: TranslationFilterParams): {
@@ -455,18 +457,25 @@ export async function deleteTranslation(
   }
 }
 
-export function computeTranslationStats(items: Translation[]): TranslationStats {
+/**
+ * Stats are computed only from the records passed in (the currently loaded
+ * page). `totalElements` is the API-reported result count, used to tell the
+ * caller whether these stats cover every result or just the current page.
+ * No fallback or minimum values are applied: an empty list yields zeros.
+ */
+export function computeTranslationStats(
+  items: Translation[],
+  totalElements: number = items.length,
+): TranslationStats {
   const contentSet = new Set<string>()
   items.forEach((item) => {
     contentSet.add(`${item.contentType}:${item.contentId}`)
   })
-  const totalContent = Math.max(contentSet.size, items.length > 0 ? 24 : 0)
-  const translated = items.filter((item) => item.status === 'PUBLISHED').length
-  const draft = items.filter((item) => item.status === 'DRAFT').length
 
   return {
-    totalContent: totalContent || 24,
-    translated: translated || 20,
-    draft: draft || 4,
+    totalContent: contentSet.size,
+    translated: items.filter((item) => item.status === 'PUBLISHED').length,
+    draft: items.filter((item) => item.status === 'DRAFT').length,
+    scope: totalElements > items.length ? 'current-page' : 'all-results',
   }
 }
