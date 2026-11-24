@@ -171,8 +171,9 @@ GitHub Actions chạy tự động cho PR vào `main`, push vào `main`/`LTJ-*` 
 thủ công từ tab Actions. Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 Required checks dự kiến: `backend-test`, `postgres-integration`,
-`frontend-checks`, `mobile-tests`, `docker-build`, `integration-smoke`
-(public-only), `production-smoke` (production Compose + Nginx + health).
+`database-backup-restore`, `frontend-checks`, `mobile-tests`, `docker-build`,
+`integration-smoke` (public-only), `production-smoke` (production Compose +
+Nginx + health).
 `mobile-static-analysis` là **advisory** do technical debt TypeScript/ESLint có sẵn.
 
 Chi tiết kiến trúc, cách xem log và cấu hình branch protection:
@@ -196,7 +197,9 @@ Production stack gồm PostgreSQL (internal, persistent volume), backend
 - Hướng dẫn đầy đủ: [`docs/deployment/production-deployment.md`](docs/deployment/production-deployment.md)
 - Release readiness S6: [`docs/sprint-6/release-readiness.md`](docs/sprint-6/release-readiness.md)
 - Backup/restore: [`docs/deployment/backup-restore.md`](docs/deployment/backup-restore.md)
+- Database backup/restore acceptance S6: [`docs/sprint-6/database-backup-restore.md`](docs/sprint-6/database-backup-restore.md)
 - Release/rollback: [`docs/deployment/release-management.md`](docs/deployment/release-management.md)
+- Tài liệu kiến trúc S6: [`docs/sprint-6/architecture/README.md`](docs/sprint-6/architecture/README.md)
 
 Compose development ở trên vẫn giữ nguyên cho local.
 
@@ -209,8 +212,9 @@ Compose development ở trên vẫn giữ nguyên cho local.
 
 Docker tự tạo database khi chạy lần đầu. Backend chạy Flyway migration V1–V4
 khi database trống, sau đó Hibernate chỉ `validate` schema. Data được lưu trong
-Docker volume `postgres_data`; không dùng `docker compose down -v` nếu muốn giữ
-dữ liệu.
+Docker volume `smart-heritage_postgres_data` (có thể override bằng
+`POSTGRES_VOLUME_NAME`); không dùng `docker compose down -v` nếu muốn giữ dữ
+liệu.
 
 - Migration strategy: [`docs/database/migration-strategy.md`](docs/database/migration-strategy.md)
 - Baseline database cũ: [`docs/database/schema-baseline.md`](docs/database/schema-baseline.md)

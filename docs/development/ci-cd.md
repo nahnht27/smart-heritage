@@ -11,6 +11,7 @@ push (main, LTJ-*)  ─┼─> CI workflow
 workflow_dispatch   ─┘
                         ├── backend-test               (required)
                         ├── postgres-integration       (required)
+                        ├── database-backup-restore    (required)
                         ├── frontend-checks            (required)
                         ├── mobile-tests               (required)
                         ├── mobile-static-analysis     (advisory)
@@ -44,6 +45,7 @@ tự dựng stack riêng.
 |-----|------|------------|---------|
 | `backend-test` | **Required** | `cd backend && ./mvnw -B test` | Java 17 (Temurin), Maven Wrapper; upload Surefire reports |
 | `postgres-integration` | **Required** | `cd backend && ./mvnw -B -Ppostgres-integration verify` | PostgreSQL 16 service; Failsafe chạy `**/*IT.java`; gate bắt buộc `VisitorInteractionPostgresIT` ≥22, `DatabaseMigrationIT` ≥12, `SchemaDetectorIT` ≥16 và `ArtifactQueryOptimizationIT` ≥5 test, 0 failure/error/skip |
+| `database-backup-restore` | **Required** | `bash scripts/database/test-backup-restore.sh` | PostgreSQL 16 service; Flyway V1–V4; backup/restore disposable, safety refusals, checksum, schema/data/sequence comparison; backend health/content/beacon check với `REQUIRE_APP_CHECK=1` |
 | `frontend-checks` | **Required** | `npm ci`, `npm run lint`, `npm run build` | `build` chạy `tsc -b && vite build` |
 | `mobile-tests` | **Required** | `npm ci`, `npm test -- --ci --coverage` | Upload coverage artifact |
 | `mobile-static-analysis` | **Advisory** | `npx tsc --noEmit`, `npm run lint` | `continue-on-error: true`; technical debt có sẵn |
@@ -75,6 +77,19 @@ tự dựng stack riêng.
   và không tải Multimedia trong API Artifact.
 - Artifact: `postgres-integration-reports` (Surefire + Failsafe, giữ 7 ngày).
 - Không dùng `continue-on-error`, không `|| true`, không fallback H2 cho integration tests.
+
+### Database backup/restore
+
+- Job dùng service `postgres:16-alpine` ephemeral; test tạo database nguồn,
+  target và non-empty target có prefix `s6_backup_ci_`, rồi drop đúng các
+  database do test tạo.
+- Flyway `V1`–`V4` migrate database nguồn; round trip so sánh data dạng JSONB,
+  cột, index, constraint, sequence state và Flyway history.
+- Kiểm tra refusal: archive hỏng, checksum sai, version không tương thích,
+  source trùng target, tên production mặc định và target không rỗng.
+- `REQUIRE_APP_CHECK=1` bắt backend khởi động với restored database, kiểm tra
+  health, heritage content và beacon.
+- Chi tiết: [`docs/sprint-6/database-backup-restore.md`](../sprint-6/database-backup-restore.md).
 
 ### Frontend Admin
 
@@ -122,6 +137,7 @@ Required checks đề xuất cho `main`:
 
 - `backend-test`
 - `postgres-integration`
+- `database-backup-restore`
 - `frontend-checks`
 - `mobile-tests`
 - `docker-build`

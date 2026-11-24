@@ -1,0 +1,308 @@
+@startuml smart-heritage-backend-classes
+title Smart Heritage — Backend Class Diagram (as-built)
+
+allowmixing
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam packageStyle rectangle
+hide empty members
+
+package "entity" {
+  class Role {
+    - roleId : Integer
+    - name : String
+  }
+
+  class User {
+    - userId : Integer
+    - username : String
+    - email : String
+    - passwordHash : String
+    - preferredLanguageId : Integer
+  }
+
+  class HeritageSite {
+    - siteId : Integer
+    - name : String
+    - description : String
+    - address : String
+    - latitude : BigDecimal
+    - longitude : BigDecimal
+  }
+
+  class "Artifact" as ArtifactEntity {
+    - artifactId : Integer
+    - name : String
+    - description : String
+  }
+
+  class Multimedia {
+    - multimediaId : Integer
+    - type : String
+    - title : String
+    - url : String
+  }
+
+  class Beacon {
+    - beaconId : Integer
+    - name : String
+    - proximityUuid : UUID
+    - major : Integer
+    - minor : Integer
+    - enabled : boolean
+  }
+
+  class VisitorInteraction {
+    - interactionId : Integer
+    - eventId : UUID
+    - visitorId : UUID
+    - interactionType : String
+    - languageCode : String
+    - startedAt : Instant
+    - endedAt : Instant
+    - durationSeconds : Long
+    - interactedAt : Instant
+    + setEndedAt(Instant)
+  }
+}
+
+package "repository" {
+  interface JpaRepository<T, ID>
+  interface JpaSpecificationExecutor<T>
+
+  interface RoleRepository
+  interface UserRepository
+  interface HeritageSiteRepository
+  interface ArtifactRepository
+  interface MultimediaRepository
+  interface BeaconRepository
+  interface VisitorInteractionRepository
+  interface DailyInteractionProjection
+}
+
+package "specification" {
+  class HeritageSiteSpecification {
+    + {static} hasKeyword(String) : Specification<HeritageSite>
+  }
+  class ArtifactSpecification {
+    + {static} filter(Integer, String) : Specification<ArtifactEntity>
+  }
+}
+
+package "service" {
+  class AuthService {
+    + register(RegisterRequest) : UserResponse
+    + login(LoginRequest) : LoginResponse
+    + getProfile(String) : UserResponse
+    + updateProfile(String, UpdateProfileRequest) : UserResponse
+  }
+  class HeritageSiteService {
+    + searchHeritageSites(...)
+    + getHeritageSiteById(Integer)
+    + createHeritageSite(HeritageSite)
+    + updateHeritageSite(Integer, HeritageSite)
+    + deleteHeritageSite(Integer)
+  }
+  class ArtifactService {
+    + searchArtifacts(...)
+    + getArtifactById(Integer)
+    + createArtifact(ArtifactEntity, Integer)
+    + updateArtifact(Integer, ArtifactEntity, Integer)
+    + deleteArtifact(Integer)
+  }
+  class MultimediaService {
+    + getAllMultimedia(Integer)
+    + getMultimediaById(Integer)
+    + createMultimedia(Multimedia, Integer)
+    + updateMultimedia(Integer, Multimedia, Integer)
+    + deleteMultimedia(Integer)
+  }
+  class BeaconService {
+    + getAllBeacons()
+    + getBeaconById(Integer)
+    + createBeacon(BeaconRequest)
+    + updateBeacon(Integer, BeaconRequest)
+    + deleteBeacon(Integer)
+    + resolveBeacon(UUID, Integer, Integer)
+  }
+  class VisitorInteractionService {
+    + createInteraction(String, CreateInteractionRequest)
+    + getSummary(Instant, Instant)
+    + getDailyTimeSeries(Instant, Instant)
+    + getLanguageAnalytics(Instant, Instant)
+  }
+}
+
+package "controller" {
+  class AuthController
+  class UserController
+  class HealthController
+  class HeritageSiteController
+  class ArtifactController
+  class MultimediaController
+  class BeaconController
+  class AdminBeaconController
+  class VisitorInteractionController
+}
+
+package "security" {
+  class SecurityConfig
+  class JwtAuthenticationFilter
+  class JwtTokenProvider {
+    + generateToken(String, String) : String
+    + getUsernameFromToken(String) : String
+    + validateToken(String) : boolean
+    + getExpirationSeconds() : long
+  }
+  class CustomUserDetailsService
+  class SecurityErrorHandler
+}
+
+package "dto" {
+  class ApiResponse<T>
+  class PageResponse<T>
+  class LoginRequest
+  class LoginResponse
+  class RegisterRequest
+  class UserResponse
+  class UpdateProfileRequest
+  class HeritageSiteRequest
+  class HeritageSiteResponse
+  class ArtifactRequest
+  class ArtifactResponse
+  class MultimediaRequest
+  class MultimediaResponse
+  class BeaconRequest
+  class BeaconResponse
+  class CreateInteractionRequest
+  class InteractionRecordResponse
+  class InteractionSummaryResponse
+  class InteractionTypeCountResponse
+  class PopularArtifactResponse
+  class DailyInteractionResponse
+  class LanguageCountResponse
+  class InteractionCreationResult
+}
+
+package "exception" {
+  class GlobalExceptionHandler
+  class BadRequestException
+  class ResourceNotFoundException
+  class DuplicateResourceException
+  class ResourceConflictException
+  class BadCredentialsException
+}
+
+' ---------- Entity relationships ----------
+Role "1" -- "0..*" User : grants
+HeritageSite "1" -- "0..*" ArtifactEntity : contains
+ArtifactEntity "1" -- "0..*" Multimedia : has
+ArtifactEntity "1" -- "0..*" Beacon : "mapped by"
+ArtifactEntity "1" -- "0..*" VisitorInteraction : "interacted with"
+User "0..1" -- "0..*" VisitorInteraction : owns
+Beacon "0..1" -- "0..*" VisitorInteraction : "may trigger"
+
+' ---------- Repository relationships ----------
+JpaRepository <|-- RoleRepository
+JpaRepository <|-- UserRepository
+JpaRepository <|-- HeritageSiteRepository
+JpaRepository <|-- ArtifactRepository
+JpaRepository <|-- MultimediaRepository
+JpaRepository <|-- BeaconRepository
+JpaRepository <|-- VisitorInteractionRepository
+JpaSpecificationExecutor <|-- HeritageSiteRepository
+JpaSpecificationExecutor <|-- ArtifactRepository
+
+RoleRepository ..> Role
+UserRepository ..> User
+HeritageSiteRepository ..> HeritageSite
+ArtifactRepository ..> ArtifactEntity
+MultimediaRepository ..> Multimedia
+BeaconRepository ..> Beacon
+VisitorInteractionRepository ..> VisitorInteraction
+VisitorInteractionRepository ..> DailyInteractionProjection
+
+' ---------- Controller -> service ----------
+AuthController --> AuthService
+UserController --> AuthService
+HeritageSiteController --> HeritageSiteService
+ArtifactController --> ArtifactService
+MultimediaController --> MultimediaService
+BeaconController --> BeaconService
+AdminBeaconController --> BeaconService
+VisitorInteractionController --> VisitorInteractionService
+HealthController --> ApiResponse
+
+' ---------- Service -> repository ----------
+AuthService --> UserRepository
+AuthService --> RoleRepository
+AuthService --> JwtTokenProvider
+HeritageSiteService --> HeritageSiteRepository
+HeritageSiteService --> ArtifactRepository
+HeritageSiteService --> HeritageSiteSpecification
+ArtifactService --> ArtifactRepository
+ArtifactService --> HeritageSiteRepository
+ArtifactService --> MultimediaRepository
+ArtifactService --> VisitorInteractionRepository
+ArtifactService --> BeaconRepository
+ArtifactService --> ArtifactSpecification
+MultimediaService --> MultimediaRepository
+MultimediaService --> ArtifactRepository
+BeaconService --> BeaconRepository
+BeaconService --> ArtifactRepository
+VisitorInteractionService --> VisitorInteractionRepository
+VisitorInteractionService --> ArtifactRepository
+VisitorInteractionService --> BeaconRepository
+VisitorInteractionService --> UserRepository
+
+' ---------- Security wiring ----------
+SecurityConfig --> JwtAuthenticationFilter
+SecurityConfig --> SecurityErrorHandler
+JwtAuthenticationFilter --> JwtTokenProvider
+JwtAuthenticationFilter --> CustomUserDetailsService
+CustomUserDetailsService --> UserRepository
+
+' ---------- DTO usage (selected) ----------
+AuthController ..> LoginRequest
+AuthController ..> LoginResponse
+AuthController ..> RegisterRequest
+AuthController ..> UserResponse
+ArtifactController ..> ArtifactRequest
+ArtifactController ..> ArtifactResponse
+ArtifactController ..> PageResponse
+HeritageSiteController ..> HeritageSiteRequest
+HeritageSiteController ..> HeritageSiteResponse
+MultimediaController ..> MultimediaRequest
+MultimediaController ..> MultimediaResponse
+BeaconController ..> BeaconResponse
+AdminBeaconController ..> BeaconRequest
+AdminBeaconController ..> BeaconResponse
+VisitorInteractionController ..> CreateInteractionRequest
+VisitorInteractionController ..> InteractionRecordResponse
+VisitorInteractionController ..> InteractionSummaryResponse
+VisitorInteractionController ..> DailyInteractionResponse
+VisitorInteractionController ..> LanguageCountResponse
+
+' ---------- Exception flow ----------
+GlobalExceptionHandler ..> ApiResponse
+GlobalExceptionHandler ..> BadRequestException
+GlobalExceptionHandler ..> ResourceNotFoundException
+GlobalExceptionHandler ..> DuplicateResourceException
+GlobalExceptionHandler ..> ResourceConflictException
+GlobalExceptionHandler ..> BadCredentialsException
+SecurityErrorHandler ..> ApiResponse
+
+note right of VisitorInteraction
+  Unique event_id is the
+  idempotency boundary.
+  beacon_id is nullable and
+  ON DELETE SET NULL.
+end note
+
+note bottom of ApiResponse
+  Envelope: success, message,
+  data, timestamp, path, errors.
+  Nulls omitted by @JsonInclude.
+end note
+
+@enduml

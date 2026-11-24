@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: smart-heritage-db
+    container_name: ${POSTGRES_CONTAINER_NAME:-smart-heritage-db}
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-smart_heritage}
@@ -19,7 +19,7 @@ services:
 
   backend:
     build: ./backend
-    container_name: smart-heritage-backend
+    container_name: ${BACKEND_CONTAINER_NAME:-smart-heritage-backend}
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-8080}:8080"
@@ -48,3 +48,4 @@ services:
 
 volumes:
   postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-smart-heritage_postgres_data}

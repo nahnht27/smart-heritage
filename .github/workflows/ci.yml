@@ -145,6 +145,59 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  database-backup-restore:
+    name: database-backup-restore
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: smart_heritage_backup_ci
+          POSTGRES_USER: backup_ci
+          POSTGRES_PASSWORD: backup_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U backup_ci -d smart_heritage_backup_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGUSER: backup_ci
+      PGPASSWORD: backup_ci
+      EXPECTED_POSTGRES_MAJOR: "16"
+      TEST_DB_PREFIX: s6_backup_ci_
+      FLYWAY_NETWORK: host
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install PostgreSQL 16 client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Build backend jar
+        working-directory: backend
+        run: ./mvnw -B -DskipTests package
+
+      - name: Run disposable backup/restore round trip
+        env:
+          BACKEND_JAR: backend/target/backend-0.0.1-SNAPSHOT.jar
+          REQUIRE_APP_CHECK: "1"
+        run: bash scripts/database/test-backup-restore.sh
+
   frontend-checks:
     name: frontend-checks
     runs-on: ubuntu-latest
@@ -243,6 +296,153 @@ jobs:
       - name: ESLint (advisory)
         if: always()
         run: npm run lint
+
+  demo-seed-static-checks:
+    name: demo-seed-static-checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Verify runtime manifest is untracked
+        run: |
+          if git ls-files --error-unmatch \
+              backend/scripts/demo-seed-manifest.json >/dev/null 2>&1; then
+            echo "Runtime demo seed manifest must not be tracked" >&2
+            exit 1
+          fi
+
+      - name: Parse and unit-check seed helpers
+        shell: pwsh
+        run: '& ./backend/scripts/tests/seed-common.tests.ps1'
+
+      - name: Run Seed dry-run
+        shell: pwsh
+        run: '& ./backend/scripts/seed-demo-data.ps1 -Seed -WhatIf'
+
+      - name: Reject non-loopback BaseUrl before authentication
+        shell: pwsh
+        run: |
+          $rejected = $false
+          try {
+            ./backend/scripts/seed-demo-data.ps1 `
+              -Seed -WhatIf `
+              -BaseUrl 'https://example.com'
+          }
+          catch {
+            $rejected = $true
+          }
+
+          if (-not $rejected) {
+            throw 'Remote BaseUrl was not rejected'
+          }
+
+      - name: Reject non-loopback PostgreSQL Local host before authentication
+        shell: pwsh
+        run: |
+          $rejected = $false
+          try {
+            ./backend/scripts/seed-demo-data.ps1 `
+              -Seed -WhatIf `
+              -PostgresMode Local `
+              -PostgresHost '10.0.0.5'
+          }
+          catch {
+            $rejected = $true
+          }
+
+          if (-not $rejected) {
+            throw 'Remote PostgreSQL Local host was not rejected'
+          }
+
+      - name: Reject PostgreSQL service environment overrides
+        shell: pwsh
+        run: |
+          $env:PGHOSTADDR = '10.0.0.5'
+          $rejected = $false
+          try {
+            ./backend/scripts/seed-demo-data.ps1 `
+              -Seed -WhatIf `
+              -PostgresMode Local
+          }
+          catch {
+            $rejected = $true
+          }
+          finally {
+            Remove-Item Env:PGHOSTADDR -ErrorAction SilentlyContinue
+          }
+
+          if (-not $rejected) {
+            throw 'PGHOSTADDR override was not rejected'
+          }
+
+      - name: Reject legacy interaction distribution before authentication
+        shell: pwsh
+        run: |
+          $manifestPath = Join-Path `
+            ([System.IO.Path]::GetTempPath()) `
+            'legacy-demo-seed-manifest.json'
+
+          $manifest = @{
+            version = 2
+            seedName = 'smart-heritage-demo'
+            baseUrl = 'http://localhost:8080'
+            sites = @()
+            artifacts = @()
+            multimedia = @()
+            beacons = @()
+            interactions = @(
+              @{ eventId = '30000000-0000-4000-8000-000000000001' }
+            )
+          } | ConvertTo-Json -Depth 6
+
+          Set-Content -LiteralPath $manifestPath -Value $manifest -Encoding utf8
+
+          try {
+            $rejected = $false
+            try {
+              ./backend/scripts/seed-demo-data.ps1 `
+                -Verify `
+                -ManifestPath $manifestPath
+            }
+            catch {
+              $rejected = $true
+
+              if ($_.Exception.Message -notmatch 'phân bố cũ') {
+                throw
+              }
+            }
+
+            if (-not $rejected) {
+              throw 'Legacy interaction distribution was not rejected'
+            }
+          }
+          finally {
+            Remove-Item -LiteralPath $manifestPath -ErrorAction SilentlyContinue
+          }
+
+  demo-seed-isolation:
+    name: demo-seed-isolation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Verify default Docker stack is isolated
+        run: bash scripts/testing/test-demo-seed-isolation.sh
+
+  demo-seed-lifecycle:
+    name: demo-seed-lifecycle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run disposable seed lifecycle
+        run: bash scripts/testing/test-demo-seed-lifecycle.sh
 
   docker-build:
     name: docker-build

@@ -165,6 +165,47 @@ describe('analyticsCsv utility', () => {
       vi.restoreAllMocks()
     })
 
+
+    it('writes UTF-8 BOM, CRLF rows and the download filename into the Blob', async () => {
+      let createdBlob: Blob | null = null
+      const anchors: HTMLAnchorElement[] = []
+      window.URL.createObjectURL = vi.fn((blob: Blob) => {
+        createdBlob = blob
+        return 'blob:http://localhost/bom-test'
+      })
+      window.URL.revokeObjectURL = vi.fn()
+
+      const originalAppend = document.body.appendChild.bind(document.body)
+      vi.spyOn(document.body, 'appendChild').mockImplementation((node) => {
+        if (node instanceof HTMLAnchorElement) anchors.push(node)
+        return originalAppend(node)
+      })
+      vi.spyOn(document.body, 'removeChild')
+
+      exportAnalyticsSummaryToCsv({
+        from: null,
+        to: null,
+        totalInteractions: 0,
+        uniqueVisitors: 0,
+        interactionTypes: [],
+        popularArtifacts: [],
+      })
+
+      expect(createdBlob).not.toBeNull()
+      const blob = createdBlob!
+      const bytes = new Uint8Array(await blob.arrayBuffer())
+      expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
+
+      const text = await blob.text()
+      expect(text).toContain('\r\n')
+      expect(text.replace(/\r\n/g, '')).not.toContain('\n')
+      expect(text).toContain('"N/A","Chưa có tương tác ghi nhận trong kỳ","0","0%"')
+
+      expect(anchors).toHaveLength(1)
+      expect(anchors[0].getAttribute('download')).toBe(
+        'analytics-summary_all-time.csv',
+      )
+    })
     it('creates object URL, appends anchor, clicks it, and revokes URL with UTF-8 BOM', () => {
       let createdBlob: Blob | null = null
       const mockCreateObjectURL = vi.fn((blob: Blob) => {
