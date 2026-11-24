@@ -7,6 +7,8 @@ import HeritageSitesPage from './pages/HeritageSitesPage'
 import ArtifactsPage from './pages/ArtifactsPage'
 import MultimediaPage from './pages/MultimediaPage'
 import BeaconsPage from './pages/BeaconsPage'
+import TranslationsPage from './pages/TranslationsPage'
+import FeedbackPage from './pages/FeedbackPage'
 import { navItems } from './config/navigation'
 import { useAuth } from './context/useAuth'
 
@@ -68,6 +70,10 @@ function App() {
                   <MultimediaPage />
                 ) : item.path === '/beacons' ? (
                   <BeaconsPage />
+                ) : item.path === '/translations' ? (
+                  <TranslationsPage />
+                ) : item.path === '/feedback' ? (
+                  <FeedbackPage />
                 ) : (
                   <PlaceholderPage />
                 )
