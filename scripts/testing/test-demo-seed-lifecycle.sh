@@ -62,7 +62,39 @@ SEED_SCRIPT="$ROOT_DIR/backend/scripts/seed-demo-data.ps1"
 STACK_STARTED=0
 
 container_exists() {
-  docker inspect "$1" >/dev/null 2>&1
+  docker container inspect "$1" >/dev/null 2>&1
+}
+
+volume_exists() {
+  docker volume inspect "$1" >/dev/null 2>&1
+}
+
+wait_for_container_absent() {
+  local name="$1"
+
+  for _ in $(seq 1 20); do
+    if ! container_exists "$name"; then
+      return 0
+    fi
+
+    sleep 0.5
+  done
+
+  return 1
+}
+
+wait_for_volume_absent() {
+  local name="$1"
+
+  for _ in $(seq 1 20); do
+    if ! volume_exists "$name"; then
+      return 0
+    fi
+
+    sleep 0.5
+  done
+
+  return 1
 }
 
 snapshot_default_stack() {
@@ -77,7 +109,7 @@ snapshot_default_stack() {
     fi
   done
 
-  if docker volume inspect "$DEFAULT_POSTGRES_VOLUME" >/dev/null 2>&1; then
+  if volume_exists "$DEFAULT_POSTGRES_VOLUME"; then
     snapshot+="$DEFAULT_POSTGRES_VOLUME:present"
   else
     snapshot+="$DEFAULT_POSTGRES_VOLUME:absent"
@@ -155,7 +187,7 @@ if container_exists "$POSTGRES_CONTAINER_NAME" \
   fail "isolated container name already exists: $COMPOSE_PROJECT_NAME"
 fi
 
-if docker volume inspect "$POSTGRES_VOLUME_NAME" >/dev/null 2>&1; then
+if volume_exists "$POSTGRES_VOLUME_NAME"; then
   fail "isolated volume already exists: $POSTGRES_VOLUME_NAME"
 fi
 
@@ -171,7 +203,7 @@ if ! container_exists "$POSTGRES_CONTAINER_NAME" \
   fail 'isolated containers were not created'
 fi
 
-if ! docker volume inspect "$POSTGRES_VOLUME_NAME" >/dev/null 2>&1; then
+if ! volume_exists "$POSTGRES_VOLUME_NAME"; then
   fail 'isolated PostgreSQL volume was not created'
 fi
 
@@ -324,12 +356,12 @@ log "Tearing down the isolated Docker Compose stack"
 compose down -v --remove-orphans
 STACK_STARTED=0
 
-if container_exists "$POSTGRES_CONTAINER_NAME" \
-    || container_exists "$BACKEND_CONTAINER_NAME"; then
+if ! wait_for_container_absent "$POSTGRES_CONTAINER_NAME" \
+    || ! wait_for_container_absent "$BACKEND_CONTAINER_NAME"; then
   fail 'isolated containers still exist after teardown'
 fi
 
-if docker volume inspect "$POSTGRES_VOLUME_NAME" >/dev/null 2>&1; then
+if ! wait_for_volume_absent "$POSTGRES_VOLUME_NAME"; then
   fail "isolated volume still exists after teardown: $POSTGRES_VOLUME_NAME"
 fi
 

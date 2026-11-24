@@ -48,11 +48,39 @@ esac
   || fail 'PostgreSQL volume name is not isolated'
 
 container_exists() {
-  docker inspect "$1" >/dev/null 2>&1
+  docker container inspect "$1" >/dev/null 2>&1
 }
 
 volume_exists() {
   docker volume inspect "$1" >/dev/null 2>&1
+}
+
+wait_for_container_absent() {
+  local name="$1"
+
+  for _ in $(seq 1 20); do
+    if ! container_exists "$name"; then
+      return 0
+    fi
+
+    sleep 0.5
+  done
+
+  return 1
+}
+
+wait_for_volume_absent() {
+  local name="$1"
+
+  for _ in $(seq 1 20); do
+    if ! volume_exists "$name"; then
+      return 0
+    fi
+
+    sleep 0.5
+  done
+
+  return 1
 }
 
 snapshot_sentinels() {
@@ -161,12 +189,12 @@ log "Tearing down isolated project"
 compose down -v --remove-orphans
 STACK_STARTED=0
 
-if container_exists "$POSTGRES_CONTAINER_NAME" \
-    || container_exists "$BACKEND_CONTAINER_NAME"; then
+if ! wait_for_container_absent "$POSTGRES_CONTAINER_NAME" \
+    || ! wait_for_container_absent "$BACKEND_CONTAINER_NAME"; then
   fail 'isolated containers still exist after teardown'
 fi
 
-if volume_exists "$POSTGRES_VOLUME_NAME"; then
+if ! wait_for_volume_absent "$POSTGRES_VOLUME_NAME"; then
   fail "isolated volume still exists after teardown: $POSTGRES_VOLUME_NAME"
 fi
 
