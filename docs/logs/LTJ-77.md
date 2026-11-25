@@ -235,6 +235,12 @@ passed on `1748a92` (`backend-test`, `postgres-integration`,
 `demo-seed-isolation`, `demo-seed-lifecycle`, `docker-build`,
 `integration-smoke`, `production-smoke`).
 
+Final evidence commit `349b14c` also passed the 12-job push CI
+(run 45648453143) and the PR-triggered CI (run 45648883631).
+The PR run initially hit a transient Maven Central HTTP 429 in
+`integration-smoke`; the failed job was rerun without code
+changes and passed, leaving 12/12 green.
+
 Combined PR review and M4 dependency review remain pending.
 Final release approval also requires E2E acceptance.
 The Windows locale limitation remains unchanged.

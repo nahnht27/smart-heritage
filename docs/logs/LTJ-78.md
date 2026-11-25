@@ -115,3 +115,7 @@ artifacts.
 - Windows: historical 120/129 with nine Dashboard failures; not rerun
 - M4 dependency review: pending
 - PR review: pending
+- Final evidence commit `349b14c`: push CI run 45648453143
+  and PR-triggered run 45648883631 both 12/12 green. The PR run
+  had one transient Maven Central 429 in `integration-smoke`;
+  the job was rerun without code changes and passed.

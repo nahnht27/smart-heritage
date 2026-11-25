@@ -292,6 +292,12 @@ These results apply to main commit 50132ea only and are historical.
 The local performance scenarios were not rerun by CI; the raw
 result files remain the evidence for the local performance run.
 
+Final evidence commit `349b14c` passed the push CI
+(run 45648453143) and the PR-triggered CI (run 45648883631),
+both 12/12. The PR run initially hit a transient Maven Central
+HTTP 429 in `integration-smoke`; the failed job was rerun
+without code changes and passed.
+
 ## 13. Known Findings and Limitations
 
 Owner and severity assignments below are QA recommendations

@@ -345,7 +345,11 @@ all 162 unit tests and production build on synchronized Linux.
 
 The synchronized 12-job CI run 45646351477 passed on merge
 commit `1748a92`, including backend 159/159, PostgreSQL 72/72,
-frontend 162/162 and mobile 108/108.
+frontend 162/162 and mobile 108/108. Final evidence commit
+`349b14c` also passed push run 45648453143 and PR-triggered run
+45648883631, both 12/12. The PR run had one transient Maven
+Central 429 in `integration-smoke`; the rerun passed without
+code changes.
 
 Final release approval remains pending M4 dependency review,
 E2E acceptance and combined PR review. Windows remains a

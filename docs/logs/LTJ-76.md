@@ -86,6 +86,9 @@ The historical LTJ-76 baseline above is preserved unchanged.
   confirmed real secrets
 - Windows: historical 120/129 with nine locale-dependent
   Dashboard failures; not rerun, not reported as PASS
+- Final evidence commit `349b14c`: push CI 45648453143 and
+  PR-triggered CI 45648883631 both 12/12 green; one transient
+  Maven Central 429 was rerun without code changes
 - M4 dependency review and combined PR review remain pending
 - Physical BLE/media acceptance remains outside this task
 
