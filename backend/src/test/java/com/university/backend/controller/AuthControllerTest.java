@@ -22,6 +22,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+//LTJ-68 
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -33,6 +39,7 @@ class AuthControllerTest {
     @Autowired private UserRepository userRepository;
     @Autowired private RoleRepository roleRepository;
     @Autowired private PasswordEncoder passwordEncoder;
+    
 
     @BeforeEach
     void cleanup() { userRepository.deleteAll(); }
@@ -120,6 +127,77 @@ class AuthControllerTest {
     void profile_noToken() throws Exception {
         mockMvc.perform(get("/api/users/me")).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.success").value(false));
     }
+
+    //LTJ-68: Additional tests for JWT handling
+    @Test
+    @DisplayName("Expired JWT returns 401")
+    void expiredToken_returnsUnauthorized() throws Exception {
+        String token = Jwts.builder()
+                .subject("expireduser")
+                .issuedAt(new Date(System.currentTimeMillis() - 120_000))
+                .expiration(new Date(System.currentTimeMillis() - 60_000))
+                .signWith(Keys.hmacShaKeyFor(
+                        "TestSecretKeyThatIsAtLeast256BitsLongForHMACSHA!2024"
+                                .getBytes(StandardCharsets.UTF_8)))
+                .compact();
+
+        mockMvc.perform(get("/api/users/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("JWT with invalid signature returns 401")
+    void invalidSignature_returnsUnauthorized() throws Exception {
+        String token = Jwts.builder()
+                .subject("someuser")
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 60_000))
+                .signWith(Keys.hmacShaKeyFor(
+                        "AnotherSecretKeyThatIsAtLeast256BitsLong!2024"
+                                .getBytes(StandardCharsets.UTF_8)))
+                .compact();
+
+        mockMvc.perform(get("/api/users/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Malformed JWT returns 401")
+    void malformedToken_returnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/users/me")
+                        .header("Authorization", "Bearer not-a-valid-jwt"))
+                .andExpect(status().isUnauthorized());
+    }
+    //LTJ-68: End of additional tests for JWT handling
+
+
+    @Test
+    @DisplayName("JWT for deleted user returns 401")
+    void deletedUserToken_returnsUnauthorized() throws Exception {
+        String token = registerAndLogin(
+                "deleteduser", "deleted@example.com", "secret123");
+
+        User user = userRepository.findByUsername("deleteduser")
+                .orElseThrow();
+
+        userRepository.delete(user);
+        userRepository.flush();
+
+        mockMvc.perform(get("/api/users/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Public health endpoint accepts invalid JWT as anonymous")
+    void publicEndpoint_withInvalidToken_remainsAccessible() throws Exception {
+        mockMvc.perform(get("/api/health")
+                        .header("Authorization", "Bearer invalid-token"))
+                .andExpect(status().isOk());
+    }
+
 
     @Test @DisplayName("Profile with token 200")
     void profile_withToken() throws Exception {
