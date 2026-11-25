@@ -101,3 +101,6 @@ scripts/deployment/backups/
 *.dump
 *.backup
 *.sql.gz
+
+# Demo seed runtime state belongs to each developer/environment
+backend/scripts/demo-seed-manifest.json
