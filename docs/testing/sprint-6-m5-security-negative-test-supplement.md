@@ -100,6 +100,16 @@ uniqueness, foreign key and range constraints.
 
 This CI run predates the new JWT tests and dependency patch.
 
+Post-synchronization confirmation:
+
+- CI run #156 (ID 45422616134, commit 492b509) contains the
+  JWT and dependency changes; its PostgreSQL job log confirms
+  72 passed, 0 failures, 0 errors, 0 skipped.
+- The synchronized CI run (ID 45646351477, merge commit 1748a92)
+  also confirms 72/72 for PostgreSQL integration.
+- The 72-test count is therefore verified; it is not inferred
+  from job status alone.
+
 ## 5. Secret Leakage Review
 
 ### 5.1 Tracked files and configuration
@@ -146,6 +156,27 @@ No Git history or scanner allowlist was modified.
 No confirmed real secret was detected within the reviewed scope.
 Untracked files were not included in the historical scan.
 
+### 5.3 Post-synchronization rescan
+
+Tool: local Gitleaks 8.24.2 (not the Docker image).
+
+| Metric | Result |
+|---|---|
+| Commits scanned (default walk) | 173 |
+| Commits scanned (`--log-opts=HEAD`) | 150 |
+| Data scanned | 4.94 MB |
+| Raw findings | 1 |
+| False positives | 1 |
+| Confirmed real secrets | 0 |
+| Scanner exit code | 1 |
+
+The finding is unchanged: rule `generic-api-key`,
+`docs/sprint-6/README.md` line 10, commit
+`9fdc64413c4ed11105a38b1efca9f301f7d73038`. The flagged text
+is ordinary Markdown documentation. No allowlist, suppression
+or history rewrite was introduced. This remains a scanner
+false positive, not a confirmed secret.
+
 ## 6. Frontend Dependency Security
 
 Initial audit: 10 vulnerabilities, including 9 moderate and 1 high.
@@ -180,7 +211,24 @@ No application source code or package.json was modified.
 The remediation did not use --force.
 
 Application-specific exploitability was not established.
-M4 review and updated CI verification remain pending.
+
+Post-synchronization audit (2026-11-25, npm 11.12.1):
+
+| Package | Before | After | Scope | Path |
+|---|---|---|---|---|
+| follow-redirects | 1.16.1 | 1.16.3 | Transitive | axios@1.20.0 |
+| minimatch | 10.2.6 | 11.0.9 | Transitive | eslint@10.15.0 / typescript-eslint@8.74.0 |
+
+- `npm audit`: 0 vulnerabilities.
+- `npm audit --omit=dev`: 0 vulnerabilities.
+- `npm ls follow-redirects minimatch eslint`: resolved as above.
+- `frontend/package.json` is unchanged versus main.
+- The lockfile also carries the eslint/typescript-eslint
+  cascade required for the minimatch 11 range; these are
+  transitive lockfile updates, not direct dependency changes.
+
+M4 dependency review remains pending and has not been claimed
+as approval.
 
 ## 7. Frontend Regression
 
@@ -236,13 +284,32 @@ been isolated as the sole cause.
 
 No application code or test assertions were modified to force a pass.
 
+### 7.3 Synchronized Linux rerun (2026-11-25)
+
+After merging main `50132ea` into `LTJ-76`:
+
+- Node.js v24.15.0, npm 11.12.1, Linux.
+- `npm ci`: 265 packages, 0 vulnerabilities.
+- `npm run lint`: PASS.
+- `npm test`: 19 files, 162/162 tests passed.
+- `npm run build`: PASS.
+
+The additional tests come from the M4 Translations and Feedback
+work already on main. Dashboard Analytics and CSV security
+coverage remain present and pass.
+
+Windows was not available for the synchronized rerun. The
+historical 120/129 Windows result and its nine Dashboard
+locale-sensitive failures remain the recorded Windows status;
+Windows is not reported as PASS.
+
 ## 8. Findings and Ownership
 
 | ID | Severity | Finding | Status | Proposed owner |
 |---|---|---|---|---|
-| SEC-F01 | High | follow-redirects vulnerability | Locally remediated; review pending | M4 |
-| SEC-F02 | Moderate | minimatch-related vulnerabilities | Locally remediated; review pending | M4 |
-| SEC-F03 | Low | Environment-dependent Dashboard tests | Open; Linux passes | M4 |
+| SEC-F01 | High | follow-redirects vulnerability | Lockfile remediated; M4 review pending | M4 |
+| SEC-F02 | Moderate | minimatch-related vulnerabilities | Lockfile remediated; M4 review pending | M4 |
+| SEC-F03 | Low | Environment-dependent Dashboard tests | Open; Linux passes 162/162 | M4 |
 | SEC-F04 | Informational | Gitleaks documentation false positive | Reviewed | M5 |
 
 M5 is responsible for regression verification.
@@ -252,11 +319,13 @@ M4 review and M1 release acceptance remain pending.
 
 - Expired JWT HTTP testing uses MockMvc rather than live Docker HTTP.
 - Secret scanning is limited to the reviewed patterns and history.
-- Windows Dashboard failures remain documented.
+- Windows Dashboard failures remain documented; Windows was not
+  available for the synchronized rerun.
 - Original and patched dependencies were not compared under
   identical Windows conditions.
-- Previous CI evidence does not validate the new changes.
-- Dependency remediation requires M4 review.
+- Historical CI #155 predates the new changes; run #156 and the
+  synchronized run 45646351477 validate them.
+- Dependency remediation still requires M4 review.
 - Physical BLE and media acceptance belong to the E2E task.
 - This review is not a full penetration test.
 
@@ -272,10 +341,15 @@ The frontend dependency audit reports zero vulnerabilities
 after remediation.
 
 The patched frontend passed clean installation, ESLint,
-all 129 unit tests and production build on Docker Linux.
+all 162 unit tests and production build on synchronized Linux.
 
-Final release approval remains pending updated CI,
-dependency review, E2E acceptance and PR review.
+The synchronized 12-job CI run 45646351477 passed on merge
+commit `1748a92`, including backend 159/159, PostgreSQL 72/72,
+frontend 162/162 and mobile 108/108.
+
+Final release approval remains pending M4 dependency review,
+E2E acceptance and combined PR review. Windows remains a
+documented limitation.
 
 ## 11. Terminal Evidence
 Evidence is documented using actual terminal outputs, automated
@@ -412,11 +486,54 @@ Terminal output:
 
 No whitespace errors were reported for the tracked diff.
 
+### E10 - Synchronized Branch Validation
+
+    2026-11-25
+    Latest main: 50132ea8f48ee869167b5d86d38d3b4b142e1944
+    Merge commit / HEAD: 1748a9251996707d51ad848f6f2299cb43db39ad
+    Merge type: git merge --no-ff origin/main (no conflicts)
+    Ahead/behind vs origin/main: 4 ahead / 0 behind
+    CI run: 45646351477
+    CI jobs: 12/12 SUCCESS
+
+### E11 - Backend and PostgreSQL
+
+    Targeted JWT: 4 tests, 0 failures, 0 errors, 0 skipped
+    Backend full suite: 159 tests, 0 failures, 0 errors, 0 skipped
+    PostgreSQL integration: 72 tests, 0 failures, 0 errors, 0 skipped
+    PostgreSQL suites: 22 + 12 + 16 + 5 + 17 = 72
+
+### E12 - Dependency and Secret Scan
+
+    npm audit: 0 vulnerabilities
+    npm audit --omit=dev: 0 vulnerabilities
+    follow-redirects: 1.16.1 -> 1.16.3
+    minimatch: 10.2.6 -> 11.0.9
+    package.json changed: no
+    --force used: no
+
+    Gitleaks 8.24.2
+    Commits scanned (default): 173
+    Data scanned: 4.94 MB
+    Raw findings: 1
+    Confirmed false positives: 1
+    Confirmed real secrets: 0
+    Exit code: 1
+
+### E13 - Synchronized Frontend
+
+    Node.js v24.15.0, npm 11.12.1, Linux
+    npm ci: 265 packages, 0 vulnerabilities
+    ESLint: PASS
+    Vitest: 19 files, 162/162 passed
+    Production build: PASS
+
 ### Evidence Status
 
-E01-E09 were recorded from actual execution results.
+E01-E13 were recorded from actual execution results.
 Some results are summarized rather than reproduced verbatim.
 No screenshots or fabricated execution results are included.
 
-Updated commit, push and CI evidence will be recorded after
-the new changes are committed and pushed.
+The final synchronized CI evidence is run 45646351477 on
+merge commit `1748a92`. Windows remains a documented
+limitation and is not reported as PASS.

@@ -69,3 +69,26 @@ The total represents test executions across selected suites, not 141 independent
 ## Conclusion
 
 The executed security-negative scenarios and selected automated test suites passed with no recorded test failures. Remaining limitations and dependency risks are documented above.
+
+## Synchronization update (2026-11-25)
+
+The historical LTJ-76 baseline above is preserved unchanged.
+
+- Latest main merged: `50132ea`
+- Merge commit / tested HEAD: `1748a92`
+- CI run: 45646351477, 12/12 jobs successful
+- Backend: 159/159; PostgreSQL integration: 72/72
+- Frontend: 162/162 in 19 files on Linux; ESLint and build pass
+- JWT expiration regression: 4/4
+- npm audit (all and production): 0 vulnerabilities after the
+  lockfile remediation in LTJ-77
+- Gitleaks: one reviewed documentation false positive; zero
+  confirmed real secrets
+- Windows: historical 120/129 with nine locale-dependent
+  Dashboard failures; not rerun, not reported as PASS
+- M4 dependency review and combined PR review remain pending
+- Physical BLE/media acceptance remains outside this task
+
+The npm audit limitation in the historical section is superseded
+by the LTJ-77 remediation; the original observation is retained
+for traceability.
