@@ -394,7 +394,21 @@ The five k6 scenarios were not rerun or reinterpreted:
 - Docker resource monitoring concurrency with k6 remains unconfirmed.
 - No Prometheus, Grafana, OpenTelemetry or Kubernetes stack was added.
 
-### 15.5 Final recommendation
+### 15.5 Final CI evidence
+
+Tested HEAD: `adc88222a3b3b32e110d5df03607ab8c13fe979c`.
+
+- Push run `45751420300`: 12/12 success.
+- PR run `45751427038`: 12/12 success.
+- Backend: 159/159.
+- Frontend: 20 files, 165/165.
+- Mobile: 12 suites, 108/108.
+- PostgreSQL integration: 72/72.
+- `integration-smoke`: 17 passed, 0 failed, 9 skipped.
+- `production-smoke`: PASS.
+- The five k6 raw result files were preserved; CI did not rerun performance.
+
+### 15.6 Final recommendation
 
 QA recommendation for the tested scope remains **PASS WITH LIMITATIONS**.
 Final merge/release approval remains with M1 and is still conditional on M4

@@ -329,4 +329,26 @@ Validation:
   original k6 process exit codes were not retained; Docker monitoring
   concurrency remains unconfirmed.
 - Gitleaks: 1 reviewed false positive, 0 confirmed real secrets, exit code 1.
-- Final CI for this update is recorded in PR #46 and in the final report.
+
+### Final CI evidence (2026-11-26)
+
+Tested HEAD: `adc88222a3b3b32e110d5df03607ab8c13fe979c`.
+
+- Push run `45751420300`: 12/12 jobs success.
+  https://github.com/nahnht27/smart-heritage/actions/runs/45751420300
+- PR-triggered run `45751427038`: 12/12 jobs success.
+  https://github.com/nahnht27/smart-heritage/actions/runs/45751427038
+- Backend: 159/159.
+- Frontend: 20 files, 165/165.
+- Mobile: 12 suites, 108/108.
+- PostgreSQL integration: 72/72.
+- `integration-smoke`: 17 passed, 0 failed, 9 skipped (credentials and
+  write scenarios are intentionally excluded from CI).
+- `production-smoke`: PASS (health, SPA fallback, `/api` proxy, port exposure).
+- All jobs: backend-test, postgres-integration, database-backup-restore,
+  frontend-checks, mobile-tests, mobile-static-analysis (advisory),
+  demo-seed-static-checks, demo-seed-isolation, demo-seed-lifecycle,
+  docker-build, integration-smoke, production-smoke.
+
+The final CI is green, but it does not replace browser full-stack, native
+Windows, physical BLE or real-device multimedia acceptance.

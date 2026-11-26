@@ -148,4 +148,15 @@ The raw performance artifacts and historical results above are preserved.
   unverified or require human acceptance.
 - Full-stack checklist:
   `docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
-- Final CI for this update is recorded in PR #46 and the final report.
+
+### Final CI evidence (2026-11-26)
+
+- Tested HEAD: `adc88222a3b3b32e110d5df03607ab8c13fe979c`
+- Push run `45751420300`: 12/12 success
+- PR run `45751427038`: 12/12 success
+- Backend 159/159; frontend 20 files / 165 tests; mobile 108/108;
+  PostgreSQL 72/72
+- `integration-smoke`: 17 passed / 0 failed / 9 skipped
+- `production-smoke`: PASS
+- Performance evidence was not rerun by CI; the five raw k6 summaries
+  remain the performance evidence.

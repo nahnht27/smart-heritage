@@ -18,8 +18,12 @@ check is not evidence for a physical-device or browser acceptance item.
 | Native Windows 11 | **Not available** in this environment |
 | Android emulator / physical device | **Not available** |
 | Browser-driven E2E framework | **Not present**; no new framework was added |
-| CI public smoke | Available in `integration-smoke` |
-| CI production packaging smoke | Available in `production-smoke` |
+| CI public smoke | Verified on final HEAD by `integration-smoke` |
+| CI production packaging smoke | Verified on final HEAD by `production-smoke` |
+
+Final CI: push run `45751420300` and PR run `45751427038`, both 12/12 on
+`adc88222a3b3b32e110d5df03607ab8c13fe979c`. Public smoke reported 17 passed,
+0 failed, 9 skipped; production smoke passed. This is not full-stack acceptance.
 
 ## Acceptance Matrix
 

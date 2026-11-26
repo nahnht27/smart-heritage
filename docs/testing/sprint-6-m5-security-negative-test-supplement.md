@@ -646,4 +646,20 @@ Owner/evidence requirements:
   Docker monitoring concurrency unconfirmed.
 - Gitleaks: 1 reviewed documentation false positive, 0 confirmed real secrets,
   raw exit code 1.
-- Final CI for this update is recorded in PR #46 and the final report.
+
+### 12.5 Final CI evidence
+
+Tested HEAD: `adc88222a3b3b32e110d5df03607ab8c13fe979c`.
+
+| Run | Result | URL |
+|---|---|---|
+| Push `45751420300` | 12/12 SUCCESS | https://github.com/nahnht27/smart-heritage/actions/runs/45751420300 |
+| PR `45751427038` | 12/12 SUCCESS | https://github.com/nahnht27/smart-heritage/actions/runs/45751427038 |
+
+- Backend: 159/159.
+- Frontend: 20 files, 165/165.
+- Mobile: 12 suites, 108/108.
+- PostgreSQL integration: 72/72.
+- `integration-smoke`: 17 passed, 0 failed, 9 skipped by design.
+- `production-smoke`: PASS.
+- No security threshold or test was bypassed to obtain this result.
