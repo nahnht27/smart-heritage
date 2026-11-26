@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useId } from 'react'
+﻿import { useEffect, useRef, useState, useId } from 'react'
 import { ApiError } from '../services/apiClient'
 import { getInteractionSummary } from '../services/analyticsService'
 import { exportAnalyticsSummaryToCsv } from '../utils/analyticsCsv'
@@ -660,7 +660,7 @@ export default function DashboardPage() {
             <article className="kpi-card">
               <div className="kpi-content">
                 <span className="kpi-label">Total Interactions</span>
-                <span className="kpi-value">{totalInteractions.toLocaleString()}</span>
+                <span className="kpi-value">{totalInteractions.toLocaleString('en-US')}</span>
                 <span className="kpi-note">Recorded visitor actions</span>
               </div>
               <div className="kpi-icon-wrapper kpi-icon-wrapper--primary" aria-hidden="true">
@@ -671,7 +671,7 @@ export default function DashboardPage() {
             <article className="kpi-card">
               <div className="kpi-content">
                 <span className="kpi-label">Unique Visitors</span>
-                <span className="kpi-value">{uniqueVisitors.toLocaleString()}</span>
+                <span className="kpi-value">{uniqueVisitors.toLocaleString('en-US')}</span>
                 <span className="kpi-note">Distinct visitors active</span>
               </div>
               <div className="kpi-icon-wrapper kpi-icon-wrapper--success" aria-hidden="true">
@@ -697,7 +697,7 @@ export default function DashboardPage() {
                   {topType ? `${topType.interactionType} (${topTypePercentage}%)` : 'None'}
                 </span>
                 <span className="kpi-note">
-                  {topType ? `${topType.count.toLocaleString()} actions recorded` : 'No interactions'}
+                  {topType ? `${topType.count.toLocaleString('en-US')} actions recorded` : 'No interactions'}
                 </span>
               </div>
               <div className="kpi-icon-wrapper kpi-icon-wrapper--amber" aria-hidden="true">
@@ -778,7 +778,7 @@ export default function DashboardPage() {
 
                               <div className="breakdown-item__stats">
                                 <span className="breakdown-count">
-                                  {item.count.toLocaleString()}
+                                  {item.count.toLocaleString('en-US')}
                                 </span>
                                 <span className="breakdown-percent">{pct}%</span>
                               </div>
@@ -865,7 +865,7 @@ export default function DashboardPage() {
                           </div>
 
                           <div className="artifact-count-tag">
-                            <span>{artifact.interactionCount.toLocaleString()}</span>
+                            <span>{artifact.interactionCount.toLocaleString('en-US')}</span>
                             <span className="artifact-count-label">
                               {artifact.interactionCount === 1 ? 'action' : 'actions'}
                             </span>

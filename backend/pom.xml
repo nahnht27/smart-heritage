@@ -91,6 +91,19 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- Keep local database settings from overriding the H2 test profile. -->
+                    <excludedEnvironmentVariables>
+                        <excludedEnvironmentVariable>SPRING_DATASOURCE_URL</excludedEnvironmentVariable>
+                        <excludedEnvironmentVariable>SPRING_DATASOURCE_USERNAME</excludedEnvironmentVariable>
+                        <excludedEnvironmentVariable>SPRING_DATASOURCE_PASSWORD</excludedEnvironmentVariable>
+                        <excludedEnvironmentVariable>SPRING_DATASOURCE_DRIVER_CLASS_NAME</excludedEnvironmentVariable>
+                    </excludedEnvironmentVariables>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
