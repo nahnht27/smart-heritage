@@ -69,3 +69,55 @@ The total represents test executions across selected suites, not 141 independent
 ## Conclusion
 
 The executed security-negative scenarios and selected automated test suites passed with no recorded test failures. Remaining limitations and dependency risks are documented above.
+
+## Synchronization update (2026-11-25)
+
+The historical LTJ-76 baseline above is preserved unchanged.
+
+- Latest main merged: `50132ea`
+- Merge commit / tested HEAD: `1748a92`
+- CI run: 45646351477, 12/12 jobs successful
+- Backend: 159/159; PostgreSQL integration: 72/72
+- Frontend: 162/162 in 19 files on Linux; ESLint and build pass
+- JWT expiration regression: 4/4
+- npm audit (all and production): 0 vulnerabilities after the
+  lockfile remediation in LTJ-77
+- Gitleaks: one reviewed documentation false positive; zero
+  confirmed real secrets
+- Windows: historical 120/129 with nine locale-dependent
+  Dashboard failures; not rerun, not reported as PASS
+- Final evidence commit `349b14c`: push CI 45648453143 and
+  PR-triggered CI 45648883631 both 12/12 green; one transient
+  Maven Central 429 was rerun without code changes
+- M4 dependency review and combined PR review remain pending
+- Physical BLE/media acceptance remains outside this task
+
+The npm audit limitation in the historical section is superseded
+by the LTJ-77 remediation; the original observation is retained
+for traceability.
+
+## Finalization update (2026-11-26)
+
+The historical security results above are preserved unchanged.
+
+- Dashboard locale failures were isolated to nine hardcoded `1,420`
+  assertions in `DashboardPage.test.tsx`. The dashboard intentionally uses
+  runtime-locale formatting, so `vi-VN` renders `1.420`. Tests now derive the
+  expected value from the shared `formatCount` helper; explicit `en-US` and
+  `vi-VN` coverage was added. Product locale behavior was not changed.
+- Reproduced on Linux with `LANG=vi_VN.UTF-8`: 6 passed / 9 failed before the
+  fix. After the fix: targeted Dashboard/formatter 18/18, full frontend
+  20 files / 165 tests in both `en-US` and `vi-VN`. Native Windows was not
+  available and is not claimed as PASS.
+- M4 owner `nahnht27` was verified from M4-labelled PRs #28, #29, #30, #35,
+  #40, #41 and #44. Review was requested; no approval is claimed.
+- Dependency revalidation: 19 lockfile entries, `package.json` unchanged,
+  `npm ci` 265 packages / 0 vulnerabilities, both audits 0/0,
+  `npm ls --all` exit 0 with only optional platform gaps.
+- Local full-stack Compose remained blocked by the inactive Docker daemon and
+  unavailable sudo access. Browser admin flows, beacon resolution, analytics
+  visibility and physical BLE/multimedia acceptance remain unverified or
+  require human acceptance. See
+  `docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
+- JWT 4/4, backend 159/159, PostgreSQL 72/72, k6 metrics and Gitleaks
+  false-positive evidence remain unchanged.

@@ -100,6 +100,16 @@ uniqueness, foreign key and range constraints.
 
 This CI run predates the new JWT tests and dependency patch.
 
+Post-synchronization confirmation:
+
+- CI run #156 (ID 45422616134, commit 492b509) contains the
+  JWT and dependency changes; its PostgreSQL job log confirms
+  72 passed, 0 failures, 0 errors, 0 skipped.
+- The synchronized CI run (ID 45646351477, merge commit 1748a92)
+  also confirms 72/72 for PostgreSQL integration.
+- The 72-test count is therefore verified; it is not inferred
+  from job status alone.
+
 ## 5. Secret Leakage Review
 
 ### 5.1 Tracked files and configuration
@@ -146,6 +156,27 @@ No Git history or scanner allowlist was modified.
 No confirmed real secret was detected within the reviewed scope.
 Untracked files were not included in the historical scan.
 
+### 5.3 Post-synchronization rescan
+
+Tool: local Gitleaks 8.24.2 (not the Docker image).
+
+| Metric | Result |
+|---|---|
+| Commits scanned (default walk) | 173 |
+| Commits scanned (`--log-opts=HEAD`) | 150 |
+| Data scanned | 4.94 MB |
+| Raw findings | 1 |
+| False positives | 1 |
+| Confirmed real secrets | 0 |
+| Scanner exit code | 1 |
+
+The finding is unchanged: rule `generic-api-key`,
+`docs/sprint-6/README.md` line 10, commit
+`9fdc64413c4ed11105a38b1efca9f301f7d73038`. The flagged text
+is ordinary Markdown documentation. No allowlist, suppression
+or history rewrite was introduced. This remains a scanner
+false positive, not a confirmed secret.
+
 ## 6. Frontend Dependency Security
 
 Initial audit: 10 vulnerabilities, including 9 moderate and 1 high.
@@ -180,7 +211,24 @@ No application source code or package.json was modified.
 The remediation did not use --force.
 
 Application-specific exploitability was not established.
-M4 review and updated CI verification remain pending.
+
+Post-synchronization audit (2026-11-25, npm 11.12.1):
+
+| Package | Before | After | Scope | Path |
+|---|---|---|---|---|
+| follow-redirects | 1.16.1 | 1.16.3 | Transitive | axios@1.20.0 |
+| minimatch | 10.2.6 | 11.0.9 | Transitive | eslint@10.15.0 / typescript-eslint@8.74.0 |
+
+- `npm audit`: 0 vulnerabilities.
+- `npm audit --omit=dev`: 0 vulnerabilities.
+- `npm ls follow-redirects minimatch eslint`: resolved as above.
+- `frontend/package.json` is unchanged versus main.
+- The lockfile also carries the eslint/typescript-eslint
+  cascade required for the minimatch 11 range; these are
+  transitive lockfile updates, not direct dependency changes.
+
+M4 dependency review remains pending and has not been claimed
+as approval.
 
 ## 7. Frontend Regression
 
@@ -236,13 +284,32 @@ been isolated as the sole cause.
 
 No application code or test assertions were modified to force a pass.
 
+### 7.3 Synchronized Linux rerun (2026-11-25)
+
+After merging main `50132ea` into `LTJ-76`:
+
+- Node.js v24.15.0, npm 11.12.1, Linux.
+- `npm ci`: 265 packages, 0 vulnerabilities.
+- `npm run lint`: PASS.
+- `npm test`: 19 files, 162/162 tests passed.
+- `npm run build`: PASS.
+
+The additional tests come from the M4 Translations and Feedback
+work already on main. Dashboard Analytics and CSV security
+coverage remain present and pass.
+
+Windows was not available for the synchronized rerun. The
+historical 120/129 Windows result and its nine Dashboard
+locale-sensitive failures remain the recorded Windows status;
+Windows is not reported as PASS.
+
 ## 8. Findings and Ownership
 
 | ID | Severity | Finding | Status | Proposed owner |
 |---|---|---|---|---|
-| SEC-F01 | High | follow-redirects vulnerability | Locally remediated; review pending | M4 |
-| SEC-F02 | Moderate | minimatch-related vulnerabilities | Locally remediated; review pending | M4 |
-| SEC-F03 | Low | Environment-dependent Dashboard tests | Open; Linux passes | M4 |
+| SEC-F01 | High | follow-redirects vulnerability | Lockfile remediated; M4 review pending | M4 |
+| SEC-F02 | Moderate | minimatch-related vulnerabilities | Lockfile remediated; M4 review pending | M4 |
+| SEC-F03 | Low | Environment-dependent Dashboard tests | Open; Linux passes 162/162 | M4 |
 | SEC-F04 | Informational | Gitleaks documentation false positive | Reviewed | M5 |
 
 M5 is responsible for regression verification.
@@ -252,11 +319,13 @@ M4 review and M1 release acceptance remain pending.
 
 - Expired JWT HTTP testing uses MockMvc rather than live Docker HTTP.
 - Secret scanning is limited to the reviewed patterns and history.
-- Windows Dashboard failures remain documented.
+- Windows Dashboard failures remain documented; Windows was not
+  available for the synchronized rerun.
 - Original and patched dependencies were not compared under
   identical Windows conditions.
-- Previous CI evidence does not validate the new changes.
-- Dependency remediation requires M4 review.
+- Historical CI #155 predates the new changes; run #156 and the
+  synchronized run 45646351477 validate them.
+- Dependency remediation still requires M4 review.
 - Physical BLE and media acceptance belong to the E2E task.
 - This review is not a full penetration test.
 
@@ -272,10 +341,19 @@ The frontend dependency audit reports zero vulnerabilities
 after remediation.
 
 The patched frontend passed clean installation, ESLint,
-all 129 unit tests and production build on Docker Linux.
+all 162 unit tests and production build on synchronized Linux.
 
-Final release approval remains pending updated CI,
-dependency review, E2E acceptance and PR review.
+The synchronized 12-job CI run 45646351477 passed on merge
+commit `1748a92`, including backend 159/159, PostgreSQL 72/72,
+frontend 162/162 and mobile 108/108. Final evidence commit
+`349b14c` also passed push run 45648453143 and PR-triggered run
+45648883631, both 12/12. The PR run had one transient Maven
+Central 429 in `integration-smoke`; the rerun passed without
+code changes.
+
+Final release approval remains pending M4 dependency review,
+E2E acceptance and combined PR review. Windows remains a
+documented limitation.
 
 ## 11. Terminal Evidence
 Evidence is documented using actual terminal outputs, automated
@@ -412,11 +490,176 @@ Terminal output:
 
 No whitespace errors were reported for the tracked diff.
 
+### E10 - Synchronized Branch Validation
+
+    2026-11-25
+    Latest main: 50132ea8f48ee869167b5d86d38d3b4b142e1944
+    Merge commit / HEAD: 1748a9251996707d51ad848f6f2299cb43db39ad
+    Merge type: git merge --no-ff origin/main (no conflicts)
+    Ahead/behind vs origin/main: 4 ahead / 0 behind
+    CI run: 45646351477
+    CI jobs: 12/12 SUCCESS
+
+### E11 - Backend and PostgreSQL
+
+    Targeted JWT: 4 tests, 0 failures, 0 errors, 0 skipped
+    Backend full suite: 159 tests, 0 failures, 0 errors, 0 skipped
+    PostgreSQL integration: 72 tests, 0 failures, 0 errors, 0 skipped
+    PostgreSQL suites: 22 + 12 + 16 + 5 + 17 = 72
+
+### E12 - Dependency and Secret Scan
+
+    npm audit: 0 vulnerabilities
+    npm audit --omit=dev: 0 vulnerabilities
+    follow-redirects: 1.16.1 -> 1.16.3
+    minimatch: 10.2.6 -> 11.0.9
+    package.json changed: no
+    --force used: no
+
+    Gitleaks 8.24.2
+    Commits scanned (default): 173
+    Data scanned: 4.94 MB
+    Raw findings: 1
+    Confirmed false positives: 1
+    Confirmed real secrets: 0
+    Exit code: 1
+
+### E13 - Synchronized Frontend
+
+    Node.js v24.15.0, npm 11.12.1, Linux
+    npm ci: 265 packages, 0 vulnerabilities
+    ESLint: PASS
+    Vitest: 19 files, 162/162 passed
+    Production build: PASS
+
 ### Evidence Status
 
-E01-E09 were recorded from actual execution results.
+E01-E13 were recorded from actual execution results.
 Some results are summarized rather than reproduced verbatim.
 No screenshots or fabricated execution results are included.
 
-Updated commit, push and CI evidence will be recorded after
-the new changes are committed and pushed.
+The final synchronized CI evidence is run 45646351477 on
+merge commit `1748a92`. Windows remains a documented
+limitation and is not reported as PASS.
+
+## 12. Finalization Update (2026-11-26)
+
+The historical evidence above is preserved unchanged.
+
+### 12.1 Windows Dashboard locale regression — resolved
+
+All nine failures were the same assertion category: the test expected the
+literal text `1,420`, while `DashboardPage` formats counts with locale-aware
+`toLocaleString()`. Under `vi-VN`, 1420 is `1.420`.
+
+No repository requirement mandates a fixed formatting locale. The Admin Web
+has no runtime UI language selector; `preferredLanguageId` is stored but is not
+used to select content or formatting. Runtime/browser-locale formatting is the
+intended current behavior, so the hardcoded assertion was the defect.
+
+Correction:
+
+- Added `frontend/src/utils/numberFormat.ts` (`formatCount(value, locale?)`)
+  with runtime locale as the default.
+- Replaced the five count-formatting calls in `DashboardPage` with
+  `formatCount`.
+- `DashboardPage` tests compute the expected total with `formatCount(1420)`.
+- Added explicit formatter regression tests:
+  `formatCount(1420, 'en-US') === '1,420'` and
+  `formatCount(1420, 'vi-VN') === '1.420'`.
+
+No `Number.prototype.toLocaleString` monkey-patch, no skipped tests and no
+weakened/deleted assertions were used.
+
+Validation:
+
+| Run | Result |
+|---|---|
+| Linux `LANG=vi_VN.UTF-8`, before fix | `DashboardPage` 6 passed / 9 failed (15 total); reproduced all nine |
+| Targeted Dashboard + formatter, `en-US` | 18/18 passed, exit 0 |
+| Targeted Dashboard + formatter, `vi-VN` | 18/18 passed, exit 0 |
+| Full frontend, `en-US` | 20 files, 165/165 passed, exit 0 |
+| Full frontend, `vi-VN` | 20 files, 165/165 passed, exit 0 |
+| ESLint | PASS |
+| `tsc -b && vite build` | PASS, 60 modules |
+
+Native Windows 11 was not available. The Linux `vi-VN` run is a locale
+simulation and is not reported as native Windows validation. Concurrent
+Vitest processes produced unrelated fixture failures and are not used as
+evidence; the counts above are from isolated sequential runs.
+
+### 12.2 M4 dependency review
+
+The M4 GitHub login is `nahnht27`, verified from M4-labelled PRs #28, #29,
+#30, #35, #40, #41 and #44 (admin, analytics, beacon, translations/feedback).
+The identity was not inferred from a display name.
+
+A review request was submitted to `nahnht27` on PR #46. At the time of this
+update no M4 review decision exists, so M4 approval is still not claimed.
+
+Dependency revalidation:
+
+- Lockfile entries changed: 19; `frontend/package.json`: unchanged.
+- `npm ci`: 265 packages, 0 vulnerabilities.
+- `npm audit`: 0 vulnerabilities.
+- `npm audit --omit=dev`: 0 vulnerabilities.
+- `npm ls --all`: exit 0, no invalid peers; only normal optional platform
+  gaps.
+- No `--force`; no direct framework/toolchain change.
+- `follow-redirects` 1.16.1 -> 1.16.3.
+- `minimatch` 10.2.6 -> 11.0.9.
+- `eslint` 10.12.0 -> 10.15.0; `typescript-eslint` 8.71.2 -> 8.74.0.
+- `brace-expansion` 5.0.12 -> 5.1.0; `@isaacs/nonrecursive-glob-match`
+  1.1.0 added as a dev transitive dependency of minimatch 11.
+
+### 12.3 Full-stack acceptance
+
+Local Docker Compose could not be executed: the Docker daemon is inactive,
+`/var/run/docker.sock` is absent, and starting it requires a sudo password.
+
+CI `integration-smoke` verifies public health/content APIs and the anonymous
+negative path. CI `production-smoke` verifies production Compose packaging,
+SPA fallback, `/api` proxy and port exposure. These do not verify real-browser
+admin workflows or physical-device behavior.
+
+| Scenario | Status |
+|---|---|
+| Public API smoke | Verified by CI |
+| Production packaging/proxy/port exposure | Verified by CI |
+| Admin login/session in a real browser | Not verified |
+| Protected admin routes | Not verified |
+| Heritage/artifact CRUD persistence | Not verified |
+| Beacon resolution and visitor interaction | Not verified |
+| Analytics visibility against real API | Not verified |
+| Browser-to-backend API integration | Not verified |
+| Physical BLE | Blocked by physical hardware |
+| Real-device multimedia | Requires human acceptance |
+
+Owner/evidence requirements:
+`docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
+
+### 12.4 Preserved security evidence
+
+- JWT 4/4; backend 159/159; PostgreSQL 72/72.
+- k6: 5 scenarios, 1,928 requests, 2,228/2,228 checks, 0% HTTP errors;
+  legacy threshold interpretation unchanged; original exit codes not retained;
+  Docker monitoring concurrency unconfirmed.
+- Gitleaks: 1 reviewed documentation false positive, 0 confirmed real secrets,
+  raw exit code 1.
+
+### 12.5 Final CI evidence
+
+Tested HEAD: `adc88222a3b3b32e110d5df03607ab8c13fe979c`.
+
+| Run | Result | URL |
+|---|---|---|
+| Push `45751420300` | 12/12 SUCCESS | https://github.com/nahnht27/smart-heritage/actions/runs/45751420300 |
+| PR `45751427038` | 12/12 SUCCESS | https://github.com/nahnht27/smart-heritage/actions/runs/45751427038 |
+
+- Backend: 159/159.
+- Frontend: 20 files, 165/165.
+- Mobile: 12 suites, 108/108.
+- PostgreSQL integration: 72/72.
+- `integration-smoke`: 17 passed, 0 failed, 9 skipped by design.
+- `production-smoke`: PASS.
+- No security threshold or test was bypassed to obtain this result.
