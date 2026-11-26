@@ -305,6 +305,16 @@ class HeritageSiteControllerTest extends ContentApiTestSupport {
     }
 
     @Test
+    void searchHeritageSitesShouldRejectInvalidSortField() throws Exception {
+        String token = createAdminToken();
+
+         mockMvc.perform(get("/api/heritage-sites")
+                        .param("sortBy", "unknownField")
+                        .header("Authorization", "Bearer " + token))
+               .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void searchHeritageSitesShouldUseStableTieBreakerAcrossPages()
             throws Exception {
         String token = createAdminToken();
@@ -329,4 +339,26 @@ class HeritageSiteControllerTest extends ContentApiTestSupport {
                 .andExpect(jsonPath("$.data.content[0].siteId")
                         .value(secondId));
     }
+
+
+@Test
+void adminShouldNotUpdateUnknownHeritageSite() throws Exception {
+    String token = createAdminToken();
+
+    mockMvc.perform(put("/api/heritage-sites/{siteId}", 999999)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validRequest("Updated Site Name")))
+            .andExpect(status().isNotFound());
+}
+
+@Test
+void adminShouldNotDeleteUnknownHeritageSite() throws Exception {
+    String token = createAdminToken();
+
+    mockMvc.perform(delete("/api/heritage-sites/{siteId}", 999999)
+                    .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound());
+}
+
 }

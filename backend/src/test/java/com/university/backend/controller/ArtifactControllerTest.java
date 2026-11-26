@@ -1,4 +1,4 @@
-package com.university.backend.controller;
+﻿package com.university.backend.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.university.backend.entity.Beacon;
@@ -501,4 +501,105 @@ class ArtifactControllerTest extends ContentApiTestSupport {
                 .andExpect(jsonPath("$.data.content[0].artifactId")
                         .value(secondId));
     }
+
+    //LTJ-68
+
+@Test
+void adminShouldNotUpdateArtifactWhenTargetSiteDoesNotExist() throws Exception {
+    String token = createAdminToken();
+    int originalSiteId = createSite(token, "Original Artifact Site");
+    int artifactId = createArtifact(token, originalSiteId, "Original Artifact Name");
+
+    mockMvc.perform(put("/api/artifacts/{artifactId}", artifactId)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validArtifactRequest(999999, "Changed Artifact Name")))
+            .andExpect(status().isNotFound());
+
+    mockMvc.perform(get("/api/artifacts/{artifactId}", artifactId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.artifactId").value(artifactId))
+            .andExpect(jsonPath("$.data.siteId").value(originalSiteId))
+            .andExpect(jsonPath("$.data.name").value("Original Artifact Name"));
+}
+
+@Test
+void adminShouldNotUpdateUnknownArtifact() throws Exception {
+    String token = createAdminToken();
+    int siteId = createSite(token, "Existing Update Site");
+
+    mockMvc.perform(put("/api/artifacts/{artifactId}", 999999)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validArtifactRequest(siteId, "Changed Artifact Name")))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.message").isString())
+            .andExpect(jsonPath("$.data").value(
+                    org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$.timestamp").isString())
+            .andExpect(jsonPath("$.path").value("/api/artifacts/999999"))
+            .andExpect(jsonPath("$.errors").value(
+                    org.hamcrest.Matchers.nullValue()));
+}
+
+@Test
+void createArtifactShouldRejectNonPositiveSiteId() throws Exception {
+    String token = createAdminToken();
+
+    mockMvc.perform(post("/api/artifacts")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validArtifactRequest(0, "Invalid Site Artifact")))
+            .andExpect(status().isBadRequest());
+}
+
+@Test
+void adminShouldCreateArtifact() throws Exception {
+    String token = createAdminToken();
+    int siteId = createSite(token, "Create Artifact Test Site");
+
+    mockMvc.perform(post("/api/artifacts")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validArtifactRequest(
+                            siteId,
+                            "New Test Artifact")))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.artifactId").isNumber())
+            .andExpect(jsonPath("$.data.siteId").value(siteId))
+            .andExpect(jsonPath("$.data.siteName")
+                    .value("Create Artifact Test Site"))
+            .andExpect(jsonPath("$.data.name").value("New Test Artifact"))
+            .andExpect(jsonPath("$.data.description")
+                    .value("Test artifact description"))
+            .andExpect(jsonPath("$.timestamp").isString())
+            .andExpect(jsonPath("$.path").value("/api/artifacts"))
+            .andExpect(jsonPath("$.errors").value(
+                    org.hamcrest.Matchers.nullValue()));
+}
+
+@Test
+void anonymousShouldNotCreateArtifact() throws Exception {
+    mockMvc.perform(post("/api/artifacts")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                            {
+                                "siteId": 1,
+                                "name": "Anonymous Artifact",
+                                "description": "Unauthorized creation attempt"
+                            }
+                            """))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.message").isString())
+            .andExpect(jsonPath("$.data").value(
+                    org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$.timestamp").isString())
+            .andExpect(jsonPath("$.path").value("/api/artifacts"))
+            .andExpect(jsonPath("$.errors").value(
+                    org.hamcrest.Matchers.nullValue()));
+}
+
 }

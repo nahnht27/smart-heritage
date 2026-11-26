@@ -19,6 +19,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+//LTJ-68
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(properties = {
@@ -379,4 +380,183 @@ class MultimediaControllerTest extends ContentApiTestSupport {
                         .header("Authorization", "Bearer " + visitorToken))
                 .andExpect(status().isForbidden());
     }
+
+//LTJ-68
+@Test
+void createMultimediaShouldRejectNonPositiveArtifactId() throws Exception {
+    String token = createAdminToken();
+
+    mockMvc.perform(post("/api/multimedia")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                            {
+                                "artifactId": 0,
+                                "type": "IMAGE",
+                                "title": "Invalid Artifact",
+                                "url": "https://example.com/image.jpg"
+                            }
+                            """))
+            .andExpect(status().isBadRequest());
+}
+
+@Test
+void createMultimediaShouldRejectTypeLongerThanTwentyCharacters() throws Exception {
+    String token = createAdminToken();
+    int siteId = createSite(token, "Type Length Validation Site");
+    int artifactId = createArtifact(token, siteId, "Type Length Validation Artifact");
+
+    String longType = "X".repeat(21);
+
+    mockMvc.perform(post("/api/multimedia")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                            {
+                                "artifactId": %d,
+                                "type": "%s",
+                                "title": "Valid Title",
+                                "url": "https://example.com/image.jpg"
+                            }
+                            """.formatted(artifactId, longType)))
+            .andExpect(status().isBadRequest());
+}
+
+@Test
+void createMultimediaShouldRejectTitleLongerThanTwoHundredFiftyFiveCharacters() throws Exception {
+    String token = createAdminToken();
+    int siteId = createSite(token, "Title Length Validation Site");
+    int artifactId = createArtifact(token, siteId, "Title Length Validation Artifact");
+
+    String longTitle = "T".repeat(256);
+
+    mockMvc.perform(post("/api/multimedia")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                            {
+                                "artifactId": %d,
+                                "type": "IMAGE",
+                                "title": "%s",
+                                "url": "https://example.com/image.jpg"
+                            }
+                            """.formatted(artifactId, longTitle)))
+            .andExpect(status().isBadRequest());
+}
+
+
+@Test
+void adminShouldNotUpdateMultimediaWhenArtifactDoesNotExist() throws Exception {
+    String token = createAdminToken();
+    int siteId = createSite(token, "Missing Artifact Update Site");
+    int artifactId = createArtifact(token, siteId, "Original Artifact");
+    int multimediaId = createMultimedia(token, artifactId, "Original Multimedia");
+
+    mockMvc.perform(put("/api/multimedia/{multimediaId}", multimediaId)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                            {
+                                "artifactId": 999999,
+                                "type": "VIDEO",
+                                "title": "Changed Multimedia",
+                                "url": "https://example.com/changed.mp4"
+                            }
+                            """))
+            .andExpect(status().isNotFound());
+
+    mockMvc.perform(get("/api/multimedia/{multimediaId}", multimediaId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.artifactId").value(artifactId))
+            .andExpect(jsonPath("$.data.title").value("Original Multimedia"));
+}
+
+@Test
+void adminShouldNotUpdateUnknownMultimedia() throws Exception {
+    String token = createAdminToken();
+    int siteId = createSite(token, "Unknown Multimedia Update Site");
+    int artifactId = createArtifact(token, siteId, "Existing Artifact");
+
+    mockMvc.perform(put("/api/multimedia/{multimediaId}", 999999)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                            {
+                                "artifactId": %d,
+                                "type": "VIDEO",
+                                "title": "Updated Title",
+                                "url": "https://example.com/video.mp4"
+                            }
+                            """.formatted(artifactId)))
+            .andExpect(status().isNotFound());
+}
+
+@Test
+void adminShouldCreateMultimedia() throws Exception {
+    String token = createAdminToken();
+    int siteId = createSite(token, "Create Multimedia Site");
+    int artifactId = createArtifact(token, siteId, "Create Multimedia Artifact");
+
+    mockMvc.perform(post("/api/multimedia")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validMultimediaRequest(
+                            artifactId,
+                            "Created Multimedia")))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.multimediaId").isNumber())
+            .andExpect(jsonPath("$.data.artifactId").value(artifactId))
+            .andExpect(jsonPath("$.data.artifactName")
+                    .value("Create Multimedia Artifact"))
+            .andExpect(jsonPath("$.data.type").value("IMAGE"))
+            .andExpect(jsonPath("$.data.title").value("Created Multimedia"))
+            .andExpect(jsonPath("$.data.url")
+                    .value("https://example.com/heritage-image.jpg"))
+            .andExpect(jsonPath("$.timestamp").exists())
+            .andExpect(jsonPath("$.path").value("/api/multimedia"))
+            .andExpect(jsonPath("$.errors").value(org.hamcrest.Matchers.nullValue()));
+}
+
+@Test
+void anonymousShouldNotCreateMultimedia() throws Exception {
+    mockMvc.perform(post("/api/multimedia")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                            {
+                                "artifactId": 1,
+                                "type": "IMAGE",
+                                "title": "Unauthorized Multimedia",
+                                "url": "https://example.com/image.jpg"
+                            }
+                            """))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.message").exists())
+            .andExpect(jsonPath("$.data").value(
+                    org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$.timestamp").exists())
+            .andExpect(jsonPath("$.path").value("/api/multimedia"))
+            .andExpect(jsonPath("$.errors").value(
+                    org.hamcrest.Matchers.nullValue()));
+}
+
+@Test
+void adminShouldNotDeleteUnknownMultimedia() throws Exception {
+    String token = createAdminToken();
+
+    mockMvc.perform(delete("/api/multimedia/{multimediaId}", 999999)
+                    .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.message").exists())
+            .andExpect(jsonPath("$.data").value(
+                    org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$.timestamp").exists())
+            .andExpect(jsonPath("$.path")
+                    .value("/api/multimedia/999999"))
+            .andExpect(jsonPath("$.errors").value(
+                    org.hamcrest.Matchers.nullValue()));
+}
+
 }
