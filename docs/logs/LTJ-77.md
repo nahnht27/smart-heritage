@@ -244,3 +244,89 @@ changes and passed, leaving 12/12 green.
 Combined PR review and M4 dependency review remain pending.
 Final release approval also requires E2E acceptance.
 The Windows locale limitation remains unchanged.
+
+## Finalization update (2026-11-26)
+
+The historical results above are preserved unchanged.
+
+### Windows Dashboard locale regression
+
+Root cause:
+
+- All nine failures were `DashboardPage` tests asserting the literal text
+  `1,420`.
+- `DashboardPage` formats counts with locale-aware `toLocaleString()`.
+  Under `vi-VN`, 1420 renders as `1.420`.
+- There is no fixed-formatting-locale requirement in the repository and no
+  runtime UI language selector. `preferredLanguageId` is stored but is not used
+  to select content or formatting. The dashboard therefore follows the
+  runtime/browser locale.
+- The tests hardcoded an `en-US` result; product behavior was not the defect.
+
+Correction:
+
+- Added `frontend/src/utils/numberFormat.ts` with
+  `formatCount(value, locale?)`, defaulting to the runtime locale.
+- `DashboardPage` now uses `formatCount` for all displayed counts.
+- `DashboardPage` tests derive the expected total from `formatCount(1420)`.
+- Added explicit formatter coverage for `en-US` (`1,420`) and
+  `vi-VN` (`1.420`).
+- No `Number.prototype` monkey-patching, no skipped tests and no deleted or
+  weakened assertions.
+
+Validation:
+
+- Linux locale simulation with `LANG=vi_VN.UTF-8` reproduced the Windows
+  failure exactly: `DashboardPage.test.tsx` 6 passed / 9 failed (15 total).
+- Targeted `DashboardPage` + `numberFormat` tests: 18/18 passed under both
+  `en-US` and `vi-VN`, exit 0.
+- Full frontend suite: 20 files, 165/165 passed under both `en-US` and
+  `vi-VN`, exit 0. Runs were sequential; concurrent Vitest processes produced
+  unrelated fixture contention and are not used as evidence.
+- ESLint: PASS. `tsc -b && vite build`: PASS (60 modules).
+- Native Windows 11 was not available and was not rerun. The Linux `vi-VN`
+  result is a locale simulation, not native Windows validation.
+
+### Dependency review and M4
+
+- The M4 GitHub login is `nahnht27`, verified from the M4-labelled PRs
+  #28, #29, #30, #35, #40, #41 and #44 (admin, analytics, beacon,
+  translations/feedback), not from a display name.
+- A review request was submitted to `nahnht27` on PR #46. No review decision
+  or approval was manufactured.
+- Lockfile-only changes: 19 resolved entries. `frontend/package.json` is
+  unchanged. No `--force` was used.
+- `npm ci`: 265 packages, 0 vulnerabilities.
+- `npm audit`: 0 vulnerabilities; `npm audit --omit=dev`: 0 vulnerabilities.
+- `npm ls --all`: exit 0, no invalid peers; only normal optional platform
+  gaps (`fsevents`, other-OS binaries, optional Vite integrations).
+- `follow-redirects` 1.16.1 -> 1.16.3; `minimatch` 10.2.6 -> 11.0.9;
+  `eslint` 10.12.0 -> 10.15.0; `typescript-eslint` 8.71.2 -> 8.74.0;
+  `brace-expansion` 5.0.12 -> 5.1.0; `@isaacs/nonrecursive-glob-match`
+  1.1.0 added as a dev transitive dependency of minimatch 11.
+- No direct dependency, framework or application toolchain was changed.
+
+### Full-stack acceptance
+
+- Local Docker Compose was not executable: the Docker daemon is inactive,
+  `/var/run/docker.sock` is absent, and starting it requires a sudo password.
+- CI `integration-smoke` covers public API health/content and the
+  anonymous negative path only. CI `production-smoke` covers production
+  packaging, SPA fallback, proxy and port exposure.
+- Real-browser admin login/session, protected routes, CRUD, beacon resolution,
+  analytics visibility, CSV export and browser-to-backend integration remain
+  **NOT VERIFIED**.
+- Physical BLE and real-device multimedia acceptance remain blocked by
+  hardware or require human acceptance.
+- Owner/evidence tracking:
+  `docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
+
+### Preserved evidence
+
+- JWT regression 4/4; backend 159/159; PostgreSQL 72/72.
+- k6: 5 scenarios, 1,928 requests, 2,228/2,228 checks, 0% HTTP errors.
+  The legacy `--summary-export` threshold interpretation is unchanged;
+  original k6 process exit codes were not retained; Docker monitoring
+  concurrency remains unconfirmed.
+- Gitleaks: 1 reviewed false positive, 0 confirmed real secrets, exit code 1.
+- Final CI for this update is recorded in PR #46 and in the final report.

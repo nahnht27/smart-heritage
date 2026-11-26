@@ -119,3 +119,33 @@ artifacts.
   and PR-triggered run 45648883631 both 12/12 green. The PR run
   had one transient Maven Central 429 in `integration-smoke`;
   the job was rerun without code changes and passed.
+
+## Finalization update (2026-11-26)
+
+The raw performance artifacts and historical results above are preserved.
+
+- Dashboard locale regression: all nine Windows failures were hardcoded
+  `1,420` assertions. The dashboard uses runtime-locale formatting, so
+  `vi-VN` renders `1.420`. Tests now derive the expected total from the
+  shared `formatCount` helper, with explicit `en-US` and `vi-VN` coverage.
+  Product behavior was not changed.
+- Linux `LANG=vi_VN.UTF-8` reproduced the nine failures before the fix.
+  After the fix: targeted 18/18 and full frontend 20 files / 165 tests under
+  both `en-US` and `vi-VN`; ESLint and production build passed. Native
+  Windows was not available and is not reported as PASS.
+- Dependency revalidation: 19 lockfile entries, `package.json` unchanged,
+  `npm ci` 265 packages / 0 vulnerabilities, audits 0/0, `npm ls --all`
+  exit 0 with no invalid peers. M4 owner `nahnht27` was verified from
+  M4-labelled PRs; review was requested and no approval is claimed.
+- k6 evidence was not rerun or reinterpreted. The five scenarios still show
+  1,928 requests, 2,228/2,228 checks and 0% HTTP errors. All legacy
+  `--summary-export` threshold entries remain `false`; original process exit
+  codes were not retained; Docker monitoring concurrency remains unconfirmed.
+- Local Compose full-stack acceptance was blocked: Docker daemon inactive,
+  no socket and sudo requires a password. CI public/production smoke remains
+  packaging/API evidence only. Browser admin flows, beacon resolution,
+  analytics visibility, physical BLE and real-device multimedia remain
+  unverified or require human acceptance.
+- Full-stack checklist:
+  `docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
+- Final CI for this update is recorded in PR #46 and the final report.

@@ -336,3 +336,67 @@ Overall release approval remains pending:
 
 The synchronized CI is green, but it does not constitute release
 approval and does not remove the limitations above.
+
+## 15. Finalization Update (2026-11-26)
+
+The historical performance and CI results above are preserved.
+
+### 15.1 Windows Dashboard locale regression
+
+All nine Windows failures were the same hardcoded assertion: the test expected
+`1,420`, while `DashboardPage` uses runtime-locale `toLocaleString()` and
+`vi-VN` renders `1.420`. There is no fixed-locale requirement or runtime UI
+language selector, so runtime-locale formatting is the intended behavior.
+
+The tests now derive the expected total from the shared `formatCount` helper;
+explicit `en-US` and `vi-VN` formatter tests were added. Product behavior was
+not changed.
+
+- Linux `LANG=vi_VN.UTF-8` reproduced 6 passed / 9 failed before the fix.
+- Targeted Dashboard + formatter: 18/18 passed under both locales.
+- Full frontend: 20 files, 165/165 passed under both locales.
+- ESLint and production build passed.
+- Native Windows was not available and is not reported as PASS.
+
+### 15.2 Dependency and M4 review
+
+- 19 lockfile entries changed; `frontend/package.json` unchanged; no `--force`.
+- `npm ci`: 265 packages, 0 vulnerabilities.
+- `npm audit` and `npm audit --omit=dev`: 0 vulnerabilities each.
+- `npm ls --all`: exit 0, no invalid peers; only expected optional platform
+  gaps.
+- `follow-redirects` 1.16.1 -> 1.16.3; `minimatch` 10.2.6 -> 11.0.9;
+  `eslint` 10.12.0 -> 10.15.0; `typescript-eslint` 8.71.2 -> 8.74.0.
+- M4 owner `nahnht27` was verified from M4-labelled PRs #28, #29, #30, #35,
+  #40, #41 and #44. Review was requested on PR #46; no review decision was
+  manufactured and no approval is claimed.
+
+### 15.3 Runtime acceptance limits
+
+Local Docker Compose could not be executed: the Docker daemon is inactive,
+`/var/run/docker.sock` is absent, and sudo requires a password. CI
+`integration-smoke` and `production-smoke` cover public API and production
+packaging only.
+
+Real-browser admin login/session, protected routes, CRUD persistence, beacon
+resolution, analytics visibility, CSV export and browser-to-backend integration
+remain **NOT VERIFIED**. Physical BLE and real-device multimedia remain
+blocked/require human acceptance. See
+`docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
+
+### 15.4 Performance evidence unchanged
+
+The five k6 scenarios were not rerun or reinterpreted:
+
+- 1,928 requests; 2,228/2,228 checks; 0% HTTP errors; maximum 10 VUs.
+- All legacy `--summary-export` threshold entries remain `false`.
+- Original k6 process exit codes were not retained.
+- Docker resource monitoring concurrency with k6 remains unconfirmed.
+- No Prometheus, Grafana, OpenTelemetry or Kubernetes stack was added.
+
+### 15.5 Final recommendation
+
+QA recommendation for the tested scope remains **PASS WITH LIMITATIONS**.
+Final merge/release approval remains with M1 and is still conditional on M4
+review, full-stack browser acceptance, physical BLE/multimedia acceptance and
+risk acceptance for documented limitations.

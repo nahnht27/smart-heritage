@@ -541,3 +541,109 @@ No screenshots or fabricated execution results are included.
 The final synchronized CI evidence is run 45646351477 on
 merge commit `1748a92`. Windows remains a documented
 limitation and is not reported as PASS.
+
+## 12. Finalization Update (2026-11-26)
+
+The historical evidence above is preserved unchanged.
+
+### 12.1 Windows Dashboard locale regression — resolved
+
+All nine failures were the same assertion category: the test expected the
+literal text `1,420`, while `DashboardPage` formats counts with locale-aware
+`toLocaleString()`. Under `vi-VN`, 1420 is `1.420`.
+
+No repository requirement mandates a fixed formatting locale. The Admin Web
+has no runtime UI language selector; `preferredLanguageId` is stored but is not
+used to select content or formatting. Runtime/browser-locale formatting is the
+intended current behavior, so the hardcoded assertion was the defect.
+
+Correction:
+
+- Added `frontend/src/utils/numberFormat.ts` (`formatCount(value, locale?)`)
+  with runtime locale as the default.
+- Replaced the five count-formatting calls in `DashboardPage` with
+  `formatCount`.
+- `DashboardPage` tests compute the expected total with `formatCount(1420)`.
+- Added explicit formatter regression tests:
+  `formatCount(1420, 'en-US') === '1,420'` and
+  `formatCount(1420, 'vi-VN') === '1.420'`.
+
+No `Number.prototype.toLocaleString` monkey-patch, no skipped tests and no
+weakened/deleted assertions were used.
+
+Validation:
+
+| Run | Result |
+|---|---|
+| Linux `LANG=vi_VN.UTF-8`, before fix | `DashboardPage` 6 passed / 9 failed (15 total); reproduced all nine |
+| Targeted Dashboard + formatter, `en-US` | 18/18 passed, exit 0 |
+| Targeted Dashboard + formatter, `vi-VN` | 18/18 passed, exit 0 |
+| Full frontend, `en-US` | 20 files, 165/165 passed, exit 0 |
+| Full frontend, `vi-VN` | 20 files, 165/165 passed, exit 0 |
+| ESLint | PASS |
+| `tsc -b && vite build` | PASS, 60 modules |
+
+Native Windows 11 was not available. The Linux `vi-VN` run is a locale
+simulation and is not reported as native Windows validation. Concurrent
+Vitest processes produced unrelated fixture failures and are not used as
+evidence; the counts above are from isolated sequential runs.
+
+### 12.2 M4 dependency review
+
+The M4 GitHub login is `nahnht27`, verified from M4-labelled PRs #28, #29,
+#30, #35, #40, #41 and #44 (admin, analytics, beacon, translations/feedback).
+The identity was not inferred from a display name.
+
+A review request was submitted to `nahnht27` on PR #46. At the time of this
+update no M4 review decision exists, so M4 approval is still not claimed.
+
+Dependency revalidation:
+
+- Lockfile entries changed: 19; `frontend/package.json`: unchanged.
+- `npm ci`: 265 packages, 0 vulnerabilities.
+- `npm audit`: 0 vulnerabilities.
+- `npm audit --omit=dev`: 0 vulnerabilities.
+- `npm ls --all`: exit 0, no invalid peers; only normal optional platform
+  gaps.
+- No `--force`; no direct framework/toolchain change.
+- `follow-redirects` 1.16.1 -> 1.16.3.
+- `minimatch` 10.2.6 -> 11.0.9.
+- `eslint` 10.12.0 -> 10.15.0; `typescript-eslint` 8.71.2 -> 8.74.0.
+- `brace-expansion` 5.0.12 -> 5.1.0; `@isaacs/nonrecursive-glob-match`
+  1.1.0 added as a dev transitive dependency of minimatch 11.
+
+### 12.3 Full-stack acceptance
+
+Local Docker Compose could not be executed: the Docker daemon is inactive,
+`/var/run/docker.sock` is absent, and starting it requires a sudo password.
+
+CI `integration-smoke` verifies public health/content APIs and the anonymous
+negative path. CI `production-smoke` verifies production Compose packaging,
+SPA fallback, `/api` proxy and port exposure. These do not verify real-browser
+admin workflows or physical-device behavior.
+
+| Scenario | Status |
+|---|---|
+| Public API smoke | Verified by CI |
+| Production packaging/proxy/port exposure | Verified by CI |
+| Admin login/session in a real browser | Not verified |
+| Protected admin routes | Not verified |
+| Heritage/artifact CRUD persistence | Not verified |
+| Beacon resolution and visitor interaction | Not verified |
+| Analytics visibility against real API | Not verified |
+| Browser-to-backend API integration | Not verified |
+| Physical BLE | Blocked by physical hardware |
+| Real-device multimedia | Requires human acceptance |
+
+Owner/evidence requirements:
+`docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
+
+### 12.4 Preserved security evidence
+
+- JWT 4/4; backend 159/159; PostgreSQL 72/72.
+- k6: 5 scenarios, 1,928 requests, 2,228/2,228 checks, 0% HTTP errors;
+  legacy threshold interpretation unchanged; original exit codes not retained;
+  Docker monitoring concurrency unconfirmed.
+- Gitleaks: 1 reviewed documentation false positive, 0 confirmed real secrets,
+  raw exit code 1.
+- Final CI for this update is recorded in PR #46 and the final report.

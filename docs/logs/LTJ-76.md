@@ -95,3 +95,29 @@ The historical LTJ-76 baseline above is preserved unchanged.
 The npm audit limitation in the historical section is superseded
 by the LTJ-77 remediation; the original observation is retained
 for traceability.
+
+## Finalization update (2026-11-26)
+
+The historical security results above are preserved unchanged.
+
+- Dashboard locale failures were isolated to nine hardcoded `1,420`
+  assertions in `DashboardPage.test.tsx`. The dashboard intentionally uses
+  runtime-locale formatting, so `vi-VN` renders `1.420`. Tests now derive the
+  expected value from the shared `formatCount` helper; explicit `en-US` and
+  `vi-VN` coverage was added. Product locale behavior was not changed.
+- Reproduced on Linux with `LANG=vi_VN.UTF-8`: 6 passed / 9 failed before the
+  fix. After the fix: targeted Dashboard/formatter 18/18, full frontend
+  20 files / 165 tests in both `en-US` and `vi-VN`. Native Windows was not
+  available and is not claimed as PASS.
+- M4 owner `nahnht27` was verified from M4-labelled PRs #28, #29, #30, #35,
+  #40, #41 and #44. Review was requested; no approval is claimed.
+- Dependency revalidation: 19 lockfile entries, `package.json` unchanged,
+  `npm ci` 265 packages / 0 vulnerabilities, both audits 0/0,
+  `npm ls --all` exit 0 with only optional platform gaps.
+- Local full-stack Compose remained blocked by the inactive Docker daemon and
+  unavailable sudo access. Browser admin flows, beacon resolution, analytics
+  visibility and physical BLE/multimedia acceptance remain unverified or
+  require human acceptance. See
+  `docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
+- JWT 4/4, backend 159/159, PostgreSQL 72/72, k6 metrics and Gitleaks
+  false-positive evidence remain unchanged.
