@@ -19,7 +19,9 @@ Trạng thái:
   credentials production.
 - CI production smoke: job `production-smoke` build và chạy stack ephemeral,
   kiểm tra Nginx/SPA/proxy/health.
-- Mobile native build/signing và thiết bị BLE thật vẫn là **PENDING**.
+-   Mobile identity/EAS demo config đã sẵn sàng (`com.university.smartheritage`),
+  APK native demo build/signing/verify đã **PASS** (local Docker builder), thiết bị
+  BLE thật vẫn là **PENDING**.
 
 ## 2. Kiến trúc release
 
@@ -207,7 +209,8 @@ Không phải blocker cho staging/demo, nhưng cần biết trước production 
 - Chưa có rate limit/lockout cho login.
 - CSP và HSTS chưa đặt trong container; TLS reverse proxy bên ngoài chịu trách
   nhiệm HSTS. Nginx master process vẫn chạy root mặc định của image.
-- Chưa có EAS project/signing cho mobile store build.
+- Chưa có EAS project/signing cho mobile store build; đã chạy APK demo local qua
+  Docker builder và verify package/permissions/checksum, chưa ký store.
 - Chưa xác minh BLE beacon, media playback và iOS trên thiết bị thật.
 - UI E2E trình duyệt/emulator thật vẫn PENDING.
 - Không có monitoring/alerting tập trung trong phạm vi M1.
@@ -233,3 +236,7 @@ Không phải blocker cho staging/demo, nhưng cần biết trước production 
 - [CI/CD](../development/ci-cd.md)
 - [Schema baseline](../database/schema-baseline.md)
 - [M3 iBeacon mobile integration](../features/ibeacon-mobile-integration.md)
+- [Mobile Android demo build](../deployment/mobile-android-release.md)
+- [LTJ-70 physical beacon acceptance](../logs/LTJ-70.md)
+- [LTJ-71 real-device multimedia acceptance](../logs/LTJ-71.md)
+- [LTJ-72 Android release preparation](../logs/LTJ-72.md)
