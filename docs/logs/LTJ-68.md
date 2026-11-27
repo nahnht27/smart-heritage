@@ -226,3 +226,52 @@ Chỉ kết luận hoàn thành sau khi các nội dung còn lại được ki�
 Các trường hợp bổ sung:
 - ADMIN tạo Artifact thành công; kiểm tra dữ liệu trả về và cấu trúc đủ 6 trường `ApiResponse`.
 - Người dùng chưa đăng nhập tạo Artifact bị từ chối với HTTP 401; kiểm tra cấu trúc đủ 6 trường `ApiResponse`.
+
+### Bổ sung — Kiểm thử tích hợp CORS cho Frontend
+
+**Phạm vi kiểm tra:** `CorsIntegrationTest`, `SecurityConfig` và cấu hình CORS trong môi trường test.
+
+Các trường hợp kiểm thử được bổ sung:
+
+- Expo Web origin (`http://localhost:8081`) được phép gửi preflight request.
+- Admin Web origin (`http://localhost:5173`) được kiểm tra với các phương thức PUT và DELETE.
+- Kiểm tra CORS không cho phép credentials.
+- Kiểm tra header `Accept` được chấp nhận trong preflight request.
+- Kiểm tra các header `Authorization`, `Content-Type` và `Accept` đối với Expo Web origin.
+
+**Cấu hình kiểm thử:**
+
+- Bổ sung `app.cors.allowed-origins` trong `application-test.yml`.
+- Khai báo rõ hai origin được phép trong cấu hình `@SpringBootTest` của `CorsIntegrationTest`.
+- Giữ nguyên các cấu hình H2, JPA, Flyway và JWT hiện có trong môi trường test.
+
+**Kết quả kiểm thử CORS:**
+
+- Lớp kiểm thử: `CorsIntegrationTest`.
+- Tổng số test: 11.
+- Failures: 0.
+- Errors: 0.
+- Skipped: 0.
+- Kết quả: `BUILD SUCCESS`.
+
+### Bổ sung — Kiểm thử hồi quy toàn bộ Backend
+
+Đã chạy toàn bộ bộ kiểm thử Backend bằng Docker với Maven 3.9.6 và Eclipse Temurin 17.
+
+**Kết quả:**
+
+| Chỉ tiêu | Kết quả |
+|---|---:|
+| Tổng số test | 187 |
+| Failures | 0 |
+| Errors | 0 |
+| Skipped | 0 |
+| Build | BUILD SUCCESS |
+- Thời gian thực hiện: 1 phút 56 giây.
+
+
+**Kết luận kiểm tra:**
+
+Toàn bộ 187 kiểm thử Backend trong lần chạy này đều thành công. Kết quả xác nhận các thay đổi hiện tại không làm phát sinh lỗi trong bộ kiểm thử hồi quy được thực thi.
+
+**Phạm vi bằng chứng:** Đây là kết quả của một lần chạy toàn bộ Backend test suite tại thời điểm nêu trên. Không cộng số lượng 187 test với các lần chạy riêng lẻ trước đó để tạo thành tổng số test duy nhất. Kết quả này chưa thay thế việc đối chiếu đầy đủ hợp đồng API và các nội dung nghiệm thu còn lại của S6-M2-02, S6-M2-03.
