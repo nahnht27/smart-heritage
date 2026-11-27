@@ -308,16 +308,22 @@ Validation:
 
 ### Full-stack acceptance
 
-- Local Docker Compose was not executable: the Docker daemon is inactive,
-  `/var/run/docker.sock` is absent, and starting it requires a sudo password.
-- CI `integration-smoke` covers public API health/content and the
-  anonymous negative path only. CI `production-smoke` covers production
-  packaging, SPA fallback, proxy and port exposure.
-- Real-browser admin login/session, protected routes, CRUD, beacon resolution,
-  analytics visibility, CSV export and browser-to-backend integration remain
-  **NOT VERIFIED**.
-- Physical BLE and real-device multimedia acceptance remain blocked by
-  hardware or require human acceptance.
+- Local Docker Compose was not executable in this agent environment: the
+  Docker daemon is inactive, `/var/run/docker.sock` is absent, and starting it
+  requires a sudo password.
+- S6-M5-01 subsequently executed manual full-stack E2E on Windows 11 using an
+  isolated Compose project. It verified Admin authentication and management
+  access; heritage site, artifact, multimedia and beacon creation; beacon
+  resolve; visitor interaction persistence; analytics/dashboard/CSV agreement;
+  the Android Emulator build, artifact list/search/detail and IMAGE rendering.
+  Evidence: `docs/testing/S6-M5-01-e2e-acceptance-report.md`.
+- Protected-route denial, edit/delete CRUD persistence, error/offline
+  resilience, favorite/history and feedback persistence and post-run cleanup
+  remain **NOT VERIFIED**. Physical BLE, physical-device media and audio/video
+  playback remain unverified or require human acceptance.
+- CI `integration-smoke` covers public API health/content and the anonymous
+  negative path; `production-smoke` covers packaging, SPA fallback, proxy and
+  port exposure. They are not a substitute for the E2E evidence.
 - Owner/evidence tracking:
   `docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
 

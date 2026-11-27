@@ -114,10 +114,15 @@ The historical security results above are preserved unchanged.
 - Dependency revalidation: 19 lockfile entries, `package.json` unchanged,
   `npm ci` 265 packages / 0 vulnerabilities, both audits 0/0,
   `npm ls --all` exit 0 with only optional platform gaps.
-- Local full-stack Compose remained blocked by the inactive Docker daemon and
-  unavailable sudo access. Browser admin flows, beacon resolution, analytics
-  visibility and physical BLE/multimedia acceptance remain unverified or
-  require human acceptance. See
+- Local full-stack Compose remained blocked in the agent environment by the
+  inactive Docker daemon and unavailable sudo access. S6-M5-01 separately
+  executed manual E2E on Windows 11 and verified Admin authentication,
+  creation flows, beacon resolve, interaction persistence, analytics/CSV
+  agreement and Android Emulator image display. Physical BLE,
+  physical-device/audio-video media, favorite/history and feedback persistence
+  remain unverified; protected routes, edit/delete CRUD, offline resilience and
+  cleanup were not evidenced. See
+  `docs/testing/S6-M5-01-e2e-acceptance-report.md` and
   `docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
 - JWT 4/4, backend 159/159, PostgreSQL 72/72, k6 metrics and Gitleaks
   false-positive evidence remain unchanged.

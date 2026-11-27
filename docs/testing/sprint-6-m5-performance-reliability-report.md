@@ -373,15 +373,19 @@ not changed.
 
 ### 15.3 Runtime acceptance limits
 
-Local Docker Compose could not be executed: the Docker daemon is inactive,
-`/var/run/docker.sock` is absent, and sudo requires a password. CI
-`integration-smoke` and `production-smoke` cover public API and production
-packaging only.
+Local Docker Compose could not be executed in this agent environment: the
+Docker daemon is inactive, `/var/run/docker.sock` is absent, and sudo requires
+a password. CI `integration-smoke` and `production-smoke` cover public API and
+production packaging only.
 
-Real-browser admin login/session, protected routes, CRUD persistence, beacon
-resolution, analytics visibility, CSV export and browser-to-backend integration
-remain **NOT VERIFIED**. Physical BLE and real-device multimedia remain
-blocked/require human acceptance. See
+S6-M5-01 later executed manual full-stack E2E on Windows 11 with an isolated
+Compose project. It verified Admin authentication, creation flows, beacon
+resolve, interaction persistence, analytics/dashboard/CSV agreement and
+Android Emulator image display. Protected-route denial, edit/delete CRUD,
+error/offline resilience, favorite/history and feedback persistence and
+post-run cleanup were not evidenced. Physical BLE, physical-device media and
+audio/video playback remain unverified or require human acceptance. See
+`docs/testing/S6-M5-01-e2e-acceptance-report.md` and
 `docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
 
 ### 15.4 Performance evidence unchanged
@@ -414,5 +418,6 @@ PR #46.
 
 QA recommendation for the tested scope remains **PASS WITH LIMITATIONS**.
 Final merge/release approval remains with M1 and is still conditional on M4
-review, full-stack browser acceptance, physical BLE/multimedia acceptance and
-risk acceptance for documented limitations.
+review, acceptance of the documented E2E limitations (physical BLE,
+physical-device/audio-video media, favorite/history and feedback persistence),
+and risk acceptance for the remaining findings.

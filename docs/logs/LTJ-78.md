@@ -141,11 +141,16 @@ The raw performance artifacts and historical results above are preserved.
   1,928 requests, 2,228/2,228 checks and 0% HTTP errors. All legacy
   `--summary-export` threshold entries remain `false`; original process exit
   codes were not retained; Docker monitoring concurrency remains unconfirmed.
-- Local Compose full-stack acceptance was blocked: Docker daemon inactive,
-  no socket and sudo requires a password. CI public/production smoke remains
-  packaging/API evidence only. Browser admin flows, beacon resolution,
-  analytics visibility, physical BLE and real-device multimedia remain
-  unverified or require human acceptance.
+- Local Compose in this agent environment was blocked: Docker daemon inactive,
+  no socket and sudo requires a password. S6-M5-01 later executed manual E2E
+  on Windows 11 with isolated Compose and verified Admin authentication,
+  creation flows, beacon resolve, interaction persistence, analytics/CSV
+  agreement and Android Emulator image display. Evidence:
+  `docs/testing/S6-M5-01-e2e-acceptance-report.md`.
+- Physical BLE, physical-device media, audio/video playback, favorite/history
+  and feedback persistence remain unverified; protected-route denial,
+  edit/delete CRUD, error/offline resilience and post-run cleanup were not
+  evidenced.
 - Full-stack checklist:
   `docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
 

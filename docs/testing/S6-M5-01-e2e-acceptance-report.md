@@ -412,3 +412,22 @@ Final release approval remains pending:
 
 This report records observed QA evidence and does not constitute
 unconditional production release approval.
+
+## 13. Finalization addendum (2026-11-26)
+
+The historical execution evidence in sections 1–12 is preserved unchanged.
+
+- Section 10.3 describes a temporary local `en-US` formatting change used to
+  unblock the Windows test run. That change was superseded during final merge
+  conflict resolution. The merged application uses runtime-locale
+  `formatCount(value)`; tests derive the expected value from the same helper.
+- The final frontend suite is 20 files / 165 tests, passing under both
+  `en-US` and `vi-VN` on Linux. The 129-test count in section 10 is historical
+  and is not the final suite count.
+- The final 165-test suite was not rerun on native Windows. The Windows 11 E2E
+  execution above remains the evidence for the flows it records.
+- Final CI and review status are recorded on PR #46.
+- The limitations in section 11 remain in force: physical BLE,
+  physical-device and audio/video media, favorite/history and feedback
+  persistence, protected-route denial, edit/delete CRUD, offline resilience
+  and post-run cleanup are not claimed as PASS.

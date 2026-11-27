@@ -614,26 +614,31 @@ Dependency revalidation:
 
 ### 12.3 Full-stack acceptance
 
-Local Docker Compose could not be executed: the Docker daemon is inactive,
-`/var/run/docker.sock` is absent, and starting it requires a sudo password.
+Local Docker Compose could not be executed in this agent environment: the
+Docker daemon is inactive, `/var/run/docker.sock` is absent, and starting it
+requires a sudo password.
 
-CI `integration-smoke` verifies public health/content APIs and the anonymous
-negative path. CI `production-smoke` verifies production Compose packaging,
-SPA fallback, `/api` proxy and port exposure. These do not verify real-browser
-admin workflows or physical-device behavior.
+S6-M5-01 subsequently executed manual full-stack E2E on Windows 11 with an
+isolated Compose project. It verified Admin authentication, creation flows,
+beacon resolve, interaction persistence, analytics/dashboard/CSV agreement and
+Android Emulator image display. Evidence:
+`docs/testing/S6-M5-01-e2e-acceptance-report.md`.
 
 | Scenario | Status |
 |---|---|
 | Public API smoke | Verified by CI |
 | Production packaging/proxy/port exposure | Verified by CI |
-| Admin login/session in a real browser | Not verified |
-| Protected admin routes | Not verified |
-| Heritage/artifact CRUD persistence | Not verified |
-| Beacon resolution and visitor interaction | Not verified |
-| Analytics visibility against real API | Not verified |
-| Browser-to-backend API integration | Not verified |
-| Physical BLE | Blocked by physical hardware |
-| Real-device multimedia | Requires human acceptance |
+| Admin login/session in a real browser | Verified by S6-M5-01 |
+| Protected admin routes | Not fully verified |
+| Heritage site/artifact/multimedia/beacon creation | Verified by S6-M5-01 |
+| Edit/delete CRUD persistence | Not verified |
+| Beacon resolution and visitor interaction | Verified by S6-M5-01 (simulated, not physical BLE) |
+| Analytics visibility against real API | Verified by S6-M5-01 |
+| Browser-to-backend API integration | Verified by S6-M5-01 |
+| CSV export from Admin Web | Verified by S6-M5-01 |
+| Physical BLE | Not verified |
+| Physical-device/audio-video multimedia | Not verified |
+| Favorite/history and feedback persistence | Not verified |
 
 Owner/evidence requirements:
 `docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
