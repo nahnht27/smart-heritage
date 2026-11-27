@@ -8,7 +8,7 @@
 - Background scanning: **DEFERRED**. Chưa triển khai foreground service hoặc background location.
 - Native build/device verification: **CHƯA CHẠY** trong môi trường phát triển này (không có Android SDK/ADB/Gradle, không có macOS/Xcode, không có beacon vật lý). Không có kết quả phần cứng nào được khẳng định trong tài liệu này.
 - LTJ-58 bổ sung: cooldown chống ghi trùng, dừng scanner khi rời màn hình, xử lý thay đổi Bluetooth/vị trí/quyền khi đang quét. API contract backend không đổi.
-- Sprint 6: LTJ-72 đã chuẩn bị app identity `com.university.smartheritage`, EAS demo profile và hướng dẫn build APK. LTJ-70 physical beacon acceptance vẫn **NOT VERIFIED**; xem [`docs/logs/LTJ-70.md`](../logs/LTJ-70.md).
+- Sprint 6: LTJ-72 đã chuẩn bị app identity `com.university.smartheritage`, EAS demo profile và hướng dẫn build APK. Ngày 28/11/2026 LTJ-70 đạt trên Android thật với beacon giả lập (beacon phần cứng chưa kiểm chứng); xem [`docs/logs/LTJ-70.md`](../logs/LTJ-70.md). Các mục bên dưới ghi lại trạng thái tại thời điểm LTJ-58.
 
 ## 2. Mục tiêu
 

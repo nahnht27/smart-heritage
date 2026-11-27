@@ -3,6 +3,7 @@
 ## Thông tin chung
 
 - **Task:** LTJ-70 / S6-M3-01 — Physical iBeacon End-to-End Acceptance
+- **Trạng thái task:** **Hoàn thành** — td041 xác nhận ngày 28/11/2026; [CI đạt](https://github.com/nahnht27/smart-heritage/actions/runs/46071640441) trên commit `6ebc866`. Phạm vi nghiệm thu dùng beacon giả lập; beacon phần cứng chưa kiểm chứng, screenshot/video chưa đính kèm trong repo.
 - **Nhánh:** `LTJ-70`
 - **Phạm vi:** Android physical device + iBeacon thật → Resolve API → artifact detail → `BEACON_TRIGGER`; cooldown/lifecycle.
 - **Kết luận nhanh:** Ngày 28/11/2026 các tiêu chí chức năng **PASS trên điện thoại thật với beacon giả lập**. Beacon phần cứng và tắt dịch vụ Vị trí vẫn **NOT VERIFIED**; screenshot/video còn **PENDING**.
@@ -100,7 +101,8 @@ minor nào dưới 60 giây.
 
 1. Cài APK/native build lên Android phone.
 2. Dùng APK đã bake `EXPO_PUBLIC_API_BASE_URL=http://192.168.1.48:8081/api`
-   (endpoint LAN qua Windows proxy). Nếu đổi Wi-Fi/IP, phải build lại APK với URL mới.
+   (endpoint LAN qua Windows proxy). Nếu đổi Wi-Fi/IP, nhập địa chỉ mới trong app
+   tại Home → **Máy chủ** (từ bản 1.1.0).
    Không dùng `http://<LAN_IP>:8080/api` trực tiếp vì Windows chỉ bind `8080` trên
    loopback.
 3. Bật Bluetooth + Location Services; cấp `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`,
@@ -138,8 +140,7 @@ minor nào dưới 60 giây.
   `http://192.168.1.48:8081/api/health` trả `200`.
 - Nếu proxy/Windows restart, chạy lại:
   `powershell.exe -NoProfile -Command "Start-Process -FilePath 'C:\Program Files\nodejs\node.exe' -ArgumentList 'C:\Users\ADMIN\AppData\Local\Temp\smart-heritage-proxy.js' -WindowStyle Hidden"`
-- Nếu Windows Wi-Fi IP đổi, cập nhật `EXPO_PUBLIC_API_BASE_URL`, prebuild lại và build
-  APK mới.
+- Nếu Windows Wi-Fi IP đổi, nhập địa chỉ mới trong app tại Home → **Máy chủ**.
 - Cloudflared quick tunnel cũ `https://doc-sink-wallace-beverage.trycloudflare.com`
   đã hết hiệu lực (`Tunnel not found`); không dùng URL này.
 
