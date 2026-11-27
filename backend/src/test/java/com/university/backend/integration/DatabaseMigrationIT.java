@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Exercises the authoritative PostgreSQL migration paths:
  *
  * <ul>
- *   <li>an empty database is created by V1..V4;</li>
+ *   <li>an empty database is created by V1..V5;</li>
  *   <li>a non-empty database is never baselined automatically;</li>
  *   <li>current (V3), V2 and legacy V1 schemas can be adopted explicitly
  *       without losing data.</li>
@@ -55,9 +55,9 @@ class DatabaseMigrationIT {
             Flyway flyway = flyway(database.url());
             MigrateResult result = flyway.migrate();
 
-            assertEquals(4, result.migrationsExecuted);
+            assertEquals(5, result.migrationsExecuted);
             flyway.validate();
-            assertEquals("4", flyway.info().current().getVersion().getVersion());
+            assertEquals("5", flyway.info().current().getVersion().getVersion());
 
             try (Connection connection = database.connect()) {
                 assertTable(connection, "role");
@@ -127,13 +127,13 @@ class DatabaseMigrationIT {
             baseline.baseline();
 
             MigrateResult result = flyway(database.url()).migrate();
-            assertEquals(1, result.migrationsExecuted);
+            assertEquals(2, result.migrationsExecuted);
 
             try (Connection connection = database.connect()) {
                 assertCurrentData(connection);
                 assertHistory(connection, "3", "BASELINE");
                 assertHistory(connection, "4", "SQL");
-                assertEquals(2, countHistoryRows(connection));
+                assertEquals(3, countHistoryRows(connection));
                 assertColumn(connection, "visitor_interaction", "visitor_id", "uuid", false);
                 assertColumn(connection, "visitor_interaction", "beacon_id", "integer", true);
                 assertForeignKeyDeleteAction(
@@ -163,7 +163,7 @@ class DatabaseMigrationIT {
             Flyway baseline = baselined(database.url(), "2");
             baseline.baseline();
 
-            assertEquals(2, flyway(database.url()).migrate().migrationsExecuted);
+            assertEquals(3, flyway(database.url()).migrate().migrationsExecuted);
 
             try (Connection connection = database.connect()) {
                 assertV2Data(connection);
@@ -174,7 +174,7 @@ class DatabaseMigrationIT {
                 assertHistory(connection, "2", "BASELINE");
                 assertHistory(connection, "3", "SQL");
                 assertHistory(connection, "4", "SQL");
-                assertEquals(3, countHistoryRows(connection));
+                assertEquals(4, countHistoryRows(connection));
             }
         }
     }
@@ -191,7 +191,7 @@ class DatabaseMigrationIT {
             Flyway baseline = baselined(database.url(), "1");
             baseline.baseline();
 
-            assertEquals(3, flyway(database.url()).migrate().migrationsExecuted);
+            assertEquals(4, flyway(database.url()).migrate().migrationsExecuted);
 
             try (Connection connection = database.connect()) {
                 assertLegacyDataPreserved(connection);
@@ -212,7 +212,7 @@ class DatabaseMigrationIT {
                 assertHistory(connection, "2", "SQL");
                 assertHistory(connection, "3", "SQL");
                 assertHistory(connection, "4", "SQL");
-                assertEquals(4, countHistoryRows(connection));
+                assertEquals(5, countHistoryRows(connection));
             }
         }
     }
@@ -231,7 +231,7 @@ class DatabaseMigrationIT {
             Flyway baseline = baselined(database.url(), "3");
             baseline.baseline();
 
-            assertEquals(1, flyway(database.url()).migrate().migrationsExecuted);
+            assertEquals(2, flyway(database.url()).migrate().migrationsExecuted);
 
             try (Connection connection = database.connect()) {
                 assertCurrentData(connection);
@@ -260,7 +260,7 @@ class DatabaseMigrationIT {
 
                 assertHistory(connection, "3", "BASELINE");
                 assertHistory(connection, "4", "SQL");
-                assertEquals(2, countHistoryRows(connection));
+                assertEquals(3, countHistoryRows(connection));
             }
         }
     }
@@ -330,7 +330,7 @@ class DatabaseMigrationIT {
             executeSql(database, "alter table visitor_interaction "
                     + "rename constraint fk_visitor_interaction_beacon to fk_exact_beacon");
 
-            assertEquals(1, flyway(database.url()).migrate().migrationsExecuted);
+            assertEquals(2, flyway(database.url()).migrate().migrationsExecuted);
 
             try (Connection connection = database.connect()) {
                 assertExactBeaconForeignKey(connection, "fk_exact_beacon", "n");
@@ -355,7 +355,7 @@ class DatabaseMigrationIT {
                     + "add constraint fk_exact_no_action "
                     + "foreign key (beacon_id) references beacon(beacon_id)");
 
-            assertEquals(1, flyway(database.url()).migrate().migrationsExecuted);
+            assertEquals(2, flyway(database.url()).migrate().migrationsExecuted);
 
             try (Connection connection = database.connect()) {
                 assertCurrentData(connection);
@@ -417,7 +417,7 @@ class DatabaseMigrationIT {
                     + "add constraint fk_exact_wrong_action "
                     + "foreign key (beacon_id) references beacon(beacon_id)");
 
-            assertEquals(1, flyway(database.url()).migrate().migrationsExecuted);
+            assertEquals(2, flyway(database.url()).migrate().migrationsExecuted);
 
             try (Connection connection = database.connect()) {
                 assertEquals(2, queryInt(connection,
@@ -441,6 +441,45 @@ class DatabaseMigrationIT {
 
     private static Flyway targeted(String url, String target) {
         return configuration(url).target(target).load();
+    }
+
+    @Test
+    void handAddedFileColumnsAreCopiedIntoMultimediaFile() throws Exception {
+        try (Database database = Database.create("legacy_media")) {
+            configuration(database.url()).target("4").load().migrate();
+            try (Connection connection = database.connect();
+                 Statement statement = connection.createStatement()) {
+                statement.execute("insert into heritage_site (name) values ('Site')");
+                statement.execute(
+                        "insert into artifact (name, site_id) values ('Artifact', 1)");
+                statement.execute("alter table multimedia add column file_data bytea");
+                statement.execute(
+                        "alter table multimedia add column file_name varchar(255)");
+                statement.execute(
+                        "alter table multimedia add column content_type varchar(100)");
+                statement.execute("""
+                        insert into multimedia
+                            (type, url, artifact_id, file_data, file_name, content_type)
+                        values
+                            ('IMAGE', 'https://example.com/a.jpg', 1,
+                             decode('ffd8ff', 'hex'), 'a.jpg', 'image/jpeg'),
+                            ('IMAGE', 'https://example.com/b.jpg', 1, null, null, null)
+                        """);
+            }
+
+            assertEquals(1, flyway(database.url()).migrate().migrationsExecuted);
+
+            try (Connection connection = database.connect()) {
+                assertEquals(1, queryInt(connection,
+                        "select count(*) from multimedia_file"));
+                assertEquals(1, queryInt(connection, """
+                        select count(*) from multimedia_file
+                        where multimedia_id = 1 and file_size = 3
+                          and content_type = 'image/jpeg' and length(sha256) = 64
+                        """));
+                assertEquals(2, queryInt(connection, "select count(*) from multimedia"));
+            }
+        }
     }
 
     private static Flyway baselined(String url, String version) {

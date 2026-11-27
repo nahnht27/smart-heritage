@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface MultimediaRepository
         extends JpaRepository<Multimedia, Integer> {
@@ -13,6 +14,10 @@ public interface MultimediaRepository
     @Override
     @EntityGraph(attributePaths = "artifact")
     List<Multimedia> findAll();
+
+    @Override
+    @EntityGraph(attributePaths = "artifact")
+    Optional<Multimedia> findById(Integer multimediaId);
 
     @EntityGraph(attributePaths = "artifact")
     List<Multimedia> findByArtifact_ArtifactId(Integer artifactId);

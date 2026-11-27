@@ -1,13 +1,20 @@
 package com.university.backend.dto;
+
 import com.university.backend.entity.Multimedia;
 
 public class MultimediaResponse {
+
     private Integer multimediaId;
     private Integer artifactId;
     private String artifactName;
     private String type;
     private String title;
     private String url;
+    private boolean hasFileData;
+    private String fileName;
+    private String contentType;
+    private Long fileSize;
+    private String sha256;
 
     public MultimediaResponse() {
     }
@@ -28,7 +35,13 @@ public class MultimediaResponse {
     }
 
     public static MultimediaResponse fromEntity(Multimedia multimedia) {
-        return new MultimediaResponse(
+        return fromEntity(multimedia, null);
+    }
+
+    public static MultimediaResponse fromEntity(
+            Multimedia multimedia,
+            MultimediaFileInfo file) {
+        MultimediaResponse response = new MultimediaResponse(
                 multimedia.getMultimediaId(),
                 multimedia.getArtifact().getArtifactId(),
                 multimedia.getArtifact().getName(),
@@ -36,6 +49,14 @@ public class MultimediaResponse {
                 multimedia.getTitle(),
                 multimedia.getUrl()
         );
+        if (file != null) {
+            response.hasFileData = true;
+            response.fileName = file.fileName();
+            response.contentType = file.contentType();
+            response.fileSize = file.fileSize();
+            response.sha256 = file.sha256();
+        }
+        return response;
     }
 
     public Integer getMultimediaId() {
@@ -84,5 +105,25 @@ public class MultimediaResponse {
 
     public void setUrl(String url) {
         this.url = url;
+    }
+
+    public boolean getHasFileData() {
+        return hasFileData;
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public String getContentType() {
+        return contentType;
+    }
+
+    public Long getFileSize() {
+        return fileSize;
+    }
+
+    public String getSha256() {
+        return sha256;
     }
 }
