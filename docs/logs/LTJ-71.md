@@ -3,6 +3,7 @@
 ## Thông tin chung
 
 - **Task:** LTJ-71 / S6-M3-02 — Real-Device Multimedia Playback Acceptance
+- **Trạng thái task:** **Hoàn thành** — td041 xác nhận ngày 28/11/2026; [CI đạt](https://github.com/nahnht27/smart-heritage/actions/runs/46071640441) trên commit `6ebc866`. Screenshot/video chưa đính kèm trong repo.
 - **Nhánh:** `LTJ-70`
 - **Phạm vi:** audio/video playback, loading/error/retry, lifecycle khi blur/background, chuyển artifact, unmount và single-playback trên Android device.
 - **Kết luận nhanh:** Ngày 28/11/2026 mọi tiêu chí chức năng **PASS trên điện thoại thật** theo người test. Bằng chứng nộp kèm còn **PENDING**: screenshot/video.
