@@ -153,13 +153,15 @@ Không dùng `down -v` trong deploy thường vì sẽ xoá volume PostgreSQL.
 - Flyway chạy V1–V4 khi backend start; Hibernate chỉ `validate`.
 - `baseline-on-migrate=false`; database cũ phải được baseline tường minh theo
   [`schema-baseline.md`](../database/schema-baseline.md).
-- Backup trước mọi thay đổi schema:
+- Backup trước mọi thay đổi schema: quy trình S6
+  [`database-backup-restore.md`](database-backup-restore.md); quick guide
   [`backup-restore.md`](../deployment/backup-restore.md).
 - Rollback application dùng `APP_VERSION` cũ và image còn trên host.
 - Migration là forward-only; không `flyway:clean`, không sửa/xoá
   `flyway_schema_history`.
-- Nếu schema mới không tương thích code cũ, cần cửa sổ bảo trì và restore
-  backup; thao tác này destructive.
+- Nếu schema mới không tương thích code cũ, cần cửa sổ bảo trì và restore vào
+  một database mới/trống, verify rồi mới chuyển đổi; không restore đè database
+  đang phục vụ và không dùng `pg_restore --clean`.
 
 Chi tiết:
 [`release-management.md`](../deployment/release-management.md).
@@ -172,7 +174,7 @@ Chi tiết:
 |----------|---------|
 | `docker compose config --quiet` (dev) | PASS |
 | Production Compose config với `.env.production.example` | PASS |
-| YAML workflow CI parse | PASS, 8 job |
+| YAML workflow CI parse | PASS, 9 job |
 | Backend `./mvnw -B test` | PASS — 154 test |
 | Frontend lint | PASS |
 | Frontend Vitest | PASS — 104 test |
@@ -190,6 +192,7 @@ Các job bắt buộc:
 
 - `backend-test`
 - `postgres-integration`
+- `database-backup-restore`
 - `frontend-checks`
 - `mobile-tests`
 - `docker-build` (dev + production config, dev images)
@@ -205,8 +208,8 @@ Không phải blocker cho staging/demo, nhưng cần biết trước production 
 
 - Chưa có domain, DNS, TLS certificate và hạ tầng đích.
 - Chưa deploy production, chưa push image lên registry.
-- Chưa kiểm thử backup/restore trên production data thật; chỉ có quy trình và
-  kiểm chứng trước đó trên PostgreSQL disposable.
+- Chưa kiểm thử backup/restore trên production data thật; S6-M1-02 chỉ kiểm
+  chứng trên PostgreSQL 16 disposable và CI.
 - Chưa có rate limit/lockout cho login.
 - CSP và HSTS chưa đặt trong container; TLS reverse proxy bên ngoài chịu trách
   nhiệm HSTS. Nginx master process vẫn chạy root mặc định của image.
@@ -235,6 +238,7 @@ Không phải blocker cho staging/demo, nhưng cần biết trước production 
 - [Production deployment](../deployment/production-deployment.md)
 - [Release management](../deployment/release-management.md)
 - [Backup/restore](../deployment/backup-restore.md)
+- [Database backup/restore acceptance](database-backup-restore.md)
 - [CI/CD](../development/ci-cd.md)
 - [Schema baseline](../database/schema-baseline.md)
 - [M3 iBeacon mobile integration](../features/ibeacon-mobile-integration.md)

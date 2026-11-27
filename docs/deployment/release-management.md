@@ -25,8 +25,8 @@ Checklist bắt buộc:
 
 - [ ] Tất cả PR của phạm vi release đã merge vào `main`.
 - [ ] CI required checks PASS: `backend-test`, `postgres-integration`,
-      `frontend-checks`, `mobile-tests`, `docker-build`, `integration-smoke`,
-      `production-smoke`.
+      `database-backup-restore`, `frontend-checks`, `mobile-tests`,
+      `docker-build`, `integration-smoke`, `production-smoke`.
 - [ ] Backend tests PASS (`./mvnw -B test`).
 - [ ] Frontend lint + production build PASS.
 - [ ] Mobile Jest PASS (`npm ci --legacy-peer-deps && npm test -- --ci`).
@@ -56,7 +56,9 @@ Từ thư mục gốc, với `.env.production` đã cập nhật `APP_VERSION`:
 docker compose -f docker-compose.production.yml --env-file .env.production config
 
 # 2. Backup trước khi thay đổi
+#    Production Compose wrapper hoặc libpq script tuỳ môi trường:
 scripts/deployment/backup-postgres.sh
+# scripts/database/backup.sh --output-dir /var/backups/smart-heritage
 
 # 3. Build image version mới
 docker compose -f docker-compose.production.yml --env-file .env.production build
@@ -119,12 +121,12 @@ Không force-push hay sửa lịch sử Git.
 
 ### 4.3 Database rollback và restore
 
-Không chạy `flyway:clean` và không sửa/xoá `flyway_schema_history` để hạ version.
-Có hai lựa chọn:
+Không chạy `flyway:clean`, không dùng `pg_restore --clean` và không sửa/xoá
+`flyway_schema_history` để hạ version. Có hai lựa chọn:
 
 - **Forward fix**: viết migration mới tương thích với code cũ nếu có thể.
-- **Restore backup**: quay lại dump trước release khi schema mới không tương
-  thích với code cũ. Đây là thao tác destructive, cần cửa sổ bảo trì.
+- **Restore backup**: chỉ restore vào một database **mới và trống**, sau đó
+  kiểm chứng rồi mới có kế hoạch chuyển môi trường.
 
 Chỉ restore database khi:
 
@@ -133,13 +135,19 @@ Chỉ restore database khi:
 
 Quy trình:
 
-1. Dừng backend để tránh ghi dữ liệu trong lúc restore.
+1. Dừng backend để tránh ghi dữ liệu.
 2. Backup database hiện tại.
-3. Restore backup trước release vào đúng database (xem
-   [backup-restore.md](backup-restore.md)); thao tác này destructive.
-4. Khởi động lại backend version cũ với `ddl-auto=validate`.
-5. Chạy detection schema và `flyway:info`; xác nhận history khớp version cũ.
+3. Tạo database đích rỗng riêng; chạy
+   [`scripts/database/restore.sh`](../../scripts/database/restore.sh) vào database
+   đó. Script từ chối primary database và target không trống.
+4. Chạy Flyway `info`/`validate`, kiểm tra dữ liệu, rồi khởi động backend version
+   cũ với `ddl-auto=validate` trên database mới.
+5. Chỉ chuyển `SPRING_DATASOURCE_URL` sang database mới sau khi được duyệt;
+   giữ database cũ để rollback.
 6. Verify health + dữ liệu nghiệp vụ.
+
+Chi tiết: [backup-restore.md](backup-restore.md). Việc chuyển database production
+không được tự động trong M1.
 
 **Không tuyên bố rollback an toàn nếu schema thay đổi không tương thích.** Với
 thay đổi phá vỡ schema, cần cửa sổ bảo trì và kế hoạch dữ liệu rõ ràng.

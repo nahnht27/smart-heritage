@@ -45,6 +45,10 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/health").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
+
+                // Demo endpoints are for public demo assets
+                .requestMatchers(HttpMethod.GET, "/demo-media/**").permitAll() // LTJ-67
+
                 // Public read-only content (M2 contract): visitor browsing must
                 // work without a JWT. Writes stay protected by @PreAuthorize.
                 .requestMatchers(HttpMethod.GET, "/api/heritage-sites/**").permitAll()

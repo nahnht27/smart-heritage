@@ -30,7 +30,7 @@ export default function () {
             try {
                 const body = r.json();
                 return body.success === true &&
-                       body.data.artifactId === 48 &&
+                       body.data.artifactId === Number(__ENV.ARTIFACT_ID || "48") &&
                        body.data.beaconId === 1;
             } catch {
                 return false;

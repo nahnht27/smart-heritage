@@ -71,8 +71,9 @@ Nếu database đã đầy đủ V4, baseline ở 4 để bỏ qua V4.
 ## 4. Quy trình cho database đang có dữ liệu
 
 1. **Dừng backend** để không có ghi đồng thời.
-2. **Backup** theo [backup-restore.md](../deployment/backup-restore.md) và kiểm
-   tra file dump.
+2. **Backup** theo
+   [database-backup-restore.md](../sprint-6/database-backup-restore.md) và kiểm
+   tra checksum/metadata.
 3. Chạy detection SQL và ghi lại output.
 4. Kiểm tra schema thực tế theo checklist trong
    [schema-baseline.md](schema-baseline.md).
