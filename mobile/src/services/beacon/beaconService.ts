@@ -20,7 +20,12 @@ export interface BeaconPermissionResult {
 
 function getRuntimePermissions(): Permission[] {
   if (Platform.OS === 'android') {
-    const permissions: Permission[] = [PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION];
+    // Android 12+ ignores a request for precise location unless approximate
+    // location is requested in the same dialog.
+    const permissions: Permission[] = [
+      PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION,
+      PERMISSIONS.ANDROID.ACCESS_COARSE_LOCATION,
+    ];
     if (Number(Platform.Version) >= 31) {
       permissions.push(
         PERMISSIONS.ANDROID.BLUETOOTH_SCAN,

@@ -5,6 +5,7 @@ const {
 
 const REQUIRED_ANDROID_PERMISSIONS = [
   'android.permission.ACCESS_FINE_LOCATION',
+  'android.permission.ACCESS_COARSE_LOCATION',
   'android.permission.BLUETOOTH_SCAN',
   'android.permission.BLUETOOTH_CONNECT',
 ];
