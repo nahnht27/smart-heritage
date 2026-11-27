@@ -3,10 +3,10 @@
 ## Thông tin chung
 
 - **Task:** LTJ-70 / S6-M3-01 — Physical iBeacon End-to-End Acceptance
-- **Trạng thái task:** **Hoàn thành** — td041 xác nhận ngày 28/11/2026; [CI đạt](https://github.com/nahnht27/smart-heritage/actions/runs/46071640441) trên commit `6ebc866`. Phạm vi nghiệm thu dùng beacon giả lập; beacon phần cứng chưa kiểm chứng, screenshot/video chưa đính kèm trong repo.
+- **Trạng thái task:** **Hoàn thành** — td041 xác nhận ngày 28/11/2026; [CI đạt](https://github.com/nahnht27/smart-heritage/actions/runs/46071640441) trên commit `6ebc866`. Phạm vi nghiệm thu dùng beacon giả lập; beacon phần cứng chưa kiểm chứng, Video bằng chứng: [demo.mp4](../evidence/demo.mp4).
 - **Nhánh:** `LTJ-70`
 - **Phạm vi:** Android physical device + iBeacon thật → Resolve API → artifact detail → `BEACON_TRIGGER`; cooldown/lifecycle.
-- **Kết luận nhanh:** Ngày 28/11/2026 các tiêu chí chức năng **PASS trên điện thoại thật với beacon giả lập**. Beacon phần cứng và tắt dịch vụ Vị trí vẫn **NOT VERIFIED**; screenshot/video còn **PENDING**.
+- **Kết luận nhanh:** Ngày 28/11/2026 các tiêu chí chức năng **PASS trên điện thoại thật với beacon giả lập**. Beacon phần cứng và tắt dịch vụ Vị trí vẫn **NOT VERIFIED**; Video bằng chứng: [demo.mp4](../evidence/demo.mp4).
 
 > Không đánh dấu physical item là PASS nếu chưa chạy trên thiết bị thật. Unit test,
 > Docker API smoke và mock không thay thế hardware acceptance.
@@ -95,7 +95,7 @@ minor nào dưới 60 giây.
 | Quay lại beacon trong cooldown 60 giây không trigger lại | **PASS (giả lập)** | Người test xác nhận; DB chưa có sự kiện riêng của lượt thử này |
 | Tắt Bluetooth khi đang dùng quét beacon | **PASS** | Người test thấy app cảnh báo Bluetooth đang tắt và yêu cầu bật lại |
 | Pause/resume/background không duplicate/stale | **PASS (giả lập)** | Ra ngoài app vài giây rồi quay lại: không báo trùng; đổi sang minor 108 thì banner Khuê Văn Các hiện (ID 38) |
-| Log/screenshot/video đã redacted | **PENDING** | Chưa có evidence hardware |
+| Log/screenshot/video đã redacted | **PASS** | [demo.mp4](../evidence/demo.mp4): tải gói nội dung, bật quét, phát hiện Khuê Văn Các, ảnh kèm nguồn, thuyết minh, video và danh sách hiện vật. Không quay iPhone phát beacon |
 
 ## 4. Kịch bản chạy trên thiết bị
 
@@ -128,7 +128,7 @@ minor nào dưới 60 giây.
 | Backend URL | `http://192.168.1.48:8081/api` (LAN proxy) |
 | Resolve A/B response | **PASS trên thiết bị** — 106 → artifact `6`, 107 → artifact `7` |
 | `BEACON_TRIGGER` query | **PASS** — ID `28` (artifact `6`), `30` (artifact `7`) |
-| Screenshot/video path | `________________` |
+| Screenshot/video path | `docs/evidence/demo.mp4` (76 giây, quay màn hình 28/11/2026) |
 | Tester + thời gian | td041, 28/11/2026 (khoảng 03:49–04:34 giờ Việt Nam) |
 
 ## 6. Môi trường demo LAN
@@ -148,8 +148,8 @@ minor nào dưới 60 giây.
 
 **PASS (chức năng, beacon giả lập)** — quét, tra hiện vật, ghi DB, hai beacon độc lập,
 cooldown, quyền, cảnh báo Bluetooth và pause/resume đạt trên Xiaomi Note 11T Pro.
-Chưa kiểm chứng: beacon phần cứng và tắt dịch vụ Vị trí. Chưa đính kèm
-screenshot/video.
+Chưa kiểm chứng: beacon phần cứng và tắt dịch vụ Vị trí. Video bằng chứng:
+[demo.mp4](../evidence/demo.mp4).
 
 ## 8. Defect cần báo M2 nếu gặp
 
