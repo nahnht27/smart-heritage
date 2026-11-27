@@ -36,16 +36,28 @@ class GlobalExceptionHandlerTest {
         assertFalse(res.getBody().isSuccess());
         assertEquals("A beacon with the same UUID, major and minor already exists.", res.getBody().getMessage());
     }
-
+    //LTJ-68: fix for envelope test to include path and timestamp
     @Test
     void handleDataIntegrityViolation_otherConstraintReturnsInternalServerError() {
         DataIntegrityViolationException ex = new DataIntegrityViolationException(
                 "Unique index or primary key violation: \"UK_OTHER_CONSTRAINT\" ON PUBLIC.OTHER_TABLE(COLUMN)",
                 null);
-        ResponseEntity<ApiResponse<Void>> res = handler.handleDataIntegrityViolation(ex, new MockHttpServletRequest());
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/test/unexpected-error");
+
+        ResponseEntity<ApiResponse<Void>> res =
+                handler.handleDataIntegrityViolation(ex, request);
+
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, res.getStatusCode());
         assertNotNull(res.getBody());
-        assertFalse(res.getBody().isSuccess());
-        assertEquals("An unexpected error occurred", res.getBody().getMessage());
+
+        ApiResponse<Void> body = res.getBody();
+        assertFalse(body.isSuccess());
+        assertEquals("An unexpected error occurred", body.getMessage());
+        assertNull(body.getData());
+        assertNotNull(body.getTimestamp());
+        assertEquals("/test/unexpected-error", body.getPath());
+        assertNull(body.getErrors());
     }
 }

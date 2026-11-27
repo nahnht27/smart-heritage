@@ -22,6 +22,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+//LTJ-68 
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -33,6 +39,7 @@ class AuthControllerTest {
     @Autowired private UserRepository userRepository;
     @Autowired private RoleRepository roleRepository;
     @Autowired private PasswordEncoder passwordEncoder;
+    
 
     @BeforeEach
     void cleanup() { userRepository.deleteAll(); }
@@ -64,20 +71,49 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.errors", hasSize(greaterThanOrEqualTo(3))));
     }
 
-    @Test @DisplayName("Invalid email 400")
+    //LTJ-68: fix for envelope test to include path and timestamp
+    @Test
+    @DisplayName("Invalid email 400")
     void register_badEmail() throws Exception {
-        mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(new RegisterRequest("testuser", "not-an-email", "secret123"))))
-            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false));
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new RegisterRequest("testuser", "not-an-email", "secret123")
+                        )))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").isString())
+                .andExpect(jsonPath("$.data").value(
+                        org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.timestamp").isString())
+                .andExpect(jsonPath("$.path").value("/api/auth/register"))
+                .andExpect(jsonPath("$.errors").isArray());
     }
 
-    @Test @DisplayName("Duplicate username 409")
+    @Test
+    @DisplayName("Duplicate username 409")
     void register_dupUser() throws Exception {
-        mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(new RegisterRequest("dup", "dup@example.com", "secret123")))).andExpect(status().isCreated());
-        mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(new RegisterRequest("dup", "other@example.com", "secret123"))))
-            .andExpect(status().isConflict()).andExpect(jsonPath("$.success").value(false));
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new RegisterRequest("dup", "dup@example.com", "secret123")
+                        )))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new RegisterRequest("dup", "other@example.com", "secret123")
+                        )))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").isString())
+                .andExpect(jsonPath("$.data").value(
+                        org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.timestamp").isString())
+                .andExpect(jsonPath("$.path").value("/api/auth/register"))
+                .andExpect(jsonPath("$.errors").value(
+                        org.hamcrest.Matchers.nullValue()));
     }
 
     @Test @DisplayName("Duplicate email 409")
@@ -116,10 +152,92 @@ class AuthControllerTest {
             .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.message").value("Invalid username or password"));
     }
 
-    @Test @DisplayName("Profile no token 401")
+    //LTJ-68: Additional tests for JWT handling
+    @Test
+    @DisplayName("Profile no token returns complete 401 API envelope")
     void profile_noToken() throws Exception {
-        mockMvc.perform(get("/api/users/me")).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.success").value(false));
+        mockMvc.perform(get("/api/users/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").isString())
+                .andExpect(jsonPath("$.data").value(
+                        org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.timestamp").isString())
+                .andExpect(jsonPath("$.path").value("/api/users/me"))
+                .andExpect(jsonPath("$.errors").value(
+                        org.hamcrest.Matchers.nullValue()));
     }
+
+    //LTJ-68: Additional tests for JWT handling
+    @Test
+    @DisplayName("Expired JWT returns 401")
+    void expiredToken_returnsUnauthorized() throws Exception {
+        String token = Jwts.builder()
+                .subject("expireduser")
+                .issuedAt(new Date(System.currentTimeMillis() - 120_000))
+                .expiration(new Date(System.currentTimeMillis() - 60_000))
+                .signWith(Keys.hmacShaKeyFor(
+                        "TestSecretKeyThatIsAtLeast256BitsLongForHMACSHA!2024"
+                                .getBytes(StandardCharsets.UTF_8)))
+                .compact();
+
+        mockMvc.perform(get("/api/users/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("JWT with invalid signature returns 401")
+    void invalidSignature_returnsUnauthorized() throws Exception {
+        String token = Jwts.builder()
+                .subject("someuser")
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 60_000))
+                .signWith(Keys.hmacShaKeyFor(
+                        "AnotherSecretKeyThatIsAtLeast256BitsLong!2024"
+                                .getBytes(StandardCharsets.UTF_8)))
+                .compact();
+
+        mockMvc.perform(get("/api/users/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Malformed JWT returns 401")
+    void malformedToken_returnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/users/me")
+                        .header("Authorization", "Bearer not-a-valid-jwt"))
+                .andExpect(status().isUnauthorized());
+    }
+    //LTJ-68: End of additional tests for JWT handling
+
+
+    @Test
+    @DisplayName("JWT for deleted user returns 401")
+    void deletedUserToken_returnsUnauthorized() throws Exception {
+        String token = registerAndLogin(
+                "deleteduser", "deleted@example.com", "secret123");
+
+        User user = userRepository.findByUsername("deleteduser")
+                .orElseThrow();
+
+        userRepository.delete(user);
+        userRepository.flush();
+
+        mockMvc.perform(get("/api/users/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Public health endpoint accepts invalid JWT as anonymous")
+    void publicEndpoint_withInvalidToken_remainsAccessible() throws Exception {
+        mockMvc.perform(get("/api/health")
+                        .header("Authorization", "Bearer invalid-token"))
+                .andExpect(status().isOk());
+    }
+
 
     @Test @DisplayName("Profile with token 200")
     void profile_withToken() throws Exception {
@@ -179,12 +297,22 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.message").value("Malformed request body"));
     }
 
-    @Test @DisplayName("Success envelope format")
+    //LTJ-68: fix for envelope test to include path and timestamp
+    @Test
+    @DisplayName("Success envelope contains all contract fields")
     void envelope() throws Exception {
-        mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
-            .content(objectMapper.writeValueAsString(new RegisterRequest("env", "env@example.com", "secret123"))))
-            .andExpect(status().isCreated()).andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.message").isString()).andExpect(jsonPath("$.data").isMap()).andExpect(jsonPath("$.timestamp").isString());
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new RegisterRequest("env", "env@example.com", "secret123")
+                        )))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").isString())
+                .andExpect(jsonPath("$.data").isMap())
+                .andExpect(jsonPath("$.timestamp").isString())
+                .andExpect(jsonPath("$.path").value("/api/auth/register"))
+                .andExpect(jsonPath("$.errors").value(org.hamcrest.Matchers.nullValue()));
     }
 
     private String registerAndLogin(String u, String e, String p) throws Exception {

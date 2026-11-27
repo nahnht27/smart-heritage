@@ -211,6 +211,32 @@ class ArtifactControllerTest extends ContentApiTestSupport {
                 .andExpect(jsonPath("$.data.siteId").value(siteId));
     }
 
+    //LTJ-69
+@Test
+void adminShouldUpdateArtifactToAnotherExistingSite() throws Exception {
+    String token = createAdminToken();
+
+    int originalSiteId = createSite(token, "Original Site");
+    int targetSiteId = createSite(token, "Target Site");
+    int artifactId = createArtifact(token, originalSiteId, "Artifact To Move");
+
+    mockMvc.perform(put("/api/artifacts/{artifactId}", artifactId)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validArtifactRequest(targetSiteId, "Artifact To Move")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.artifactId").value(artifactId))
+            .andExpect(jsonPath("$.data.siteId").value(targetSiteId))
+            .andExpect(jsonPath("$.data.siteName").value("Target Site"));
+
+    mockMvc.perform(get("/api/artifacts/{artifactId}", artifactId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.artifactId").value(artifactId))
+            .andExpect(jsonPath("$.data.siteId").value(targetSiteId))
+            .andExpect(jsonPath("$.data.siteName").value("Target Site"));
+}
+
+
     @Test
     void adminShouldDeleteArtifact() throws Exception {
         String token = createAdminToken();
@@ -423,6 +449,108 @@ class ArtifactControllerTest extends ContentApiTestSupport {
                 .andExpect(jsonPath("$.data.totalPages").value(2));
     }
 
+    //LTJ-68
+        @Test
+    void searchArtifactsShouldRejectNegativePage() throws Exception {
+        String token = createAdminToken();
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("page", "-1")
+                        .param("size", "10")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchArtifactsShouldRejectZeroPageSize() throws Exception {
+        String token = createAdminToken();
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("page", "0")
+                        .param("size", "0")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchArtifactsShouldDefaultPageSizeWhenOnlyPageIsProvided()
+            throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Default Page Size Site");
+
+        createArtifact(token, siteId, "Artifact A");
+        createArtifact(token, siteId, "Artifact B");
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("page", "0")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(10))
+                .andExpect(jsonPath("$.data.content", hasSize(2)));
+    }
+
+    @Test
+    void searchArtifactsShouldDefaultPageWhenOnlyPageSizeIsProvided()
+            throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Default Page Site");
+
+        createArtifact(token, siteId, "Artifact A");
+        createArtifact(token, siteId, "Artifact B");
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("size", "1")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(1))
+                .andExpect(jsonPath("$.data.content", hasSize(1)));
+    }
+
+    @Test
+    void searchArtifactsShouldIgnoreKeywordCase() throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Case Insensitive Search Site");
+
+        createArtifact(token, siteId, "Ancient Bronze Drum");
+        createArtifact(token, siteId, "Ceramic Vase");
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("keyword", "  BRONZE  ")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].name")
+                        .value("Ancient Bronze Drum"));
+    }
+
+    @Test
+    void searchArtifactsShouldCombineSiteIdKeywordAndPagination()
+            throws Exception {
+        String token = createAdminToken();
+        int targetSiteId = createSite(token, "Target Search Site");
+        int otherSiteId = createSite(token, "Other Search Site");
+
+        createArtifact(token, targetSiteId, "Bronze Drum A");
+        createArtifact(token, targetSiteId, "Bronze Drum B");
+        createArtifact(token, targetSiteId, "Ceramic Vase");
+        createArtifact(token, otherSiteId, "Bronze Drum C");
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("siteId", String.valueOf(targetSiteId))
+                        .param("keyword", "bronze")
+                        .param("page", "0")
+                        .param("size", "1")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(1))
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.totalPages").value(2));
+    }
+
     @Test
     void searchArtifactsShouldSupportDescendingSort() throws Exception {
         String token = createAdminToken();
@@ -501,4 +629,105 @@ class ArtifactControllerTest extends ContentApiTestSupport {
                 .andExpect(jsonPath("$.data.content[0].artifactId")
                         .value(secondId));
     }
+
+    //LTJ-68
+
+@Test
+void adminShouldNotUpdateArtifactWhenTargetSiteDoesNotExist() throws Exception {
+    String token = createAdminToken();
+    int originalSiteId = createSite(token, "Original Artifact Site");
+    int artifactId = createArtifact(token, originalSiteId, "Original Artifact Name");
+
+    mockMvc.perform(put("/api/artifacts/{artifactId}", artifactId)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validArtifactRequest(999999, "Changed Artifact Name")))
+            .andExpect(status().isNotFound());
+
+    mockMvc.perform(get("/api/artifacts/{artifactId}", artifactId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.artifactId").value(artifactId))
+            .andExpect(jsonPath("$.data.siteId").value(originalSiteId))
+            .andExpect(jsonPath("$.data.name").value("Original Artifact Name"));
+}
+
+@Test
+void adminShouldNotUpdateUnknownArtifact() throws Exception {
+    String token = createAdminToken();
+    int siteId = createSite(token, "Existing Update Site");
+
+    mockMvc.perform(put("/api/artifacts/{artifactId}", 999999)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validArtifactRequest(siteId, "Changed Artifact Name")))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.message").isString())
+            .andExpect(jsonPath("$.data").value(
+                    org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$.timestamp").isString())
+            .andExpect(jsonPath("$.path").value("/api/artifacts/999999"))
+            .andExpect(jsonPath("$.errors").value(
+                    org.hamcrest.Matchers.nullValue()));
+}
+
+@Test
+void createArtifactShouldRejectNonPositiveSiteId() throws Exception {
+    String token = createAdminToken();
+
+    mockMvc.perform(post("/api/artifacts")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validArtifactRequest(0, "Invalid Site Artifact")))
+            .andExpect(status().isBadRequest());
+}
+
+@Test
+void adminShouldCreateArtifact() throws Exception {
+    String token = createAdminToken();
+    int siteId = createSite(token, "Create Artifact Test Site");
+
+    mockMvc.perform(post("/api/artifacts")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validArtifactRequest(
+                            siteId,
+                            "New Test Artifact")))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.artifactId").isNumber())
+            .andExpect(jsonPath("$.data.siteId").value(siteId))
+            .andExpect(jsonPath("$.data.siteName")
+                    .value("Create Artifact Test Site"))
+            .andExpect(jsonPath("$.data.name").value("New Test Artifact"))
+            .andExpect(jsonPath("$.data.description")
+                    .value("Test artifact description"))
+            .andExpect(jsonPath("$.timestamp").isString())
+            .andExpect(jsonPath("$.path").value("/api/artifacts"))
+            .andExpect(jsonPath("$.errors").value(
+                    org.hamcrest.Matchers.nullValue()));
+}
+
+@Test
+void anonymousShouldNotCreateArtifact() throws Exception {
+    mockMvc.perform(post("/api/artifacts")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                            {
+                                "siteId": 1,
+                                "name": "Anonymous Artifact",
+                                "description": "Unauthorized creation attempt"
+                            }
+                            """))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.success").value(false))
+            .andExpect(jsonPath("$.message").isString())
+            .andExpect(jsonPath("$.data").value(
+                    org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$.timestamp").isString())
+            .andExpect(jsonPath("$.path").value("/api/artifacts"))
+            .andExpect(jsonPath("$.errors").value(
+                    org.hamcrest.Matchers.nullValue()));
+}
+
 }

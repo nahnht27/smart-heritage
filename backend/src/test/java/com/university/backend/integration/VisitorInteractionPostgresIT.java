@@ -49,6 +49,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+//LTJ-68
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -106,6 +108,97 @@ class VisitorInteractionPostgresIT {
         visitorToken = login("postgres_visitor");
         adminToken = login("postgres_admin");
     }
+
+    //LTJ-68
+@Test
+void deletingBeaconShouldPreserveInteractionAndSetBeaconReferenceToNull()
+        throws Exception {
+
+    UUID beaconUuid = UUID.randomUUID();
+    UUID eventId = UUID.randomUUID();
+    UUID visitorId = UUID.randomUUID();
+    Instant now = Instant.parse("2026-11-26T10:00:00Z");
+
+    // Arrange: create a Beacon linked to the existing Artifact.
+    Integer beaconId = jdbcTemplate.queryForObject("""
+            insert into beacon
+                (name, proximity_uuid, major, minor, enabled, artifact_id)
+            values (?, ?::uuid, ?, ?, true, ?)
+            returning beacon_id
+            """,
+            Integer.class,
+            "PostgreSQL IT Beacon",
+            beaconUuid.toString(),
+            321,
+            654,
+            artifactId);
+
+    assertNotNull(beaconId);
+
+    // Create an interaction referencing the Beacon.
+    jdbcTemplate.update("""
+            insert into visitor_interaction
+                (event_id, visitor_id, user_id, artifact_id, beacon_id,
+                 interaction_type, language_code, started_at, ended_at,
+                 duration_seconds, interacted_at)
+            values (?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            eventId.toString(),
+            visitorId.toString(),
+            null,
+            artifactId,
+            beaconId,
+            "BEACON_TRIGGER",
+            "en",
+            Timestamp.from(now),
+            null,
+            null,
+            Timestamp.from(now));
+
+    assertEquals(1L, countByEventId(eventId));
+
+    // Act: delete the Beacon through the ADMIN API.
+    mockMvc.perform(delete("/api/admin/beacons/{beaconId}", beaconId)
+                    .header("Authorization", "Bearer " + adminToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true));
+
+    // Assert: Beacon is deleted.
+    Long remainingBeacons = jdbcTemplate.queryForObject("""
+            select count(*)
+            from beacon
+            where beacon_id = ?
+            """, Long.class, beaconId);
+
+    assertEquals(0L, remainingBeacons);
+
+    // Assert: interaction history remains.
+    Long remainingInteractions = jdbcTemplate.queryForObject("""
+            select count(*)
+            from visitor_interaction
+            where event_id = ?::uuid
+            """, Long.class, eventId.toString());
+
+    assertEquals(1L, remainingInteractions);
+
+    // Assert: FK is set to NULL, while Artifact reference is preserved.
+    Integer remainingBeaconId = jdbcTemplate.queryForObject("""
+            select beacon_id
+            from visitor_interaction
+            where event_id = ?::uuid
+            """, Integer.class, eventId.toString());
+
+    Integer remainingArtifactId = jdbcTemplate.queryForObject("""
+            select artifact_id
+            from visitor_interaction
+            where event_id = ?::uuid
+            """, Integer.class, eventId.toString());
+
+    assertNull(remainingBeaconId);
+    assertEquals(artifactId, remainingArtifactId);
+}
+
+
 
     @Test
     void schemaUsesCurrentColumnsAndFlywayHistory() {

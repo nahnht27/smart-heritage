@@ -20,16 +20,20 @@ import org.springframework.test.web.servlet.MvcResult;
  * Kiểm tra cấu hình CORS cho tích hợp frontend (Admin Web, Expo Web, Android Emulator).
  * CORS được xử lý trước bước xác thực JWT, do preflight OPTIONS không yêu cầu token.
  */
-@SpringBootTest
+@SpringBootTest(properties = {
+        "app.cors.allowed-origins=http://localhost:5173,http://localhost:8081"
+})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class CorsIntegrationTest {
 
     private static final String ADMIN_WEB_ORIGIN = "http://localhost:5173";
+    private static final String EXPO_WEB_ORIGIN = "http://localhost:8081";
     private static final String DISALLOWED_ORIGIN = "http://evil.example.com";
 
     @Autowired
     private MockMvc mockMvc;
+
 
     private static String allowOrigin(MvcResult result) {
         return result.getResponse().getHeader("Access-Control-Allow-Origin");
@@ -44,6 +48,7 @@ class CorsIntegrationTest {
         String headers = result.getResponse().getHeader("Access-Control-Allow-Headers");
         return headers != null && headers.contains(header);
     }
+
 
     @Test
     void preflightFromAdminWebOriginIsAllowed() throws Exception {
@@ -103,4 +108,65 @@ class CorsIntegrationTest {
                         .content("{\"name\":\"x\",\"description\":\"y\",\"address\":\"z\",\"latitude\":10,\"longitude\":10}"))
                 .andExpect(status().isUnauthorized());
     }
+
+@Test
+void preflightFromExpoWebOriginIsAllowed() throws Exception {
+    MvcResult result = mockMvc.perform(options("/api/auth/login")
+                    .header("Origin", EXPO_WEB_ORIGIN)
+                    .header("Access-Control-Request-Method", "POST")
+                    .header("Access-Control-Request-Headers",
+                            "Authorization, Content-Type, Accept"))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    assertEquals(EXPO_WEB_ORIGIN, allowOrigin(result));
+    assertTrue(hasMethod(result, "POST"));
+    assertTrue(hasHeader(result, "Authorization"));
+    assertTrue(hasHeader(result, "Content-Type"));
+    assertTrue(hasHeader(result, "Accept"));
+}
+
+@Test
+void preflightAllowsPutAndDeleteMethods() throws Exception {
+    MvcResult putResult = mockMvc.perform(options("/api/heritage-sites/1")
+                    .header("Origin", ADMIN_WEB_ORIGIN)
+                    .header("Access-Control-Request-Method", "PUT"))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    MvcResult deleteResult = mockMvc.perform(options("/api/heritage-sites/1")
+                    .header("Origin", ADMIN_WEB_ORIGIN)
+                    .header("Access-Control-Request-Method", "DELETE"))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    assertTrue(hasMethod(putResult, "PUT"));
+    assertTrue(hasMethod(deleteResult, "DELETE"));
+}
+
+@Test
+void corsDoesNotAllowCredentials() throws Exception {
+    MvcResult result = mockMvc.perform(options("/api/auth/login")
+                    .header("Origin", ADMIN_WEB_ORIGIN)
+                    .header("Access-Control-Request-Method", "POST"))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    assertFalse(Boolean.parseBoolean(
+            result.getResponse().getHeader("Access-Control-Allow-Credentials")));
+}
+
+@Test
+void preflightAllowsAcceptHeader() throws Exception {
+    MvcResult result = mockMvc.perform(options("/api/auth/login")
+                    .header("Origin", ADMIN_WEB_ORIGIN)
+                    .header("Access-Control-Request-Method", "GET")
+                    .header("Access-Control-Request-Headers", "Accept"))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    assertEquals(ADMIN_WEB_ORIGIN, allowOrigin(result));
+    assertTrue(hasHeader(result, "Accept"));
+}
+
 }
