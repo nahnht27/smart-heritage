@@ -205,6 +205,6 @@ Beacon / media acceptance: <link to LTJ-70/LTJ-71 evidence>
 - APK demo 1.1.0 build bằng Docker builder (arm64) tại
   `mobile/artifacts/SmartHeritage-1.1.0-demo-arm64.apk`.
 - Kết quả trên thiết bị thật: [LTJ-70](../logs/LTJ-70.md) (beacon giả lập) và
-  [LTJ-71](../logs/LTJ-71.md). Chưa có screenshot/video đính kèm.
+  [LTJ-71](../logs/LTJ-71.md). Video demo: [demo.mp4](../evidence/demo.mp4).
 - Không commit APK/AAB, keystore, `mobile/android/` hoặc `mobile/ios/`.
 - Không đánh dấu APK/device acceptance là PASS nếu chưa cài và chạy thực tế.
