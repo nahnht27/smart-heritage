@@ -245,6 +245,14 @@ export default function ArtifactDetailScreen() {
               </TouchableOpacity>
             ))}
           </View>
+          {/* Open image licences require the author to be shown. */}
+          {multimediaImages.map((m, index) =>
+            m.title ? (
+              <Text key={m.id} style={styles.multimediaCaption}>
+                {index + 1}. {m.title}
+              </Text>
+            ) : null,
+          )}
         </View>
       )}
 
@@ -270,7 +278,7 @@ export default function ArtifactDetailScreen() {
 
       {multimediaVideo.length > 0 && (
         <View style={styles.multimediaSection}>
-          <Text style={styles.multimediaTitle}>Video tư liệu</Text>
+          <Text style={styles.multimediaTitle}>Video giới thiệu</Text>
           <View style={styles.mediaList}>
             {multimediaVideo.map((m) => (
               <MultimediaPlayer
@@ -305,13 +313,15 @@ export default function ArtifactDetailScreen() {
 
         <Text style={styles.title}>{artifact.name}</Text>
 
-        <View style={styles.locationCard}>
-          <Text style={styles.locationIcon}>📍</Text>
-          <View style={styles.locationTextContainer}>
-            <Text style={styles.locationLabel}>Vị trí trưng bày:</Text>
-            <Text style={styles.locationValue}>{artifact.address}</Text>
+        {artifact.address ? (
+          <View style={styles.locationCard}>
+            <Text style={styles.locationIcon}>📍</Text>
+            <View style={styles.locationTextContainer}>
+              <Text style={styles.locationLabel}>Vị trí trưng bày:</Text>
+              <Text style={styles.locationValue}>{artifact.address}</Text>
+            </View>
           </View>
-        </View>
+        ) : null}
 
         <Text style={styles.sectionHeader}>Mô tả hiện vật</Text>
         <Text style={styles.description}>{artifact.description}</Text>
@@ -321,6 +331,11 @@ export default function ArtifactDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  multimediaCaption: {
+    fontSize: 11,
+    color: '#64748B',
+    marginBottom: 2,
+  },
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   scrollContent: { paddingBottom: 40 },
   heroImage: {

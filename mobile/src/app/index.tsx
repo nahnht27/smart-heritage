@@ -335,12 +335,6 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Footer info note */}
-        <View style={styles.footerNote}>
-          <Text style={styles.footerText}>
-            Kết nối API Auth thực tế với Backend M1 (POST /api/auth/login, POST /api/auth/register).
-          </Text>
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

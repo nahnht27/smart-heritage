@@ -16,8 +16,14 @@
  * null/mặc định thay vì bịa dữ liệu, tuân thủ "không giả vờ dữ liệu từ server".
  */
 
-import { apiClient } from './api';
+import { apiClient, getApiBaseUrl, type ApiResponse } from './api';
 import { isUsableMediaUrl } from './media/url';
+import {
+  getOfflinePack,
+  type ManifestArtifact,
+  type ManifestMultimedia,
+  type ManifestSite,
+} from './offline/store';
 
 export { isUsableMediaUrl } from './media/url';
 
@@ -47,6 +53,9 @@ export interface Multimedia {
   type: MultimediaType;
   title: string | null;
   url: string;
+  hasFileData?: boolean | null;
+  fileName?: string | null;
+  contentType?: string | null;
 }
 
 const SUPPORTED_MULTIMEDIA_TYPES: MultimediaType[] = [
@@ -71,6 +80,21 @@ export function normalizeMultimediaType(
 }
 
 /**
+ * Get the playback URL for a multimedia item. If the item has file data stored
+ * in the database, return the backend file endpoint; otherwise return the
+ * external URL.
+ */
+export function getMediaPlaybackUrl(
+  apiBaseUrl: string,
+  multimedia: Pick<Multimedia, 'id' | 'url' | 'hasFileData'>,
+): string {
+  if (multimedia.hasFileData && multimedia.id != null) {
+    return `${apiBaseUrl.replace(/\/$/, '')}/multimedia/${multimedia.id}/file`;
+  }
+  return multimedia.url;
+}
+
+/**
  * Select the first usable image from an artifact's multimedia list.
  */
 export function selectArtifactThumbnail(
@@ -88,29 +112,15 @@ export function selectArtifactThumbnail(
 }
 
 // Backend DTO shapes (từ ApiResponse.data sau khi unwrap)
-interface BackendHeritageSite {
-  siteId: number;
-  name: string;
-  description: string;
-  address: string | null;
+type BackendHeritageSite = ManifestSite & {
   preferredLanguageId?: number | null;
-}
+};
+type BackendArtifact = ManifestArtifact;
+type BackendMultimedia = ManifestMultimedia;
 
-interface BackendArtifact {
-  artifactId: number;
-  siteId: number;
-  siteName: string | null;
-  name: string;
-  description: string;
-}
-
-interface BackendMultimedia {
-  multimediaId: number;
-  artifactId: number;
-  artifactName: string | null;
-  type: string;
-  title: string | null;
-  url: string;
+/** Wraps downloaded data in the same result shape as a successful request. */
+function fromPack<T>(data: T): ApiResponse<T> {
+  return { data, error: null, status: 200, ok: true };
 }
 
 const SITES = 'heritage-sites';
@@ -139,13 +149,35 @@ function mapArtifact(a: BackendArtifact): Artifact {
   };
 }
 
+/**
+ * Downloaded copy first, then the file stored on the backend, then the
+ * external URL.
+ */
+function resolveMediaUrl(m: BackendMultimedia): string {
+  const local = getOfflinePack()?.localFiles[m.multimediaId];
+  if (local) {
+    return local;
+  }
+  if (m.hasFileData) {
+    return getMediaPlaybackUrl(getApiBaseUrl(), {
+      id: m.multimediaId,
+      url: m.url,
+      hasFileData: true,
+    });
+  }
+  return m.url;
+}
+
 function mapMultimedia(m: BackendMultimedia): Multimedia {
   return {
     id: m.multimediaId,
     artifactId: m.artifactId,
     type: normalizeMultimediaType(m.type),
     title: m.title,
-    url: m.url,
+    url: resolveMediaUrl(m),
+    hasFileData: m.hasFileData ?? false,
+    fileName: m.fileName ?? null,
+    contentType: m.contentType ?? null,
   };
 }
 
@@ -156,7 +188,10 @@ export const heritageApi = {
     status: number;
     ok: boolean;
   }> {
-    const result = await apiClient.get<BackendHeritageSite[]>(SITES);
+    const pack = getOfflinePack();
+    const result = pack
+      ? fromPack<BackendHeritageSite[]>(pack.manifest.sites)
+      : await apiClient.get<BackendHeritageSite[]>(SITES);
     return {
       data: result.data?.map(mapHeritageSite) ?? null,
       error: result.error,
@@ -171,7 +206,12 @@ export const heritageApi = {
     status: number;
     ok: boolean;
   }> {
-    const result = await apiClient.get<BackendHeritageSite>(`${SITES}/${id}`);
+    const saved = getOfflinePack()?.manifest.sites.find(
+      (site) => site.siteId === Number(id),
+    );
+    const result = saved
+      ? fromPack<BackendHeritageSite>(saved)
+      : await apiClient.get<BackendHeritageSite>(`${SITES}/${id}`);
     return {
       data: result.data ? mapHeritageSite(result.data) : null,
       error: result.error,
@@ -186,7 +226,10 @@ export const heritageApi = {
     status: number;
     ok: boolean;
   }> {
-    const result = await apiClient.get<BackendArtifact[]>(ARTIFACTS);
+    const pack = getOfflinePack();
+    const result = pack
+      ? fromPack<BackendArtifact[]>(pack.manifest.artifacts)
+      : await apiClient.get<BackendArtifact[]>(ARTIFACTS);
     return {
       data: result.data?.map(mapArtifact) ?? null,
       error: result.error,
@@ -201,7 +244,14 @@ export const heritageApi = {
     status: number;
     ok: boolean;
   }> {
-    const result = await apiClient.get<BackendArtifact[]>(`${ARTIFACTS}?siteId=${siteId}`);
+    const pack = getOfflinePack();
+    const result = pack
+      ? fromPack<BackendArtifact[]>(
+          pack.manifest.artifacts.filter(
+            (artifact) => artifact.siteId === Number(siteId),
+          ),
+        )
+      : await apiClient.get<BackendArtifact[]>(`${ARTIFACTS}?siteId=${siteId}`);
     return {
       data: result.data?.map(mapArtifact) ?? null,
       error: result.error,
@@ -216,7 +266,13 @@ export const heritageApi = {
     status: number;
     ok: boolean;
   }> {
-    const result = await apiClient.get<BackendArtifact>(`${ARTIFACTS}/${id}`);
+    const saved = getOfflinePack()?.manifest.artifacts.find(
+      (artifact) => artifact.artifactId === Number(id),
+    );
+    // An artifact newer than the pack can still be fetched from the server.
+    const result = saved
+      ? fromPack<BackendArtifact>(saved)
+      : await apiClient.get<BackendArtifact>(`${ARTIFACTS}/${id}`);
     return {
       data: result.data ? mapArtifact(result.data) : null,
       error: result.error,
@@ -231,7 +287,20 @@ export const heritageApi = {
     status: number;
     ok: boolean;
   }> {
-    const result = await apiClient.get<BackendMultimedia[]>(`${MULTIMEDIA}?artifactId=${artifactId}`);
+    const pack = getOfflinePack();
+    const isSaved = pack?.manifest.artifacts.some(
+      (artifact) => artifact.artifactId === Number(artifactId),
+    );
+    const result =
+      pack && isSaved
+        ? fromPack<BackendMultimedia[]>(
+            pack.manifest.multimedia.filter(
+              (item) => item.artifactId === Number(artifactId),
+            ),
+          )
+        : await apiClient.get<BackendMultimedia[]>(
+            `${MULTIMEDIA}?artifactId=${artifactId}`,
+          );
     return {
       data: result.data?.map(mapMultimedia) ?? null,
       error: result.error,

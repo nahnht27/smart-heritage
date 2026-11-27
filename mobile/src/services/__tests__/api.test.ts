@@ -5,7 +5,14 @@
  * `{ success, message, data, timestamp, path, errors }`. `apiRequest`
  * must unwrap `data` for service helpers.
  */
-import { apiRequest, buildApiUrl } from '../api';
+import {
+  API_BASE_URL,
+  apiRequest,
+  buildApiUrl,
+  getApiBaseUrl,
+  normalizeServerUrl,
+  setApiBaseUrlOverride,
+} from '../api';
 
 jest.mock('react-native', () => ({
   Platform: { OS: 'ios' },
@@ -22,6 +29,30 @@ function jsonResponse(status: number, body: unknown) {
     json: async () => body,
   };
 }
+
+describe('địa chỉ máy chủ chọn trên điện thoại', () => {
+  afterEach(() => setApiBaseUrlOverride(null));
+
+  it.each([
+    ['192.168.1.48:8081', 'http://192.168.1.48:8081/api'],
+    [' http://192.168.1.48:8081/api/ ', 'http://192.168.1.48:8081/api'],
+    ['https://demo.example.com', 'https://demo.example.com/api'],
+    ['', null],
+    ['ftp://example.com', null],
+    ['http://exa mple.com', null],
+    ['http://user@evil.example', null],
+  ])('chuẩn hóa %p', (input, expected) => {
+    expect(normalizeServerUrl(input)).toBe(expected);
+  });
+
+  it('ghi đè rồi khôi phục địa chỉ mặc định', () => {
+    setApiBaseUrlOverride('http://10.0.0.5:8081/api');
+    expect(buildApiUrl('artifacts')).toBe('http://10.0.0.5:8081/api/artifacts');
+
+    setApiBaseUrlOverride(null);
+    expect(getApiBaseUrl()).toBe(API_BASE_URL);
+  });
+});
 
 describe('buildApiUrl', () => {
   it.each([
