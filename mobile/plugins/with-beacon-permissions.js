@@ -16,6 +16,9 @@ const REMOVED_ANDROID_PERMISSIONS = [
   'android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE',
   'android.permission.FOREGROUND_SERVICE_LOCATION',
   'android.permission.POST_NOTIFICATIONS',
+  'android.permission.READ_EXTERNAL_STORAGE',
+  'android.permission.SYSTEM_ALERT_WINDOW',
+  'android.permission.WRITE_EXTERNAL_STORAGE',
 ];
 
 function withBeaconAndroidManifest(config) {
@@ -39,7 +42,15 @@ function withBeaconAndroidManifest(config) {
     }
 
     for (const name of REMOVED_ANDROID_PERMISSIONS) {
-      if (!existingNames.has(name)) {
+      const existing = usesPermission.find(
+        (entry) => entry.$ && entry.$['android:name'] === name,
+      );
+
+      if (existing) {
+        existing.$['tools:node'] = 'remove';
+        delete existing.$['android:maxSdkVersion'];
+        delete existing.$['tools:replace'];
+      } else {
         usesPermission.push({
           $: {
             'android:name': name,
@@ -67,6 +78,15 @@ function withBeaconAndroidManifest(config) {
       });
     }
     manifest['uses-feature'] = usesFeature;
+
+    if (
+      process.env.EXPO_DEMO_CLEARTEXT === '1' &&
+      manifest.application &&
+      manifest.application[0]
+    ) {
+      manifest.application[0].$ = manifest.application[0].$ || {};
+      manifest.application[0].$['android:usesCleartextTraffic'] = 'true';
+    }
 
     return config;
   });

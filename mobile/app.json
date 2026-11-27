@@ -1,16 +1,21 @@
 {
   "expo": {
-    "name": "app_temp",
-    "slug": "app_temp",
-    "version": "1.0.0",
+    "name": "Smart Heritage",
+    "slug": "smart-heritage",
+    "description": "Smart Heritage visitor mobile app for beacon-guided heritage discovery.",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "apptemp",
+    "scheme": "smartheritage",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.university.smartheritage",
+      "buildNumber": "2",
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.university.smartheritage",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
