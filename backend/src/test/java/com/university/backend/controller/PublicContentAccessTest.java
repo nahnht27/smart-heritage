@@ -46,6 +46,7 @@ class PublicContentAccessTest {
                 .andExpect(jsonPath("$.success").value(true));
     }
 
+    //LTJ-68: fix for envelope test to include path and timestamp
     @Test
     void anonymousWriteIsRejected() throws Exception {
         mockMvc.perform(post("/api/heritage-sites")
@@ -59,6 +60,14 @@ class PublicContentAccessTest {
                                     "longitude": 106.0
                                 }
                                 """))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").isString())
+                .andExpect(jsonPath("$.data").value(
+                        org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.timestamp").isString())
+                .andExpect(jsonPath("$.path").value("/api/heritage-sites"))
+                .andExpect(jsonPath("$.errors").value(
+                        org.hamcrest.Matchers.nullValue()));
     }
 }

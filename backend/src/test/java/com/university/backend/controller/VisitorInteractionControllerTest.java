@@ -294,6 +294,66 @@ class VisitorInteractionControllerTest {
         org.junit.jupiter.api.Assertions.assertEquals(0, interactionRepository.count());
     }
 
+    //LTJ-68
+    @Test
+void postInteraction_shouldRejectUnknownBeacon() throws Exception {
+    mockMvc.perform(post("/api/interactions")
+                    .header("Authorization", "Bearer " + visitorToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(beaconInteractionPayload(
+                            UUID.randomUUID(),
+                            artifactId,
+                            Integer.MAX_VALUE,
+                            "BEACON_TRIGGER")))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.success").value(false));
+
+    org.junit.jupiter.api.Assertions.assertEquals(0, interactionRepository.count());
+}
+
+@Test
+void postInteraction_shouldRejectBeaconWithoutArtifactAssignment() throws Exception {
+    UUID beaconUuid = UUID.fromString("e2c56db5-dffb-48d2-b060-d0f5a71096e0");
+
+    String body = """
+            {
+              "name": "Unmapped Test Beacon",
+              "uuid": "%s",
+              "major": 1,
+              "minor": 102,
+              "enabled": true,
+              "artifactId": null
+            }
+            """.formatted(beaconUuid);
+
+    String response = mockMvc.perform(post("/api/admin/beacons")
+                    .header("Authorization", "Bearer " + adminToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    int beaconId = objectMapper.readTree(response)
+            .path("data")
+            .path("beaconId")
+            .asInt();
+
+    mockMvc.perform(post("/api/interactions")
+                    .header("Authorization", "Bearer " + visitorToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(beaconInteractionPayload(
+                            UUID.randomUUID(),
+                            artifactId,
+                            beaconId,
+                            "BEACON_TRIGGER")))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.success").value(false));
+
+    org.junit.jupiter.api.Assertions.assertEquals(0, interactionRepository.count());
+}
+
     @Test
     void postInteraction_shouldRejectBeaconIdForNonBeaconType() throws Exception {
         int beaconId = createBeacon(
@@ -354,18 +414,26 @@ class VisitorInteractionControllerTest {
                         .param("to", "2026-04-02T00:00:00Z"))
                 .andExpect(status().isBadRequest());
     }
-
-    @Test
-    void summary_shouldRequireAdminRole() throws Exception {
+    //LTJ-68: fix for envelope test to include path and timestamp
+        @Test
+        void summary_shouldRequireAdminRole() throws Exception {
         mockMvc.perform(get("/api/analytics/interactions/summary")
                         .header("Authorization", "Bearer " + visitorToken))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.success").value(false));
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").isString())
+                .andExpect(jsonPath("$.data").value(
+                        org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.timestamp").isString())
+                .andExpect(jsonPath("$.path").value(
+                        "/api/analytics/interactions/summary"))
+                .andExpect(jsonPath("$.errors").value(
+                        org.hamcrest.Matchers.nullValue()));
 
         mockMvc.perform(get("/api/analytics/interactions/summary"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false));
-    }
+        }
 
     @Test
     void timeseries_shouldRequireAdminRole() throws Exception {

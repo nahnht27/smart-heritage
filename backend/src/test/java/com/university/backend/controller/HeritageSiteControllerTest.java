@@ -264,6 +264,79 @@ class HeritageSiteControllerTest extends ContentApiTestSupport {
                 .andExpect(jsonPath("$.data.totalPages").value(2));
     }
 
+    //LTJ-68
+        @Test
+    void searchHeritageSitesShouldRejectNegativePage() throws Exception {
+        String token = createAdminToken();
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("page", "-1")
+                        .param("size", "10")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchHeritageSitesShouldRejectZeroPageSize() throws Exception {
+        String token = createAdminToken();
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("page", "0")
+                        .param("size", "0")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchHeritageSitesShouldDefaultPageSizeWhenOnlyPageIsProvided()
+            throws Exception {
+        String token = createAdminToken();
+
+        createSite(token, "Heritage Site A");
+        createSite(token, "Heritage Site B");
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("page", "0")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(10))
+                .andExpect(jsonPath("$.data.content", hasSize(2)));
+    }
+
+    @Test
+    void searchHeritageSitesShouldDefaultPageWhenOnlyPageSizeIsProvided()
+            throws Exception {
+        String token = createAdminToken();
+
+        createSite(token, "Heritage Site A");
+        createSite(token, "Heritage Site B");
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("size", "1")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(1))
+                .andExpect(jsonPath("$.data.content", hasSize(1)));
+    }
+
+    @Test
+    void searchHeritageSitesShouldIgnoreKeywordCase() throws Exception {
+        String token = createAdminToken();
+
+        createSite(token, "Hue Imperial Citadel");
+        createSite(token, "Hoi An Ancient Town");
+
+        mockMvc.perform(get("/api/heritage-sites")
+                        .param("keyword", "  HUE  ")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].name")
+                        .value("Hue Imperial Citadel"));
+    }
+
     @Test
     void searchHeritageSitesShouldSupportDescendingSort() throws Exception {
         String token = createAdminToken();
@@ -305,6 +378,16 @@ class HeritageSiteControllerTest extends ContentApiTestSupport {
     }
 
     @Test
+    void searchHeritageSitesShouldRejectInvalidSortField() throws Exception {
+        String token = createAdminToken();
+
+         mockMvc.perform(get("/api/heritage-sites")
+                        .param("sortBy", "unknownField")
+                        .header("Authorization", "Bearer " + token))
+               .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void searchHeritageSitesShouldUseStableTieBreakerAcrossPages()
             throws Exception {
         String token = createAdminToken();
@@ -329,4 +412,26 @@ class HeritageSiteControllerTest extends ContentApiTestSupport {
                 .andExpect(jsonPath("$.data.content[0].siteId")
                         .value(secondId));
     }
+
+
+@Test
+void adminShouldNotUpdateUnknownHeritageSite() throws Exception {
+    String token = createAdminToken();
+
+    mockMvc.perform(put("/api/heritage-sites/{siteId}", 999999)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validRequest("Updated Site Name")))
+            .andExpect(status().isNotFound());
+}
+
+@Test
+void adminShouldNotDeleteUnknownHeritageSite() throws Exception {
+    String token = createAdminToken();
+
+    mockMvc.perform(delete("/api/heritage-sites/{siteId}", 999999)
+                    .header("Authorization", "Bearer " + token))
+            .andExpect(status().isNotFound());
+}
+
 }

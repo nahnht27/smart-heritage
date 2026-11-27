@@ -34,6 +34,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -437,4 +438,31 @@ class VisitorInteractionServiceTest {
         assertNull(result.from());
         assertNull(result.to());
     }
+
+    //LTJ-68
+@Test
+void createInteraction_shouldRejectBeaconWithoutArtifactAssignment() {
+    Artifact artifact = mock(Artifact.class);
+
+    Beacon beacon = mock(Beacon.class);
+    when(beacon.isEnabled()).thenReturn(true);
+
+    request.setInteractionType("BEACON_TRIGGER");
+    request.setBeaconId(9);
+
+    when(interactionRepository.findByEventId(EVENT_ID))
+            .thenReturn(Optional.empty());
+    when(artifactRepository.findById(1))
+            .thenReturn(Optional.of(artifact));
+    when(beaconRepository.findById(9))
+            .thenReturn(Optional.of(beacon));
+
+    assertThrows(
+            BadRequestException.class,
+            () -> interactionService.createInteraction(null, request));
+
+    verify(interactionRepository, never()).save(any());
+}
+
+
 }
