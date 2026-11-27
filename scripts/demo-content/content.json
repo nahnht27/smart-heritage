@@ -1,0 +1,153 @@
+{
+  "beaconUuid": "E2C56DB5-DFFB-48D2-B060-D0F5A71096E0",
+  "beaconMajor": 1,
+  "sites": [
+    {
+      "siteId": 1,
+      "name": "Bảo tàng Lịch sử Quốc gia",
+      "address": "Số 1 Tràng Tiền, Hoàn Kiếm, Hà Nội",
+      "latitude": 21.0245,
+      "longitude": 105.8572,
+      "description": "Nơi lưu giữ và trưng bày nhiều bảo vật, hiện vật về tiến trình lịch sử Việt Nam."
+    },
+    {
+      "siteId": 2,
+      "name": "Văn Miếu - Quốc Tử Giám",
+      "address": "58 Quốc Tử Giám, Đống Đa, Hà Nội",
+      "latitude": 21.0281,
+      "longitude": 105.8356,
+      "description": "Quần thể di tích khởi dựng năm 1070, nơi thờ Khổng Tử và gắn với Quốc Tử Giám, trường đại học đầu tiên của Việt Nam."
+    },
+    {
+      "siteId": 3,
+      "name": "Bảo tàng Mỹ thuật Việt Nam",
+      "address": "66 Nguyễn Thái Học, Ba Đình, Hà Nội",
+      "latitude": 21.0307,
+      "longitude": 105.8370,
+      "description": "Nơi trưng bày các tác phẩm mỹ thuật Việt Nam từ cổ đại đến hiện đại."
+    }
+  ],
+  "artifacts": [
+    {
+      "artifactId": 1,
+      "siteId": 1,
+      "name": "Trống đồng Đông Sơn",
+      "description": "Trống đồng Đông Sơn là loại trống tiêu biểu của văn hóa Đông Sơn, kéo dài từ khoảng thế kỷ 7 trước Công nguyên đến thế kỷ 6 sau Công nguyên. Trống có hình dáng cân đối, hài hòa, thể hiện trình độ đúc đồng và nghệ thuật rất cao của người Việt cổ. Giữa mặt trống là ngôi sao nhiều cánh, thường được hiểu là biểu tượng của Mặt Trời. Các vành hoa văn xung quanh khắc họa chân thực đời sống thời dựng nước.",
+      "images": [
+        "File:Dong Son Bronze Drum 19.jpg",
+        "File:Dong Son Bronze Drum 03.jpg",
+        "File:Ngoc Lu.jpg"
+      ]
+    },
+    {
+      "artifactId": 2,
+      "siteId": 1,
+      "name": "Kiếm ngắn núi Nưa",
+      "description": "Kiếm ngắn núi Nưa được phát hiện năm 1961 tại khu vực núi Nưa, tỉnh Thanh Hóa, khi công nhân khai thác mỏ crômit Cổ Định. Đây là hiện vật bằng đồng thuộc truyền thống văn hóa Đông Sơn và đã được công nhận là Bảo vật quốc gia. Núi Nưa cũng là vùng đất gắn với cuộc khởi nghĩa Bà Triệu năm 248.",
+      "images": [
+        "File:Nua mountain short sword.jpg"
+      ]
+    },
+    {
+      "artifactId": 3,
+      "siteId": 2,
+      "name": "Bia Tiến sĩ",
+      "description": "Hai bên giếng Thiên Quang là 82 tấm bia Tiến sĩ đặt trên lưng rùa đá. Tấm sớm nhất dựng năm 1484, ghi tên các vị đỗ khoa thi năm 1442. Văn bia là nguồn tư liệu gốc quý về giáo dục, lịch sử và nghệ thuật chạm khắc đá. Năm 2010, UNESCO công nhận 82 bia Tiến sĩ là Di sản tư liệu thế giới.",
+      "images": [
+        "File:Stelae of Doctors - Temple of Literature, Hanoi - DSC04681.JPG",
+        "File:BiaTienSi1442.jpg",
+        "File:Nhà bia tiến sĩ.jpg"
+      ]
+    },
+    {
+      "artifactId": 4,
+      "siteId": 1,
+      "name": "Bia Võ Cạnh",
+      "description": "Bia Võ Cạnh được xem là tấm bia cổ nhất tìm thấy tại Việt Nam và là một trong những bia cổ nhất Đông Nam Á. Bia là khối sa thạch cao 320 cm, khắc chữ Brahmi trên ba mặt, kiểu chữ gần với văn bia Amaravati của Ấn Độ thế kỷ 3 đến 4. Bia được phát hiện ở làng Võ Cạnh, Nha Trang, chuyển về bảo tàng năm 1910 và được công nhận là Bảo vật quốc gia năm 2013.",
+      "images": [
+        "File:Vo Canh stele (National Museum of Vietnamese History).jpg"
+      ]
+    },
+    {
+      "artifactId": 5,
+      "siteId": 2,
+      "name": "Chuông đồng Văn Miếu",
+      "description": "Tiếng chuông gắn liền với nghi lễ và nếp học ở Văn Miếu - Quốc Tử Giám. Sử liệu cho biết vào niên hiệu Cảnh Hưng, các quan Quốc Tử Giám, trong đó có Nguyễn Nghiễm, đã cho đúc Bích Ung đại chung, tức chuông lớn Bích Ung. Quả chuông trong ảnh cho thấy kỹ thuật đúc đồng và lối trang trí truyền thống.",
+      "images": [
+        "File:Bell - Temple of Literature, Hanoi - DSC04660.JPG",
+        "File:Bell, view 1 - Temple of Literature, Hanoi - DSC04662.JPG",
+        "File:Bell, view 2 - Temple of Literature, Hanoi - DSC04665.JPG"
+      ]
+    },
+    {
+      "artifactId": 6,
+      "siteId": 3,
+      "name": "Lư hương gốm Bát Tràng",
+      "description": "Lư hương gốm Bát Tràng thời Nguyễn, thế kỷ 19. Bát Tràng là làng gốm nổi tiếng bên sông Hồng, thuộc Hà Nội, với nghề truyền thống qua nhiều thế kỷ. Lư hương là đồ thờ quan trọng trong đình, chùa và gia đình người Việt, thể hiện tay nghề tạo dáng, đắp nổi và phủ men của thợ gốm.",
+      "images": [
+        "File:Incense burner, Bat Trang ceramic - Nguyen dynasty, 19th century AD - Vietnam National Museum of Fine Arts - Hanoi, Vietnam - DSC05333.JPG"
+      ]
+    },
+    {
+      "artifactId": 7,
+      "siteId": 1,
+      "name": "Thạp đồng Đào Thịnh",
+      "description": "Thạp đồng Đào Thịnh được phát hiện năm 1961 bên bờ sông Hồng, tại xã Đào Thịnh, tỉnh Yên Bái, có niên đại khoảng 2000 đến 2500 năm. Thạp cao 98 cm, đường kính miệng 61 cm, là chiếc thạp đồng lớn nhất từng được biết đến. Nắp trang trí ngôi sao 12 tia, thân thạp khắc những đoàn thuyền và chiến binh. Hiện vật được công nhận là Bảo vật quốc gia năm 2012.",
+      "images": [
+        "File:Dao Thinh jar with typical characteristics of Dong Son culture, Dao Thinh village, Yen Bai province, c. 2500-2000 years before present, bronze - National Museum of Vietnamese History - Hanoi, Vietnam - DSC05483.JPG",
+        "File:Thap dong Dao Thinh.JPG"
+      ]
+    },
+    {
+      "artifactId": 8,
+      "siteId": 2,
+      "name": "Khuê Văn Các",
+      "description": "Khuê Văn Các, nghĩa là gác vẻ đẹp của sao Khuê, được Tổng trấn Bắc Thành Nguyễn Văn Thành cho dựng năm 1805. Đây là lầu vuông tám mái: tầng dưới là bốn trụ gạch, tầng trên bằng gỗ sơn son thếp vàng với các cửa sổ tròn. Xưa kia đây là nơi bình những bài văn hay. Ngày nay Khuê Văn Các là biểu tượng của thủ đô Hà Nội.",
+      "images": [
+        "File:Constellation of Literature pavilion - Temple of Literature, Hanoi - DSC04693.JPG",
+        "File:Constellation of Literature pavilion - Temple of Literature, Hanoi - DSC04553.JPG",
+        "File:Constellation of Literature pavilion (Temple of Literature, Hanoi).jpg"
+      ]
+    },
+    {
+      "artifactId": 9,
+      "siteId": 2,
+      "name": "Giếng Thiên Quang",
+      "description": "Giếng Thiên Quang, nghĩa là giếng soi ánh sáng bầu trời, còn gọi là Văn Trì. Giếng hình vuông tượng trưng cho đất, đối ứng với cửa sổ tròn của Khuê Văn Các tượng trưng cho trời, ngụ ý nơi đây hội tụ tinh hoa của trời đất. Hai bên giếng là hai vườn bia Tiến sĩ, mặt bia hướng về phía mặt nước.",
+      "images": [
+        "File:Well of Heavenly Clarity - Temple of Literature, Hanoi - DSC04565.JPG",
+        "File:Well of Heavenly Clarity 1.jpg",
+        "File:Well of Heavenly Clarity 2.jpg"
+      ]
+    },
+    {
+      "artifactId": 10,
+      "siteId": 3,
+      "name": "Bình gốm Bát Tràng tích Ngư ông đắc lợi",
+      "description": "Bình gốm Bát Tràng thời Nguyễn, thế kỷ 19, trang trí theo tích Ngư ông đắc lợi. Câu chuyện kể về con trai và con cò giằng co, không bên nào chịu nhường, cuối cùng cả hai bị ông lão đánh cá bắt được. Qua đó người xưa nhắn nhủ rằng tranh chấp không lối thoát chỉ làm lợi cho kẻ thứ ba.",
+      "images": [
+        "File:Vase decorated with Fisherman Benefits legend, Bat Trang ceramic - Nguyen dynasty, 19th century AD - Vietnam National Museum of Fine Arts - Hanoi, Vietnam - DSC05328.JPG"
+      ]
+    },
+    {
+      "artifactId": 11,
+      "siteId": 3,
+      "name": "Tượng Công chúa Lê Thị Ngọc Duyên",
+      "description": "Tượng gỗ sơn Công chúa Lê Thị Ngọc Duyên, tạo tác năm 1647, có nguồn gốc từ chùa Bút Tháp, Bắc Ninh. Đây là tác phẩm tiêu biểu của điêu khắc chân dung thời Lê trung hưng, khi nghệ thuật tạc tượng gỗ phủ sơn đạt trình độ tinh xảo, vừa trang nghiêm theo tinh thần Phật giáo vừa gần gũi với con người thật.",
+      "images": [
+        "File:Princess Le Thi Ngoc Duyen, view 1, But Thap pagoda, Bac Ninh province, 1647 AD, lacquered wood - Vietnam National Museum of Fine Arts - Hanoi, Vietnam - DSC04902.JPG",
+        "File:Princess Le Thi Ngoc Duyen, view 2, But Thap pagoda, Bac Ninh province, 1647 AD, lacquered wood - Vietnam National Museum of Fine Arts - Hanoi, Vietnam - DSC04905.JPG"
+      ]
+    },
+    {
+      "artifactId": 12,
+      "siteId": 3,
+      "name": "Tượng Hoàng hậu Trịnh Thị Ngọc Trúc",
+      "description": "Tượng gỗ sơn Hoàng hậu Trịnh Thị Ngọc Trúc, đầu thế kỷ 17, có nguồn gốc từ chùa Mật, Thanh Hóa. Bà sinh năm 1595, mất năm 1660, là hoàng hậu của vua Lê Thần Tông, nổi tiếng uyên bác và sùng đạo Phật. Bà từng quy y tại chùa Bút Tháp với pháp danh Pháp Tánh.",
+      "images": [
+        "File:Queen Trinh Thi Ngoc Truc, Mat pagoda, Thanh Hoa province, early 17th century AD, lacquered wood - Vietnam National Museum of Fine Arts - Hanoi, Vietnam - DSC04915.JPG",
+        "File:Tuong Hoang hau Trinh Thi Ngoc Truc.JPG"
+      ]
+    }
+  ]
+}

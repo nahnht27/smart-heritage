@@ -98,3 +98,7 @@ backend/logs/
 # Database backups (never commit dumps)
 backups/
 scripts/deployment/backups/
+
+# Generated demo media (see scripts/demo-content/)
+/demo-content/
+__pycache__/
