@@ -211,6 +211,32 @@ class ArtifactControllerTest extends ContentApiTestSupport {
                 .andExpect(jsonPath("$.data.siteId").value(siteId));
     }
 
+    //LTJ-69
+@Test
+void adminShouldUpdateArtifactToAnotherExistingSite() throws Exception {
+    String token = createAdminToken();
+
+    int originalSiteId = createSite(token, "Original Site");
+    int targetSiteId = createSite(token, "Target Site");
+    int artifactId = createArtifact(token, originalSiteId, "Artifact To Move");
+
+    mockMvc.perform(put("/api/artifacts/{artifactId}", artifactId)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validArtifactRequest(targetSiteId, "Artifact To Move")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.artifactId").value(artifactId))
+            .andExpect(jsonPath("$.data.siteId").value(targetSiteId))
+            .andExpect(jsonPath("$.data.siteName").value("Target Site"));
+
+    mockMvc.perform(get("/api/artifacts/{artifactId}", artifactId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.artifactId").value(artifactId))
+            .andExpect(jsonPath("$.data.siteId").value(targetSiteId))
+            .andExpect(jsonPath("$.data.siteName").value("Target Site"));
+}
+
+
     @Test
     void adminShouldDeleteArtifact() throws Exception {
         String token = createAdminToken();

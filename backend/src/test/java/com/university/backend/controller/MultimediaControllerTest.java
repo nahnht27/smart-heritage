@@ -256,6 +256,41 @@ class MultimediaControllerTest extends ContentApiTestSupport {
                 .andExpect(jsonPath("$.data.artifactId").value(artifactId));
     }
 
+    //LTL-69
+
+@Test
+void adminShouldUpdateMultimediaToAnotherExistingArtifact() throws Exception {
+    String token = createAdminToken();
+
+    int siteId = createSite(token, "Multimedia Reassignment Site");
+    int originalArtifactId = createArtifact(token, siteId, "Original Artifact");
+    int targetArtifactId = createArtifact(token, siteId, "Target Artifact");
+
+    int multimediaId = createMultimedia(
+            token,
+            originalArtifactId,
+            "Multimedia To Move"
+    );
+
+    mockMvc.perform(put("/api/multimedia/{multimediaId}", multimediaId)
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validMultimediaRequest(
+                            targetArtifactId,
+                            "Multimedia To Move"
+                    )))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.multimediaId").value(multimediaId))
+            .andExpect(jsonPath("$.data.artifactId").value(targetArtifactId));
+
+    mockMvc.perform(get("/api/multimedia/{multimediaId}", multimediaId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.multimediaId").value(multimediaId))
+            .andExpect(jsonPath("$.data.artifactId").value(targetArtifactId))
+            .andExpect(jsonPath("$.data.title").value("Multimedia To Move"));
+}
+
+
     @Test
     void adminShouldDeleteMultimedia() throws Exception {
         String token = createAdminToken();
