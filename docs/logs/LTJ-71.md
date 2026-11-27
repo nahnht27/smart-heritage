@@ -3,10 +3,10 @@
 ## Thông tin chung
 
 - **Task:** LTJ-71 / S6-M3-02 — Real-Device Multimedia Playback Acceptance
-- **Trạng thái task:** **Hoàn thành** — td041 xác nhận ngày 28/11/2026; [CI đạt](https://github.com/nahnht27/smart-heritage/actions/runs/46071640441) trên commit `6ebc866`. Screenshot/video chưa đính kèm trong repo.
+- **Trạng thái task:** **Hoàn thành** — td041 xác nhận ngày 28/11/2026; [CI đạt](https://github.com/nahnht27/smart-heritage/actions/runs/46071640441) trên commit `6ebc866`. Video bằng chứng: [demo.mp4](../evidence/demo.mp4).
 - **Nhánh:** `LTJ-70`
 - **Phạm vi:** audio/video playback, loading/error/retry, lifecycle khi blur/background, chuyển artifact, unmount và single-playback trên Android device.
-- **Kết luận nhanh:** Ngày 28/11/2026 mọi tiêu chí chức năng **PASS trên điện thoại thật** theo người test. Bằng chứng nộp kèm còn **PENDING**: screenshot/video.
+- **Kết luận nhanh:** Ngày 28/11/2026 mọi tiêu chí chức năng **PASS trên điện thoại thật** theo người test. Video bằng chứng: [demo.mp4](../evidence/demo.mp4).
 
 > Jest mock và web/emulator không thay thế real-device playback. Không đánh dấu
 > PASS nếu chưa nghe/nhìn media thật trên thiết bị.
@@ -69,7 +69,7 @@ backend chạy trong LAN.
 | Retry không tạo player/request trùng | **PASS** | Người test xác nhận thử lại sau khi mất mạng; chưa có log mạng đính kèm |
 | Đổi Artifact không bị callback cũ ghi đè | **PASS** | Người test xác nhận chuyển nhanh giữa các hiện vật |
 | Unmount giải phóng player/listener | **PASS** | Người test xác nhận tiếng tắt khi rời màn hình; chưa kiểm tra leak bằng công cụ native |
-| Có evidence + model/Android version | **PENDING** | Có model, Android 13 và sự kiện DB; thiếu screenshot/video |
+| Có evidence + model/Android version | **PASS** | Xiaomi Note 11T Pro, Android 13, sự kiện DB và [demo.mp4](../evidence/demo.mp4) |
 
 ## 3. Kịch bản chạy trên thiết bị
 
@@ -105,14 +105,14 @@ mục 4.
 | Video result | **PASS** — người test xác nhận phát được |
 | Blur/background result | **PASS** khi ra nền: media dừng, quay lại không tự phát |
 | Retry/network result | **PASS** — người test xác nhận |
-| Screenshot/video/log path | `________________` |
+| Screenshot/video/log path | `docs/evidence/demo.mp4`: có phát thuyết minh và video; không quay lại các lượt thử ra nền, đổi hiện vật khi đang tải và thử lại khi lỗi |
 | Tester + thời gian | td041, 28/11/2026 (bắt đầu khoảng 03:49 giờ Việt Nam) |
 
 ## 5. Kết quả
 
 **PASS (chức năng)** — người test xác nhận trên Xiaomi Note 11T Pro: phát audio/video,
 dừng khi ra nền và khi rời màn hình, đổi hiện vật, thử lại khi lỗi.
-Còn thiếu để đủ hồ sơ nghiệm thu: screenshot/video.
+Video bằng chứng: [demo.mp4](../evidence/demo.mp4).
 
 ## 6. Giới hạn / lưu ý
 
