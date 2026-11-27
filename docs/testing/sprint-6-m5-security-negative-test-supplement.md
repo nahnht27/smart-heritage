@@ -647,9 +647,11 @@ Owner/evidence requirements:
 - Gitleaks: 1 reviewed documentation false positive, 0 confirmed real secrets,
   raw exit code 1.
 
-### 12.5 Final CI evidence
+### 12.5 CI evidence for the final code commit
 
-Tested HEAD: `adc88222a3b3b32e110d5df03607ab8c13fe979c`.
+Code HEAD: `adc88222a3b3b32e110d5df03607ab8c13fe979c`. Subsequent
+documentation-only commits are covered by the final 12/12 run recorded on
+PR #46.
 
 | Run | Result | URL |
 |---|---|---|

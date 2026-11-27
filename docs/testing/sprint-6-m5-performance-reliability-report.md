@@ -394,9 +394,11 @@ The five k6 scenarios were not rerun or reinterpreted:
 - Docker resource monitoring concurrency with k6 remains unconfirmed.
 - No Prometheus, Grafana, OpenTelemetry or Kubernetes stack was added.
 
-### 15.5 Final CI evidence
+### 15.5 CI evidence for the final code commit
 
-Tested HEAD: `adc88222a3b3b32e110d5df03607ab8c13fe979c`.
+Code HEAD: `adc88222a3b3b32e110d5df03607ab8c13fe979c`. Subsequent
+documentation-only commits are covered by the final 12/12 run recorded on
+PR #46.
 
 - Push run `45751420300`: 12/12 success.
 - PR run `45751427038`: 12/12 success.

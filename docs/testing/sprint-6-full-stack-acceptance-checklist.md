@@ -18,12 +18,14 @@ check is not evidence for a physical-device or browser acceptance item.
 | Native Windows 11 | **Not available** in this environment |
 | Android emulator / physical device | **Not available** |
 | Browser-driven E2E framework | **Not present**; no new framework was added |
-| CI public smoke | Verified on final HEAD by `integration-smoke` |
-| CI production packaging smoke | Verified on final HEAD by `production-smoke` |
+| CI public smoke | Verified by `integration-smoke` on the final code commit |
+| CI production packaging smoke | Verified by `production-smoke` on the final code commit |
 
-Final CI: push run `45751420300` and PR run `45751427038`, both 12/12 on
-`adc88222a3b3b32e110d5df03607ab8c13fe979c`. Public smoke reported 17 passed,
-0 failed, 9 skipped; production smoke passed. This is not full-stack acceptance.
+CI evidence for code commit `adc88222a3b3b32e110d5df03607ab8c13fe979c`:
+push run `45751420300` and PR run `45751427038`, both 12/12. Public smoke
+reported 17 passed, 0 failed, 9 skipped; production smoke passed. Subsequent
+documentation-only commits are covered by the final 12/12 run on PR #46.
+This is not full-stack acceptance.
 
 ## Acceptance Matrix
 

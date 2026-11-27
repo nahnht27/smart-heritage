@@ -330,9 +330,9 @@ Validation:
   concurrency remains unconfirmed.
 - Gitleaks: 1 reviewed false positive, 0 confirmed real secrets, exit code 1.
 
-### Final CI evidence (2026-11-26)
+### CI evidence for the final code commit (2026-11-26)
 
-Tested HEAD: `adc88222a3b3b32e110d5df03607ab8c13fe979c`.
+Code HEAD: `adc88222a3b3b32e110d5df03607ab8c13fe979c`.
 
 - Push run `45751420300`: 12/12 jobs success.
   https://github.com/nahnht27/smart-heritage/actions/runs/45751420300
@@ -350,5 +350,7 @@ Tested HEAD: `adc88222a3b3b32e110d5df03607ab8c13fe979c`.
   demo-seed-static-checks, demo-seed-isolation, demo-seed-lifecycle,
   docker-build, integration-smoke, production-smoke.
 
-The final CI is green, but it does not replace browser full-stack, native
-Windows, physical BLE or real-device multimedia acceptance.
+The CI is green for this code commit. Subsequent documentation-only commits
+are covered by the final 12/12 run recorded on PR #46. CI does not replace
+browser full-stack, native Windows, physical BLE or real-device multimedia
+acceptance.
