@@ -14,7 +14,7 @@ curl -fsS http://localhost:8080/api/health
 ```
 
 - PostgreSQL 16 chạy trong container, database `smart_heritage`.
-- Backend chạy Flyway V1–V4 khi database trống, sau đó Hibernate validate.
+- Backend chạy Flyway V1–V5 khi database trống, sau đó Hibernate validate.
 - Dữ liệu nằm trong volume `postgres_data`.
 - Không dùng `docker compose down -v` nếu cần giữ dữ liệu local.
 

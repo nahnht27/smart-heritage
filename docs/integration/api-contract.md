@@ -254,6 +254,18 @@ Phân quyền: POST/PUT/DELETE yêu cầu `hasRole('ADMIN')`. GET công khai.
 
 ---
 
+#### Nội dung file và gói offline (công khai)
+
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `GET` | `/api/multimedia/{multimediaId}/file` | Trả nội dung file lưu trong DB, hỗ trợ `Range`, `ETag` = SHA-256; `404` nếu mục chỉ có URL ngoài |
+| `GET` | `/api/offline/manifest` | `{contentVersion, sites, artifacts, multimedia, beacons}`; beacon chỉ gồm loại đang bật và đã gán hiện vật |
+
+`MultimediaResponse` có thêm `hasFileData`, `fileName`, `contentType`,
+`fileSize`, `sha256` (ba trường cuối và `fileName` là null khi không có file).
+
+---
+
 ### 2.6 Health
 
 | Method | Endpoint | Mô tả |
