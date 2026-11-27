@@ -153,4 +153,20 @@ describe('interactionApi', () => {
     expect(calls[1][1].eventId).toBe(eventId);
     expect(calls.length).toBe(2);
   });
+
+  it('reuses the same eventId when one failed event is retried', async () => {
+    mockPost
+      .mockResolvedValueOnce({ data: null, error: 'Server error', status: 500, ok: false })
+      .mockResolvedValueOnce({ data: { interactionId: 7 }, error: null, status: 200, ok: true });
+
+    const first = await interactionApi.recordInteraction(baseEvent);
+    const retry = await interactionApi.recordInteraction(baseEvent);
+
+    expect(first.ok).toBe(false);
+    expect(retry.ok).toBe(true);
+    expect(mockPost.mock.calls.map((call) => call[1].eventId)).toEqual([
+      baseEvent.eventId,
+      baseEvent.eventId,
+    ]);
+  });
 });

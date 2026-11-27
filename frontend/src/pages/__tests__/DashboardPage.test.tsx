@@ -7,6 +7,7 @@ import * as analyticsService from '../../services/analyticsService'
 import { ApiError } from '../../services/apiClient'
 import type { InteractionSummary } from '../../types/analytics'
 import * as csvExportModule from '../../utils/analyticsCsv'
+import { formatCount } from '../../utils/numberFormat'
 
 vi.mock('../../services/analyticsService')
 vi.mock('../../utils/analyticsCsv', () => ({
@@ -54,7 +55,7 @@ describe('DashboardPage — Admin Analytics', () => {
 
     // Resolves and displays KPI cards
     await waitFor(() => {
-      expect(screen.getByText('1,420')).toBeInTheDocument()
+      expect(screen.getByText(formatCount(1420))).toBeInTheDocument()
       expect(screen.getByText('350')).toBeInTheDocument()
       // Avg engagement: 1420 / 350 = 4.1
       expect(screen.getByText('4.1')).toBeInTheDocument()
@@ -122,7 +123,7 @@ describe('DashboardPage — Admin Analytics', () => {
     await user.click(retryBtn)
 
     await waitFor(() => {
-      expect(screen.getByText('1,420')).toBeInTheDocument()
+      expect(screen.getByText(formatCount(1420))).toBeInTheDocument()
     })
   })
 
@@ -156,7 +157,7 @@ describe('DashboardPage — Admin Analytics', () => {
     render(<DashboardPage />)
 
     await waitFor(() => {
-      expect(screen.getByText('1,420')).toBeInTheDocument()
+      expect(screen.getByText(formatCount(1420))).toBeInTheDocument()
     })
 
     // Click Last 7 Days
@@ -185,7 +186,7 @@ describe('DashboardPage — Admin Analytics', () => {
     render(<DashboardPage />)
 
     await waitFor(() => {
-      expect(screen.getByText('1,420')).toBeInTheDocument()
+      expect(screen.getByText(formatCount(1420))).toBeInTheDocument()
     })
 
     const fromInput = screen.getByLabelText(/start date/i)
@@ -244,7 +245,7 @@ describe('DashboardPage — Admin Analytics', () => {
 
     render(<DashboardPage />)
     await waitFor(() => {
-      expect(screen.getByText('1,420')).toBeInTheDocument()
+      expect(screen.getByText(formatCount(1420))).toBeInTheDocument()
     })
 
     const fromInput = screen.getByLabelText(/start date/i)
@@ -269,7 +270,7 @@ describe('DashboardPage — Admin Analytics', () => {
 
     render(<DashboardPage />)
     await waitFor(() => {
-      expect(screen.getByText('1,420')).toBeInTheDocument()
+      expect(screen.getByText(formatCount(1420))).toBeInTheDocument()
     })
 
     const fromInput = screen.getByLabelText(/start date/i)
@@ -318,7 +319,7 @@ describe('DashboardPage — Admin Analytics', () => {
 
     render(<DashboardPage />)
     await waitFor(() => {
-      expect(screen.getByText('1,420')).toBeInTheDocument()
+      expect(screen.getByText(formatCount(1420))).toBeInTheDocument()
     })
 
     await user.click(screen.getByRole('button', { name: /last 7 days/i }))
@@ -346,7 +347,7 @@ describe('DashboardPage — Admin Analytics', () => {
     render(<DashboardPage />)
 
     await waitFor(() => {
-      expect(screen.getByText('1,420')).toBeInTheDocument()
+      expect(screen.getByText(formatCount(1420))).toBeInTheDocument()
     })
 
     const refreshBtn = screen.getByRole('button', {
@@ -381,7 +382,7 @@ describe('DashboardPage — Admin Analytics', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('1,420')).toBeInTheDocument()
+      expect(screen.getByText(formatCount(1420))).toBeInTheDocument()
     })
     expect(analyticsService.getInteractionSummary).toHaveBeenCalledTimes(1)
   })

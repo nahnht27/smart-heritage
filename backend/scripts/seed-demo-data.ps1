@@ -602,7 +602,7 @@ function Invoke-Api {
 
         throw (
             "API $Method $Path thất bại. " +
-            "HTTP=$statusCode. $content"
+            "HTTP=$statusCode. $content | Exception: $($_.Exception.Message)"
         )
     }
 
@@ -897,27 +897,28 @@ function Invoke-PostgresSql {
     Push-Location $script:RepoRoot
 
     try {
+        $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
         $previousPreference = $ErrorActionPreference
         $stderrPath = [System.IO.Path]::GetTempFileName()
         try {
             $ErrorActionPreference = 'Continue'
 
             if ($PostgresMode -eq 'Local') {
-                $output = & psql `
+                $output = $Sql | & psql `
                     -h $PostgresHost `
                     -p $PostgresPort `
                     -U $PostgresUser `
                     -d $PostgresDatabase `
                     -X -q -A -t `
                     -v ON_ERROR_STOP=1 `
-                    -c $Sql 2> $stderrPath
+                    -f - 2> $stderrPath
             }
             else {
-                $output = & docker compose exec -T postgres `
+                $output = $Sql | & docker compose exec -T postgres `
                     psql -U $PostgresUser -d $PostgresDatabase `
                     -X -q -A -t `
                     -v ON_ERROR_STOP=1 `
-                    -c $Sql 2> $stderrPath
+                    -f - 2> $stderrPath
             }
 
             $commandExitCode = $LASTEXITCODE
