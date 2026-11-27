@@ -177,4 +177,24 @@ describe('FeedbackPage — Admin Feedback & Content Management', () => {
       'Demo mode — backend endpoint is not implemented. Changes are temporary and reset when the application reloads.',
     )
   })
+
+  it('closes view and form modals when pressing Escape', async () => {
+    render(<FeedbackPage />)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('View F001')).toBeInTheDocument()
+    })
+
+    await userEvent.click(screen.getByLabelText('View F001'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /\+ Add Content/i }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
 })

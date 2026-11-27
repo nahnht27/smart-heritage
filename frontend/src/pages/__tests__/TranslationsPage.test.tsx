@@ -190,4 +190,14 @@ describe('TranslationsPage — Admin Translation Management', () => {
       'Demo mode — backend endpoint is not implemented. Changes are temporary and reset when the application reloads.',
     )
   })
+
+  it('closes the modal when pressing Escape', async () => {
+    render(<TranslationsPage />)
+
+    await userEvent.click(screen.getByRole('button', { name: /\+ Add Translation/i }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
 })

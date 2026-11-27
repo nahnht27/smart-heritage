@@ -729,3 +729,31 @@
   border: 1px solid #fde68a;
   color: #92400e;
 }
+
+.translations-content-cell,
+.translations-lang-box p {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.translations-page button:focus-visible,
+.translations-page select:focus-visible,
+.translations-page input:focus-visible,
+.translations-page textarea:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .translations-header {
+    flex-wrap: wrap;
+  }
+
+  .translations-search-box {
+    min-width: 100%;
+  }
+
+  .translations-form-row {
+    grid-template-columns: 1fr;
+  }
+}
