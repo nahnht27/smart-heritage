@@ -33,5 +33,15 @@ public interface BeaconRepository extends JpaRepository<Beacon, Integer> {
 
     List<Beacon> findAllByOrderByNameAsc();
 
+    @Query("""
+            SELECT b
+            FROM Beacon b
+            JOIN FETCH b.artifact a
+            JOIN FETCH a.heritageSite
+            WHERE b.enabled = true
+            ORDER BY b.beaconId
+            """)
+    List<Beacon> findAllResolvable();
+
     boolean existsByArtifact_ArtifactId(Integer artifactId);
 }

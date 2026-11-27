@@ -22,8 +22,36 @@ const getDefaultBaseUrl = (): string => {
   return 'http://localhost:8080/api';
 };
 
+/** Address built into the app. */
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL || getDefaultBaseUrl();
+
+let baseUrlOverride: string | null = null;
+
+/** Address in use: the one chosen on the phone, otherwise the built-in one. */
+export function getApiBaseUrl(): string {
+  return baseUrlOverride ?? API_BASE_URL;
+}
+
+export function setApiBaseUrlOverride(url: string | null): void {
+  baseUrlOverride = url;
+}
+
+/**
+ * Turns operator input such as `192.168.1.10:8081` into an API base URL
+ * ending in `/api`. Returns null for anything that is not an http(s) address.
+ */
+export function normalizeServerUrl(input: string): string | null {
+  const trimmed = input.trim().replace(/\/+$/, '');
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
+    ? trimmed
+    : `http://${trimmed}`;
+  const match = /^https?:\/\/[a-z0-9.-]+(:\d{1,5})?(\/[^\s?#]*)?$/i.exec(withScheme);
+  if (!trimmed || !match) {
+    return null;
+  }
+  return /\/api$/i.test(withScheme) ? withScheme : `${withScheme}/api`;
+}
 
 export interface ApiResponse<T> {
   data: T | null;
@@ -47,7 +75,7 @@ export interface RequestOptions extends RequestInit {
  */
 export function buildApiUrl(
   endpoint: string,
-  baseUrl: string = API_BASE_URL
+  baseUrl: string = getApiBaseUrl()
 ): string {
   const trimmedEndpoint = endpoint.trim();
 

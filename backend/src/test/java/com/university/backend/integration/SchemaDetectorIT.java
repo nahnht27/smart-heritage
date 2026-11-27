@@ -86,7 +86,7 @@ class SchemaDetectorIT {
     @Test
     void v4SchemaIsDetected() throws Exception {
         try (Database database = Database.create("v4")) {
-            flyway(database.url()).migrate();
+            targeted(database.url(), "4").migrate();
 
             Detection detection = detect(database);
 
@@ -96,6 +96,30 @@ class SchemaDetectorIT {
             assertTrue(detection.hasBeaconMajorCheck());
             assertTrue(detection.hasBeaconMinorCheck());
             assertTrue(detection.hasV4Shape());
+        }
+    }
+
+    @Test
+    void v5SchemaIsDetected() throws Exception {
+        try (Database database = Database.create("v5")) {
+            flyway(database.url()).migrate();
+
+            Detection detection = detect(database);
+
+            assertEquals("5", detection.detectedVersion());
+            assertEquals("5", detection.flywayVersion());
+        }
+    }
+
+    @Test
+    void v5HistoryWithoutMediaTableIsNotAccepted() throws Exception {
+        try (Database database = Database.create("missing_media")) {
+            flyway(database.url()).migrate();
+            execute(database, "drop table multimedia_file");
+
+            Detection detection = detect(database);
+
+            assertEquals("UNEXPECTED", detection.detectedVersion());
         }
     }
 
@@ -126,7 +150,7 @@ class SchemaDetectorIT {
             Detection detection = detect(database);
 
             assertEquals("UNEXPECTED", detection.detectedVersion());
-            assertEquals("4", detection.flywayVersion());
+            assertEquals("5", detection.flywayVersion());
             assertFalse(detection.hasV4Shape());
         }
     }
@@ -145,7 +169,7 @@ class SchemaDetectorIT {
             Detection detection = detect(database);
 
             assertEquals("UNEXPECTED", detection.detectedVersion());
-            assertEquals("4", detection.flywayVersion());
+            assertEquals("5", detection.flywayVersion());
             assertFalse(detection.hasV4Shape());
         }
     }
@@ -159,7 +183,7 @@ class SchemaDetectorIT {
             Detection detection = detect(database);
 
             assertEquals("UNEXPECTED", detection.detectedVersion());
-            assertEquals("4", detection.flywayVersion());
+            assertEquals("5", detection.flywayVersion());
             assertFalse(detection.hasBeaconMajorCheck());
             assertFalse(detection.hasV4Shape());
         }
@@ -176,7 +200,7 @@ class SchemaDetectorIT {
             Detection detection = detect(database);
 
             assertEquals("UNEXPECTED", detection.detectedVersion());
-            assertEquals("4", detection.flywayVersion());
+            assertEquals("5", detection.flywayVersion());
             assertFalse(detection.hasBeaconMajorCheck());
             assertTrue(detection.hasBeaconMinorCheck());
             assertFalse(detection.hasV4Shape());
@@ -194,7 +218,7 @@ class SchemaDetectorIT {
             Detection detection = detect(database);
 
             assertEquals("UNEXPECTED", detection.detectedVersion());
-            assertEquals("4", detection.flywayVersion());
+            assertEquals("5", detection.flywayVersion());
             assertTrue(detection.hasBeaconMajorCheck());
             assertFalse(detection.hasBeaconMinorCheck());
             assertFalse(detection.hasV4Shape());
@@ -210,7 +234,7 @@ class SchemaDetectorIT {
             Detection detection = detect(database);
 
             assertEquals("UNEXPECTED", detection.detectedVersion());
-            assertEquals("4", detection.flywayVersion());
+            assertEquals("5", detection.flywayVersion());
             assertFalse(detection.hasBeaconMinorCheck());
             assertFalse(detection.hasV4Shape());
         }
@@ -225,7 +249,7 @@ class SchemaDetectorIT {
             Detection detection = detect(database);
 
             assertEquals("UNEXPECTED", detection.detectedVersion());
-            assertEquals("4", detection.flywayVersion());
+            assertEquals("5", detection.flywayVersion());
             assertFalse(detection.hasV4Shape());
         }
     }
@@ -239,7 +263,7 @@ class SchemaDetectorIT {
             Detection detection = detect(database);
 
             assertEquals("UNEXPECTED", detection.detectedVersion());
-            assertEquals("4", detection.flywayVersion());
+            assertEquals("5", detection.flywayVersion());
             assertFalse(detection.hasV4Shape());
         }
     }
@@ -261,7 +285,7 @@ class SchemaDetectorIT {
             Detection detection = detect(database);
 
             assertEquals("UNEXPECTED", detection.detectedVersion());
-            assertEquals("4", detection.flywayVersion());
+            assertEquals("5", detection.flywayVersion());
             assertFalse(detection.hasV4Shape());
         }
     }

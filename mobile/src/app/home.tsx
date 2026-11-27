@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useSyncExternalStore } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,11 @@ import { apiClient } from '../services/api';
 import { authStorage } from '../services/authStorage';
 import { RemoteImage } from '../components/remote-image';
 import { BeaconDiscoveryPanel } from '../components/beacon-discovery-panel';
+import { OfflinePanel } from '../components/offline-panel';
+import {
+  getOfflinePack,
+  subscribeToOfflinePack,
+} from '../services/offline/store';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -35,6 +40,12 @@ export default function HomeScreen() {
   const [contentRefreshKey, setContentRefreshKey] = useState(0);
 
   const site = sites[0] ?? null;
+  // Reload the content when the offline pack is downloaded or removed.
+  const offlinePack = useSyncExternalStore(
+    subscribeToOfflinePack,
+    getOfflinePack,
+    getOfflinePack,
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -78,7 +89,7 @@ export default function HomeScreen() {
     return () => {
       mounted = false;
     };
-  }, [contentRefreshKey]);
+  }, [contentRefreshKey, offlinePack]);
 
   useEffect(() => {
     let mounted = true;
@@ -105,13 +116,15 @@ export default function HomeScreen() {
         if (mounted && result.ok && result.data) {
           setUser(result.data);
         } else if (mounted) {
-          // Token invalid/expired — clear it
-          await authStorage.clearToken();
+          // Only a rejected token is discarded. Being offline must not sign
+          // the visitor out.
+          if (result.status === 401) {
+            await authStorage.clearToken();
+          }
           setUser(null);
         }
       } catch {
         if (mounted) {
-          await authStorage.clearToken();
           setUser(null);
         }
       } finally {
@@ -187,6 +200,8 @@ export default function HomeScreen() {
               })
             }
           />
+
+          <OfflinePanel />
 
       {/* 3. Quick Navigation Features Grid */}
       <View style={styles.sectionHeader}>

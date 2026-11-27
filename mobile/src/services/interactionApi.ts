@@ -18,6 +18,11 @@
 import { apiClient } from './api';
 import { authStorage } from './authStorage';
 import { visitorStorage } from './visitorStorage';
+import {
+  enqueueInteraction,
+  flushInteractionQueue,
+  isRetryableStatus,
+} from './offline/interactionQueue';
 
 export type InteractionType = 'VIEW' | 'AUDIO_PLAY' | 'SCAN' | 'BEACON_TRIGGER';
 
@@ -85,6 +90,12 @@ export const interactionApi = {
         token: token ?? undefined,
       });
 
+      if (result.ok) {
+        void flushPendingInteractions();
+      } else if (isRetryableStatus(result.status)) {
+        await enqueueInteraction(body);
+      }
+
       return {
         ok: result.ok,
         error: result.error ?? null,
@@ -99,6 +110,17 @@ export const interactionApi = {
     }
   },
 };
+
+/** Delivers events recorded while the server was unreachable. */
+export function flushPendingInteractions(): Promise<number> {
+  return flushInteractionQueue(async (body) => {
+    const token = await authStorage.getToken();
+    const result = await apiClient.post(ENDPOINT, body, {
+      token: token ?? undefined,
+    });
+    return { ok: result.ok, status: result.status };
+  });
+}
 
 function isValidUuid(uuid: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

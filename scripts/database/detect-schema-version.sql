@@ -45,6 +45,7 @@ state AS (
             AND to_regclass('public.visitor_interaction') IS NOT NULL
             AND to_regclass('public."user"') IS NOT NULL AS has_base_tables,
         to_regclass('public.beacon') IS NOT NULL AS has_beacon,
+        to_regclass('public.multimedia_file') IS NOT NULL AS has_multimedia_file,
         EXISTS (
             SELECT 1
             FROM information_schema.columns
@@ -355,6 +356,13 @@ requirements AS (
             AND shapes.has_beacon_enabled_true_default
             AND shapes.has_beacon_fk_set_null AS has_v4_shape
     FROM shapes
+),
+latest AS (
+    SELECT
+        requirements.*,
+        requirements.has_v4_shape
+            AND requirements.has_multimedia_file AS has_v5_shape
+    FROM requirements
 )
 SELECT
     CASE
@@ -365,8 +373,10 @@ SELECT
                 WHEN history.flyway_version = '2' AND has_v2_shape THEN '2'
                 WHEN history.flyway_version = '3' AND has_v3_shape THEN '3'
                 WHEN history.flyway_version = '4' AND has_v4_shape THEN '4'
+                WHEN history.flyway_version = '5' AND has_v5_shape THEN '5'
                 ELSE 'UNEXPECTED'
             END
+        WHEN has_v5_shape THEN '5'
         WHEN has_v4_shape THEN '4'
         WHEN has_v3_shape THEN '3'
         WHEN has_v2_shape THEN '2'
@@ -375,24 +385,25 @@ SELECT
     END AS detected_version,
     history.flyway_version,
     history.has_history,
-    requirements.has_base_tables,
-    requirements.has_beacon,
-    requirements.has_visitor_id,
-    requirements.visitor_id_not_null,
-    requirements.user_id_nullable,
-    requirements.has_beacon_id,
-    requirements.beacon_id_nullable,
-    requirements.has_analytics_index,
-    requirements.has_visitor_index,
-    requirements.has_beacon_index,
-    requirements.has_beacon_artifact_index,
-    requirements.has_beacon_major_check,
-    requirements.has_beacon_minor_check,
-    requirements.has_beacon_enabled_not_null,
-    requirements.has_beacon_enabled_true_default,
-    requirements.has_beacon_identity_unique,
-    requirements.has_event_id_unique,
-    requirements.has_beacon_fk_set_null,
-    requirements.has_v4_shape
-FROM requirements
+    latest.has_base_tables,
+    latest.has_beacon,
+    latest.has_visitor_id,
+    latest.visitor_id_not_null,
+    latest.user_id_nullable,
+    latest.has_beacon_id,
+    latest.beacon_id_nullable,
+    latest.has_analytics_index,
+    latest.has_visitor_index,
+    latest.has_beacon_index,
+    latest.has_beacon_artifact_index,
+    latest.has_beacon_major_check,
+    latest.has_beacon_minor_check,
+    latest.has_beacon_enabled_not_null,
+    latest.has_beacon_enabled_true_default,
+    latest.has_beacon_identity_unique,
+    latest.has_event_id_unique,
+    latest.has_beacon_fk_set_null,
+    latest.has_v4_shape,
+    latest.has_v5_shape
+FROM latest
 CROSS JOIN history;

@@ -57,6 +57,8 @@ public class SecurityConfig {
                 // Beacon resolution is part of the public visitor flow; admin
                 // management remains protected by @PreAuthorize.
                 .requestMatchers(HttpMethod.GET, "/api/beacons/**").permitAll()
+                // One snapshot of public content for offline use in the app.
+                .requestMatchers(HttpMethod.GET, "/api/offline/**").permitAll()
                 // Interaction recording works for anonymous visitors too. The
                 // authenticated owner is resolved from the JWT principal when
                 // one is present; analytics remains protected by @PreAuthorize.

@@ -1,4 +1,5 @@
 import { apiClient } from '../api';
+import { findOfflineBeacon } from '../offline/store';
 import {
   normalizeBeaconIdentity,
   type BeaconIdentity,
@@ -34,6 +35,15 @@ export const beaconApi = {
         status: 400,
         ok: false,
       };
+    }
+
+    const saved = findOfflineBeacon(
+      normalized.uuid,
+      normalized.major,
+      normalized.minor,
+    );
+    if (saved) {
+      return { data: saved, error: null, status: 200, ok: true };
     }
 
     const endpoint =

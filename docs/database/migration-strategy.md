@@ -30,6 +30,7 @@ Migration dùng **Flyway 10.22.0**, chạy tự động khi backend khởi độ
 | V2 | `V2__visitor_interaction_anonymous_visitor.sql` | `visitor_id`, cho phép `user_id` nullable, index analytics |
 | V3 | `V3__beacon_management.sql` | Bảng `beacon`, FK `visitor_interaction.beacon_id`, check/index Wave 4 |
 | V4 | `V4__normalize_legacy_schema.sql` | Chuẩn hoá DB do Hibernate tạo: index, default `enabled`, check range, FK `ON DELETE SET NULL` |
+| V5 | `V5__multimedia_file_storage.sql` | Bảng `multimedia_file` lưu nội dung ảnh/audio/video; chép dữ liệu từ các cột file thêm tay trên `multimedia` nếu có (không xoá cột cũ) |
 
 V4 kiểm tra biểu thức của constraint check trùng tên. Nếu `ck_beacon_major_range`
 hoặc `ck_beacon_minor_range` tồn tại nhưng không đúng range `0..65535`, migration

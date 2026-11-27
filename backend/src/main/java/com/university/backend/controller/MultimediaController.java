@@ -4,13 +4,21 @@ import com.university.backend.dto.ApiResponse;
 import com.university.backend.dto.MultimediaRequest;
 import com.university.backend.dto.MultimediaResponse;
 import com.university.backend.entity.Multimedia;
+import com.university.backend.entity.MultimediaFile;
 import com.university.backend.service.MultimediaService;
 import jakarta.validation.Valid;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 
 @RestController
@@ -27,11 +35,8 @@ public class MultimediaController {
     public ResponseEntity<ApiResponse<List<MultimediaResponse>>> getAllMultimedia(
             @RequestParam(required = false) Integer artifactId) {
 
-        List<MultimediaResponse> multimediaList = multimediaService
-                .getAllMultimedia(artifactId)
-                .stream()
-                .map(MultimediaResponse::fromEntity)
-                .toList();
+        List<MultimediaResponse> multimediaList = multimediaService.toResponses(
+                multimediaService.getAllMultimedia(artifactId));
 
         return ResponseEntity.ok(
                 ApiResponse.success("Multimedia retrieved successfully", multimediaList));
@@ -46,7 +51,29 @@ public class MultimediaController {
         return ResponseEntity.ok(
                 ApiResponse.success(
                         "Multimedia retrieved successfully",
-                        MultimediaResponse.fromEntity(multimedia)));
+                        multimediaService.toResponse(multimedia)));
+    }
+
+    /**
+     * Serves the stored bytes. Spring handles HTTP range requests for resource
+     * bodies, which media players rely on for seeking.
+     */
+    @GetMapping("/{multimediaId}/file")
+    public ResponseEntity<ByteArrayResource> downloadMultimediaFile(
+            @PathVariable Integer multimediaId) {
+
+        MultimediaFile file = multimediaService.getMultimediaFile(multimediaId);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(file.getContentType()))
+                .eTag("\"" + file.getSha256() + "\"")
+                .cacheControl(CacheControl.maxAge(Duration.ofHours(1)))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline()
+                                .filename(file.getFileName(), StandardCharsets.UTF_8)
+                                .build()
+                                .toString())
+                .body(new ByteArrayResource(file.getFileData()));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -85,7 +112,7 @@ public class MultimediaController {
         return ResponseEntity.ok(
                 ApiResponse.success(
                         "Multimedia updated successfully",
-                        MultimediaResponse.fromEntity(multimedia)));
+                        multimediaService.toResponse(multimedia)));
     }
 
     @PreAuthorize("hasRole('ADMIN')")

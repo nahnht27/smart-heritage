@@ -7,6 +7,7 @@ import { apiClient } from '../api';
 import { authStorage } from '../authStorage';
 import { interactionApi, __resetVisitorIdForTest, type InteractionType } from '../interactionApi';
 import { visitorStorage } from '../visitorStorage';
+import { enqueueInteraction } from '../offline/interactionQueue';
 
 jest.mock('../api', () => ({
   apiClient: {
@@ -27,6 +28,14 @@ jest.mock('../visitorStorage', () => ({
   },
 }));
 
+jest.mock('../offline/interactionQueue', () => ({
+  enqueueInteraction: jest.fn(),
+  flushInteractionQueue: jest.fn(async () => 0),
+  isRetryableStatus: (status: number) =>
+    status === 0 || status === 408 || status === 429 || status >= 500,
+}));
+
+const mockEnqueue = enqueueInteraction as jest.Mock;
 const mockPost = apiClient.post as jest.Mock;
 const mockGetToken = authStorage.getToken as jest.Mock;
 const mockGetVisitorId = visitorStorage.getVisitorId as jest.Mock;
@@ -47,6 +56,24 @@ describe('interactionApi', () => {
     __resetVisitorIdForTest();
     mockGetToken.mockResolvedValue('fake-token');
     mockGetVisitorId.mockResolvedValue(VISITOR_ID);
+  });
+
+  it('lưu lại sự kiện khi mất mạng để gửi sau, giữ nguyên eventId', async () => {
+    mockPost.mockResolvedValue({ data: null, error: 'offline', status: 0, ok: false });
+
+    await interactionApi.recordInteraction(baseEvent);
+
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: baseEvent.eventId, visitorId: VISITOR_ID }),
+    );
+  });
+
+  it('không lưu lại sự kiện bị máy chủ từ chối hẳn', async () => {
+    mockPost.mockResolvedValue({ data: null, error: 'bad', status: 400, ok: false });
+
+    await interactionApi.recordInteraction(baseEvent);
+
+    expect(mockEnqueue).not.toHaveBeenCalled();
   });
 
   it('gửi sự kiện VIEW thành công và trả về ok', async () => {

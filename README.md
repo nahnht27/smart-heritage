@@ -14,6 +14,11 @@ University project — Smart Heritage platform.
 └── docker-compose.yml
 ```
 
+## Demo offline
+
+Dữ liệu 12 hiện vật, media trong PostgreSQL, APK xem không cần mạng:
+[`docs/features/offline-demo.md`](docs/features/offline-demo.md).
+
 ## Documentation (M1 Sprint 1)
 
 ### Requirements
@@ -210,7 +215,7 @@ Compose development ở trên vẫn giữ nguyên cho local.
 - **Password**: `postgres`
 - **Port**: `5432`
 
-Docker tự tạo database khi chạy lần đầu. Backend chạy Flyway migration V1–V4
+Docker tự tạo database khi chạy lần đầu. Backend chạy Flyway migration V1–V5
 khi database trống, sau đó Hibernate chỉ `validate` schema. Data được lưu trong
 Docker volume `smart-heritage_postgres_data` (có thể override bằng
 `POSTGRES_VOLUME_NAME`); không dùng `docker compose down -v` nếu muốn giữ dữ

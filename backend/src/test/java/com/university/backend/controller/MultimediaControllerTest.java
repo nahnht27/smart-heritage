@@ -163,9 +163,10 @@ class MultimediaControllerTest extends ContentApiTestSupport {
                 "[LTJ-56 MULTIMEDIA] Unfiltered SQL statements = "
                         + unfilteredStatements);
         assertEquals(
-                1L,
+                2L,
                 unfilteredStatements,
-                "Unfiltered multimedia list must load Artifact in one query"
+                "Unfiltered multimedia list must use one query for items with Artifact "
+                        + "and one batch query for stored-file details"
         );
 
         statistics.clear();
@@ -179,9 +180,10 @@ class MultimediaControllerTest extends ContentApiTestSupport {
                 "[LTJ-56 MULTIMEDIA] Filtered SQL statements = "
                         + filteredStatements);
         assertEquals(
-                2L,
+                3L,
                 filteredStatements,
-                "Filtered multimedia list must use one existence check and one query"
+                "Filtered multimedia list must use one existence check, one query "
+                        + "and one batch query for stored-file details"
         );
     }
 

@@ -164,3 +164,32 @@ mobile/
     │   ├── beacon/           # iBeacon parsing, trigger, native wrapper, resolve API
     │   └── mockData.ts       # Dữ liệu mẫu (tách biệt rõ ràng với API thật)
 ```
+
+---
+
+## 7. Build APK demo Android
+
+- Application ID: `com.university.smartheritage`
+- App name: `Smart Heritage`
+- Version: `1.0.0` (`android.versionCode = 1`)
+- EAS profile: `demo` trong `mobile/eas.json`, tạo APK internal.
+- Local build arm64: xem hướng dẫn đầy đủ tại
+  [`docs/deployment/mobile-android-release.md`](../docs/deployment/mobile-android-release.md).
+
+```bash
+cd mobile
+npx eas-cli@latest build -p android --profile demo
+```
+
+Hoặc build local:
+
+```bash
+cd mobile
+npx expo prebuild --platform android --clean
+cd android
+./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a
+```
+
+Không commit `mobile/android/`, APK/AAB hoặc keystore. Bản 1.1.0 đã được cài và
+chạy trên Xiaomi Note 11T Pro (Android 13); xem
+[`docs/logs/LTJ-72.md`](../docs/logs/LTJ-72.md).
