@@ -8,6 +8,7 @@
 - Background scanning: **DEFERRED**. Chưa triển khai foreground service hoặc background location.
 - Native build/device verification: **CHƯA CHẠY** trong môi trường phát triển này (không có Android SDK/ADB/Gradle, không có macOS/Xcode, không có beacon vật lý). Không có kết quả phần cứng nào được khẳng định trong tài liệu này.
 - LTJ-58 bổ sung: cooldown chống ghi trùng, dừng scanner khi rời màn hình, xử lý thay đổi Bluetooth/vị trí/quyền khi đang quét. API contract backend không đổi.
+- Sprint 6: LTJ-72 đã chuẩn bị app identity `com.university.smartheritage`, EAS demo profile và hướng dẫn build APK. LTJ-70 physical beacon acceptance vẫn **NOT VERIFIED**; xem [`docs/logs/LTJ-70.md`](../logs/LTJ-70.md).
 
 ## 2. Mục tiêu
 
@@ -363,8 +364,13 @@ npx expo run:android
 Checklist demo 2 beacon đầy đủ (setup, API, Android, media, analytics, evidence):
 [`docs/testing/sprint-5-beacon-physical-demo-checklist.md`](../testing/sprint-5-beacon-physical-demo-checklist.md).
 
-Admin Web `/beacons` hiện vẫn là `PlaceholderPage`; cấu hình beacon cho demo phải
-dùng Admin API (hoặc SQL).
+Acceptance log Sprint 6:
+[`docs/logs/LTJ-70.md`](../logs/LTJ-70.md) (physical beacon) và
+[`docs/logs/LTJ-71.md`](../logs/LTJ-71.md) (real-device multimedia). Cả hai đang
+**NOT VERIFIED** cho đến khi chạy trên thiết bị thật.
+
+Admin Web `/beacons` đã có CRUD (LTJ-60); dùng UI để tạo/map beacon. Admin API hoặc
+SQL chỉ là fallback khi UI không dùng được.
 
 Tất cả mục dưới đây đang là **NOT YET PHYSICALLY VERIFIED** trong môi trường hiện tại.
 
@@ -525,8 +531,8 @@ không claim hardware success.
 ### 12.4. Manual acceptance procedure còn lại
 
 1. Cài APK arm64 debug lên Android phone có BLE.
-2. Cấu hình beacon thật với UUID/Major/Minor; hiện Admin Web `/beacons` vẫn là
-   placeholder nên dùng Admin API hoặc SQL để tạo/map beacon với Artifact.
+2. Cấu hình beacon thật với UUID/Major/Minor; dùng Admin Web `/beacons` để
+   tạo/map beacon với Artifact (Admin API/SQL chỉ là fallback).
 3. Chạy backend + PostgreSQL, cấu hình backend URL trong app theo IP LAN.
 4. Cấp quyền Bluetooth/vị trí, bật Bluetooth, mở Home và bật quét beacon.
 5. Thực hiện Test A/B/C trong

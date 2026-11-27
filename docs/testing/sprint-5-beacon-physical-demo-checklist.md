@@ -24,8 +24,9 @@ Ngoài phạm vi buổi demo này:
 
 - iOS physical device (ghi `[~]` nếu chưa có thiết bị).
 - Background scanning / foreground service.
-- Multi-beacon đồng thời, beacon configuration qua Admin Web.
-- Admin Web `/beacons` hiện vẫn là `PlaceholderPage`; cấu hình beacon dùng API.
+- Multi-beacon đồng thời.
+- Admin Web `/beacons` CRUD đã có từ LTJ-60; dùng UI để tạo/map beacon. API ADMIN
+  chỉ là fallback khi UI không dùng được.
 
 ## 2. Chuẩn bị
 
@@ -77,7 +78,8 @@ curl -s "http://localhost:8080/api/beacons/resolve?uuid=<UUID>&major=1&minor=102
 Kỳ vọng mỗi response có `data.beaconId`, `data.artifactId`, `data.artifactName`,
 `data.siteId`, `data.siteName`.
 
-Nếu chưa có beacon, tạo bằng API ADMIN:
+Tạo/map beacon qua Admin Web `/beacons` (LTJ-60). Nếu UI không dùng được, fallback
+bằng API ADMIN:
 
 ```bash
 # 1. Lấy token ADMIN
@@ -245,7 +247,8 @@ Ghi lại số liệu trước/sau demo để tránh nhầm với dữ liệu c�
 
 ## 8. Known gaps / lưu ý
 
-- Admin Web `/beacons` chưa có màn hình quản lý; dùng API ADMIN.
+- Admin Web `/beacons` đã có CRUD; nếu môi trường đang chạy build cũ, dùng API
+  ADMIN làm fallback.
 - Android manifest chưa đặt `android:usesPermissionFlags="neverForLocation"`;
   cần kiểm tra lại flow quyền trên Android 12+.
 - Background scanning chưa hỗ trợ; chỉ demo khi app foreground.
