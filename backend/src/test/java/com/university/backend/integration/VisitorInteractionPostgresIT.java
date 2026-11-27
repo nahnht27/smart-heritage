@@ -1,4 +1,4 @@
-﻿package com.university.backend.integration;
+package com.university.backend.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

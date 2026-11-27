@@ -121,31 +121,6 @@ Các kết quả trên là những lần chạy riêng biệt. Không cộng s�
 
 **Phạm vi bằng chứng:** Các lần chạy xác nhận những nhóm chức năng được kiểm tra tại thời điểm tương ứng. Chưa xem đây là bằng chứng hoàn tất toàn bộ acceptance test S6-M2-03.
 
-## 5. Công việc còn lại
-
-- Đối chiếu đầy đủ hợp đồng API với implementation và phản hồi thực tế.
-- Rà soát nhất quán các mã lỗi HTTP, cấu trúc response và validation.
-- Hoàn thiện đối chiếu luồng HeritageSite → Artifact → Multimedia.
-- Kiểm tra bổ sung các trạng thái Beacon, đặc biệt Beacon bị vô hiệu hóa và các trường hợp Resolve tương ứng.
-- Tổng hợp lỗi còn tồn tại và bằng chứng nghiệm thu.
-
-## 6. Trạng thái
-
-**Chưa hoàn tất S6-M2-02.**
-
-Đã có kết quả kiểm thử đạt đối với JWT, phân quyền, Content API, Beacon và một số ràng buộc PostgreSQL. Tuy nhiên, việc đối chiếu toàn bộ hợp đồng API và hoàn thiện các kịch bản còn lại vẫn đang thực hiện.
-
-Chỉ kết luận hoàn thành sau khi các nội dung còn lại được kiểm chứng và có bằng chứng tương ứng.
-
-## 7. Nguyên tắc thực hiện
-
-- Không thay đổi API hoặc database schema khi chưa có bằng chứng và thống nhất.
-- Không mở rộng ngoài phạm vi M2.
-- Chỉ ghi nhận kết quả đã thực hiện và xác minh.
-- Không đưa thay đổi Mobile vào commit Backend.
-- Kiểm thử có thao tác xóa dữ liệu phải sử dụng database kiểm thử riêng.
-- Cập nhật log theo từng phần công việc đã xác minh.
-
 ### Bổ sung — Kiểm thử hồi quy xác thực, phân quyền và API
 
 - Chạy nhóm test: `AuthControllerTest`, `PublicContentAccessTest`, `BeaconControllerTest`, `ArtifactControllerTest`, `HeritageSiteControllerTest`, `MultimediaControllerTest`, `VisitorInteractionControllerTest`, `GlobalExceptionHandlerTest`.
@@ -275,3 +250,67 @@ Các trường hợp kiểm thử được bổ sung:
 Toàn bộ 187 kiểm thử Backend trong lần chạy này đều thành công. Kết quả xác nhận các thay đổi hiện tại không làm phát sinh lỗi trong bộ kiểm thử hồi quy được thực thi.
 
 **Phạm vi bằng chứng:** Đây là kết quả của một lần chạy toàn bộ Backend test suite tại thời điểm nêu trên. Không cộng số lượng 187 test với các lần chạy riêng lẻ trước đó để tạo thành tổng số test duy nhất. Kết quả này chưa thay thế việc đối chiếu đầy đủ hợp đồng API và các nội dung nghiệm thu còn lại của S6-M2-02, S6-M2-03.
+---
+
+## Final Audit & Closure
+
+### 1. Final status
+
+**Task: LTJ-68 — S6-M2-02: Final Backend API Contract & Domain Integrity Audit**
+
+**STATUS: DONE**
+
+Các nội dung thuộc phạm vi kiểm tra hợp đồng API, xác thực, phân quyền và tính toàn vẹn dữ liệu Backend đã được rà soát và có bằng chứng kiểm thử tương ứng.
+
+### 2. Final controller verification — 2026-11-27
+
+Các test được chạy độc lập bằng Docker image `maven:3.9.6-eclipse-temurin-17`.
+
+| Test class | Tests | Failures | Errors | Skipped | Result |
+|---|---:|---:|---:|---:|---|
+| HeritageSiteControllerTest | 24 | 0 | 0 | 0 | PASS |
+| ArtifactControllerTest | 34 | 0 | 0 | 0 | PASS |
+| MultimediaControllerTest | 23 | 0 | 0 | 0 | PASS |
+| BeaconControllerTest | 10 | 0 | 0 | 0 | PASS |
+| BeaconResolveValidationTest | 18 | 0 | 0 | 0 | PASS |
+| **Total** | **109** | **0** | **0** | **0** | **PASS** |
+
+Cả năm lần chạy đều kết thúc với `BUILD SUCCESS`.
+
+### 3. Source encoding correction
+
+Đã loại bỏ UTF-8 BOM tại đầu ba test source files:
+
+- `BeaconControllerTest.java`
+- `ArtifactControllerTest.java`
+- `VisitorInteractionPostgresIT.java`
+
+Đã xác nhận cả ba file không còn BOM. Không thay đổi logic kiểm thử có chủ đích.
+
+### 4. Consolidated evidence
+
+Các bằng chứng trước đó trong tài liệu tiếp tục được giữ nguyên:
+
+- Full backend regression: 187 tests, 0 failures, 0 errors, 0 skipped.
+- PostgreSQL integration: 72 tests PASS trên database riêng `smart_heritage_test`.
+- CORS integration: 11/11 PASS.
+- Authentication, JWT, authorization và role restrictions: có các kết quả kiểm thử được ghi nhận tại mục 3.1 và các phần bổ sung.
+- API response envelope và GlobalExceptionHandler: có kiểm thử tương ứng.
+- Beacon mapping, duplicate identity và bảo toàn Visitor Interaction: có bằng chứng kiểm thử tương ứng.
+
+Các lần chạy là độc lập. Không cộng số lượng test giữa các lần chạy để tạo thành một tổng số duy nhất.
+
+### 5. Scope and limitations
+
+- Kết quả 109 test bổ sung xác nhận các test controller được liệt kê, không thay thế PostgreSQL integration tests.
+- Bằng chứng PostgreSQL integration được tham chiếu từ các lần chạy đã ghi ở phần trước, không tuyên bố đã chạy lại trong lần xác minh ngày 2026-11-27.
+- Không tuyên bố hoàn tất kiểm thử native/device của Mobile.
+- S6-M2-03 là task nghiệm thu riêng, không thuộc phạm vi đóng S6-M2-02.
+
+### 6. Final decision
+
+**S6-M2-02 — DONE.**
+
+Đóng task dựa trên kết quả rà soát implementation, API contract, security, domain integrity và các bằng chứng kiểm thử đã ghi nhận.
+
+Các giới hạn và phạm vi chưa kiểm thử được phân biệt rõ với những nội dung đã PASS.

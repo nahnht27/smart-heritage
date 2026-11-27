@@ -1,4 +1,4 @@
-﻿package com.university.backend.controller;
+package com.university.backend.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.university.backend.entity.Beacon;
@@ -420,6 +420,108 @@ class ArtifactControllerTest extends ContentApiTestSupport {
                 .andExpect(jsonPath("$.data.page").value(0))
                 .andExpect(jsonPath("$.data.size").value(2))
                 .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.totalPages").value(2));
+    }
+
+    //LTJ-68
+        @Test
+    void searchArtifactsShouldRejectNegativePage() throws Exception {
+        String token = createAdminToken();
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("page", "-1")
+                        .param("size", "10")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchArtifactsShouldRejectZeroPageSize() throws Exception {
+        String token = createAdminToken();
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("page", "0")
+                        .param("size", "0")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchArtifactsShouldDefaultPageSizeWhenOnlyPageIsProvided()
+            throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Default Page Size Site");
+
+        createArtifact(token, siteId, "Artifact A");
+        createArtifact(token, siteId, "Artifact B");
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("page", "0")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(10))
+                .andExpect(jsonPath("$.data.content", hasSize(2)));
+    }
+
+    @Test
+    void searchArtifactsShouldDefaultPageWhenOnlyPageSizeIsProvided()
+            throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Default Page Site");
+
+        createArtifact(token, siteId, "Artifact A");
+        createArtifact(token, siteId, "Artifact B");
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("size", "1")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(1))
+                .andExpect(jsonPath("$.data.content", hasSize(1)));
+    }
+
+    @Test
+    void searchArtifactsShouldIgnoreKeywordCase() throws Exception {
+        String token = createAdminToken();
+        int siteId = createSite(token, "Case Insensitive Search Site");
+
+        createArtifact(token, siteId, "Ancient Bronze Drum");
+        createArtifact(token, siteId, "Ceramic Vase");
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("keyword", "  BRONZE  ")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].name")
+                        .value("Ancient Bronze Drum"));
+    }
+
+    @Test
+    void searchArtifactsShouldCombineSiteIdKeywordAndPagination()
+            throws Exception {
+        String token = createAdminToken();
+        int targetSiteId = createSite(token, "Target Search Site");
+        int otherSiteId = createSite(token, "Other Search Site");
+
+        createArtifact(token, targetSiteId, "Bronze Drum A");
+        createArtifact(token, targetSiteId, "Bronze Drum B");
+        createArtifact(token, targetSiteId, "Ceramic Vase");
+        createArtifact(token, otherSiteId, "Bronze Drum C");
+
+        mockMvc.perform(get("/api/artifacts")
+                        .param("siteId", String.valueOf(targetSiteId))
+                        .param("keyword", "bronze")
+                        .param("page", "0")
+                        .param("size", "1")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(1))
+                .andExpect(jsonPath("$.data.totalElements").value(2))
                 .andExpect(jsonPath("$.data.totalPages").value(2));
     }
 
