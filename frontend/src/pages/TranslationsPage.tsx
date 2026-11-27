@@ -211,6 +211,20 @@ export default function TranslationsPage() {
     setFormError('')
   }
 
+  useEffect(() => {
+    if (!showModal) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !saving) {
+        setShowModal(false)
+        setEditingItem(null)
+        setFormData(emptyFormData)
+        setFormError('')
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showModal, saving])
+
   async function handleFormSubmit(e: FormEvent) {
     e.preventDefault()
     if (saving) return

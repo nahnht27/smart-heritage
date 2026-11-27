@@ -208,6 +208,24 @@ export default function FeedbackPage() {
     setFormError('')
   }
 
+  useEffect(() => {
+    if (!showFormModal && !viewingItem) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        if (showFormModal && !saving) {
+          setShowFormModal(false)
+          setEditingItem(null)
+          setFormData(emptyFormData)
+          setFormError('')
+        } else if (viewingItem) {
+          setViewingItem(null)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showFormModal, viewingItem, saving])
+
   async function handleFormSubmit(e: FormEvent) {
     e.preventDefault()
     if (saving) return

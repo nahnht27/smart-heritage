@@ -607,3 +607,33 @@
   border: 1px solid #fde68a;
   color: #92400e;
 }
+
+.feedback-title-text,
+.feedback-detail-text-box,
+.feedback-detail-value {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.feedback-page button:focus-visible,
+.feedback-page select:focus-visible,
+.feedback-page input:focus-visible,
+.feedback-page textarea:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .feedback-header {
+    flex-wrap: wrap;
+  }
+
+  .feedback-search-box {
+    min-width: 100%;
+  }
+
+  .feedback-form-row,
+  .feedback-detail-row {
+    grid-template-columns: 1fr;
+  }
+}
