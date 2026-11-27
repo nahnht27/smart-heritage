@@ -3,6 +3,7 @@
 ## Thông tin chung
 
 - **Task:** LTJ-72 / S6-M3-03 — Final Android Demo Build & Mobile Release Preparation
+- **Trạng thái task:** **Hoàn thành** — td041 xác nhận ngày 28/11/2026; [CI đạt](https://github.com/nahnht27/smart-heritage/actions/runs/46071640441) trên commit `6ebc866`. APK ký debug, chỉ dùng demo.
 - **Nhánh:** `LTJ-70`, tách từ `origin/main` @ `30aceea`
 - **Phạm vi:** app identity/branding, Expo config, EAS demo profile, hướng dẫn build/cài APK, metadata release.
 - **Ràng buộc:** không commit native generated folders, APK/AAB, keystore; không claim APK/device PASS khi chưa build/cài thật.
@@ -119,13 +120,13 @@ untracked đã được khôi phục nguyên trạng sau typecheck.
 | Package ID ổn định, team đồng ý | **PASS** | `com.university.smartheritage` |
 | App branding đúng “Smart Heritage” | **PASS** | `app.json` name/description |
 | APK build từ hướng dẫn tái lập | **PASS** | Local Docker builder (arm64, SDK36/build-tools36/NDK27/CMake3.22/JDK21/Gradle9.3.1/Node24.21.0) |
-| APK cài và chạy trên device demo | **PASS (mở app)** | Người dùng đã cài và mở APK demo trên thiết bị Android thật |
+| APK cài và chạy trên device demo | **PASS** | Bản 1.1.0 cài và chạy trên Xiaomi Note 11T Pro, Android 13 |
 | BLE module autolink trong native APK | **PASS** | DEX có `com/reactnativebeacon/*`, `org/altbeacon/beacon/*` |
 | Permissions khai báo đúng | **PASS** | `aapt dump permissions`: BLE scan/connect, location, internet; chặn storage/SYSTEM_ALERT_WINDOW |
-| APK version/SHA-256 trong release notes | **PASS** | `SmartHeritage-demo-arm64-lan.apk`, SHA-256 `97ed588c3f049925cfdad99c236c0801b52ab3c8d00ab3c1b9d4548d3eb42454` |
+| APK version/SHA-256 trong release notes | **PASS** | Bản hiện hành `SmartHeritage-1.1.0-demo-arm64.apk`, xem mục 7 |
 | Không commit binary/keystore/native generated | **PASS** | `.gitignore` + APK lưu trong `mobile/artifacts/` (bị `*.apk` ignore) |
 
-### 4.1. By chứng APK đã build (2026-11-26)
+### 4.1. Bằng chứng APK 1.0.0 (2026-11-26, đã được thay bởi 1.1.0 ở mục 7)
 
 - File: `mobile/artifacts/SmartHeritage-demo-arm64-lan.apk`
 - SHA-256: `97ed588c3f049925cfdad99c236c0801b52ab3c8d00ab3c1b9d4548d3eb42454`
@@ -171,9 +172,9 @@ Sau đó verify package/permissions/signature/checksum và cài bằng `adb inst
 
 - Đã build APK local trong Docker builder (không cần Android SDK host); JDK/CMake/Gradle
   đã có trong image.
-- Chưa có `adb`, nên cài APK bằng trình quản lý tệp/trình duyệt trên thiết bị thật.
-- Device model/Android version và kết quả chạy đầy đủ beacon/multimedia chưa ghi
-  vào release notes vì chưa có evidence thiết bị thật.
+- Cài APK trên thiết bị bằng trình quản lý tệp.
+- Kết quả trên thiết bị: [LTJ-70](LTJ-70.md), [LTJ-71](LTJ-71.md). APK ký debug,
+  chưa ký để phát hành store.
 - Không đánh dấu physical beacon/multimedia acceptance là PASS dựa trên `expo config`;
   chỉ đánh dấu PASS cho build/verify APK và cài mở demo.
 

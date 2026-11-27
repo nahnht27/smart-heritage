@@ -20,8 +20,9 @@ Trạng thái:
 - CI production smoke: job `production-smoke` build và chạy stack ephemeral,
   kiểm tra Nginx/SPA/proxy/health.
 -   Mobile identity/EAS demo config đã sẵn sàng (`com.university.smartheritage`),
-  APK native demo build/signing/verify đã **PASS** (local Docker builder), thiết bị
-  BLE thật vẫn là **PENDING**.
+  APK native demo build/signing/verify đã **PASS** (local Docker builder). Ngày
+  28/11/2026 đã chạy trên Android thật với beacon giả lập; beacon phần cứng vẫn là
+  **PENDING**.
 
 ## 2. Kiến trúc release
 
@@ -211,7 +212,8 @@ Không phải blocker cho staging/demo, nhưng cần biết trước production 
   nhiệm HSTS. Nginx master process vẫn chạy root mặc định của image.
 - Chưa có EAS project/signing cho mobile store build; đã chạy APK demo local qua
   Docker builder và verify package/permissions/checksum, chưa ký store.
-- Chưa xác minh BLE beacon, media playback và iOS trên thiết bị thật.
+- BLE (beacon giả lập bằng điện thoại) và media playback đã chạy trên Android thật,
+  xem LTJ-70/71; beacon phần cứng và app trên iOS chưa xác minh.
 - UI E2E trình duyệt/emulator thật vẫn PENDING.
 - Không có monitoring/alerting tập trung trong phạm vi M1.
 
