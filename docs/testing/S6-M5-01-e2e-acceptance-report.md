@@ -431,3 +431,70 @@ The historical execution evidence in sections 1–12 is preserved unchanged.
   physical-device and audio/video media, favorite/history and feedback
   persistence, protected-route denial, edit/delete CRUD, offline resilience
   and post-run cleanup are not claimed as PASS.
+
+## 14. Duplicate VIEW investigation addendum (2026-11-27)
+
+Sections 1–13 are preserved unchanged. This addendum covers finding E2E-F05.
+
+### 14.1 Evidence access
+
+Interactions 122–124 were **not re-inspected**. The investigation environment
+had no running Docker daemon (starting it needs a sudo password), no `adb`, and
+no Android SDK, database dump or run log was found in the searched locations.
+`event_id`, `visitor_id`, `started_at` and request logs for these rows were not
+recovered.
+
+### 14.2 Inferences from recorded evidence and source
+
+These are deductions, not row inspection.
+
+- **Event IDs:** `uk_visitor_interaction_event_id` is unique (V1 baseline), so,
+  if that environment enforced it, rows 122 and 123 had different `event_id`
+  values. A retry reusing one `eventId` cannot produce two rows. The mobile app
+  also has no automatic retry of interaction events.
+- **Visitor IDs:** section 8.3 records 9 unique visitors and 61 interactions
+  before mobile testing, and 11 and 64 afterwards. Rows 122–124 therefore
+  appear to carry two distinct new `visitor_id` values. Either 122 and 123
+  differ, or 124 differs from them. The evidence cannot say which.
+- **Component lifecycle:** one mounted detail screen records once per artifact
+  (`recordedArtifactId` ref), including on rerender, focus change and
+  StrictMode effect replay. No StrictMode usage was found in `src/`. Two events
+  for one artifact therefore point to two screen instances (or two app
+  runtimes), assuming the tested build matched this source.
+- **Navigation:** in the installed `expo-router` 57.0.25 source, `push` without
+  `singular`/`getId` creates a new route each time. Two quick taps could create
+  two detail screens. Whether the device accepts the second tap, and whether
+  this happened in the E2E run, was **not verified**.
+
+### 14.3 Conclusion on E2E-F05
+
+**INCONCLUSIVE.** Neither the number of taps nor the number of screen instances
+and requests in the original run is known. No VIEW recording or navigation code
+was changed, and no time-based suppression was added.
+
+To close it, run on an emulator with an isolated database: clear app data, tap
+one artifact once, and record screen mounts, `POST /api/interactions` requests
+and the new rows' `event_id`/`visitor_id`; then revisit; then repeat with a
+rapid double tap.
+
+### 14.4 Separate defect found and fixed: concurrent visitor identity
+
+`visitorStorage.getVisitorId()` let concurrent first-time callers each generate
+a different UUID for one installation. A unit test reproduced this on the
+unchanged code (1 failed, 117 passed). Concurrent callers now share one pending
+lookup; the full mobile suite passes 118/118.
+
+This defect is **consistent with** the visitor counts above but is **not proven**
+to have affected rows 122–124. The fix does not prevent two VIEW events; it only
+gives concurrent events the same visitor identity. Existing rows are not
+corrected.
+
+### 14.5 Verification scope
+
+- Added `artifact-detail-view.test.tsx`: real screen and interaction service,
+  with mocked native components, router hooks and HTTP client. It is not
+  navigator, emulator or database evidence.
+- Mobile Jest 118/118, `tsc --noEmit` and ESLint exit 0 on Linux.
+- Android build, protected-route denial, edit/delete persistence, offline
+  resilience, favorite/history, feedback, cleanup, physical BLE and media
+  playback were not executed and keep their earlier status.

@@ -126,3 +126,13 @@ The historical security results above are preserved unchanged.
   `docs/testing/sprint-6-full-stack-acceptance-checklist.md`.
 - JWT 4/4, backend 159/159, PostgreSQL 72/72, k6 metrics and Gitleaks
   false-positive evidence remain unchanged.
+
+## Duplicate VIEW investigation (2026-11-27)
+
+- Rows 122–124 could not be re-inspected (no Docker daemon, emulator or dump).
+  E2E-F05 stays inconclusive; VIEW and navigation code unchanged.
+- Fixed a separate confirmed defect: concurrent first-time `getVisitorId()`
+  calls returned different UUIDs. Before: 117/118; after: 118/118.
+- Added screen lifecycle, retry `eventId` and concurrency tests
+  (mobile 108 -> 118).
+- Details and limits: E2E report section 14.

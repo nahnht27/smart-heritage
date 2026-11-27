@@ -62,3 +62,14 @@ Physical BLE, physical-device media, audio/video playback, favorite/history and
 feedback persistence remain unverified. Final release approval remains with M1
 and is conditional on M4 review, acceptance of these limitations and green CI
 on the actual PR head.
+
+## Addendum (2026-11-27)
+
+| Scenario | Status | Evidence |
+|---|---|---|
+| Duplicate VIEW events (E2E-F05) | Inconclusive; original rows not re-inspected | E2E report section 14 |
+| One VIEW per mounted detail screen; new event on remount | Component tests only (mocked router and HTTP) | `artifact-detail-view.test.tsx` |
+| Concurrent first-use visitor identity | Defect confirmed by unit test and fixed | `visitorStorage.test.ts`; mobile 118/118 |
+
+No new full-stack, emulator or hardware scenario was executed. All other matrix
+statuses above are unchanged.
