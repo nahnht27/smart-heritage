@@ -58,4 +58,19 @@ describe('visitorStorage', () => {
       visitorId,
     );
   });
+
+  it('gives concurrent first-time callers the same UUID', async () => {
+    mockRandomUUID
+      .mockReturnValueOnce('11111111-1111-4111-8111-111111111111')
+      .mockReturnValueOnce('33333333-3333-4333-8333-333333333333');
+
+    const [first, second] = await Promise.all([
+      visitorStorage.getVisitorId(),
+      visitorStorage.getVisitorId(),
+    ]);
+
+    expect(second).toBe(first);
+    expect(mockRandomUUID).toHaveBeenCalledTimes(1);
+    expect(mockSetItem).toHaveBeenCalledTimes(1);
+  });
 });
